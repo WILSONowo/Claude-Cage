@@ -87,3 +87,10 @@
   .mac-setup-checklist li { grid-template-columns: auto minmax(0, 1fr); }
   .mac-setup-checklist small { grid-column: 2; }
 }
+
+.mirror-samples { width: 100%; border-collapse: collapse; margin: 8px 0 12px; }
+.mirror-samples td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+.mirror-samples td:last-child { text-align: right; white-space: nowrap; }
+.mirror-error { color: var(--danger, #c0392b); }
+.mirror-option { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.mirror-option em { font-style: normal; font-size: .86rem; padding: 1px 6px; border-radius: 6px; background: var(--selected); }
