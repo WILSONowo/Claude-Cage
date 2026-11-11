@@ -117,7 +117,17 @@ func relayRequest(ctx context.Context, base, method, path, token string, payload
 		}
 		return nil, relayHTTPError(res.StatusCode, path == "/v1/invitation")
 	}
-	return limited(res.Body, 4096)
+	data, err := io.ReadAll(io.LimitReader(res.Body, 4097))
+	if err != nil {
+		// Receiving a successful status does not make a truncated response a
+		// permanent protocol failure. Saved hosts must be able to reconnect
+		// after the relay connection drops while its invitation is arriving.
+		return nil, relayNetworkError(ctx, err)
+	}
+	if len(data) > 4096 {
+		return nil, errors.New("relay response exceeds limit")
+	}
+	return data, nil
 }
 
 // CreateRoom exchanges the relay administrator token for two transport roles.
