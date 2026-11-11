@@ -257,6 +257,7 @@ func (s *Server) mobileSessions(w http.ResponseWriter, r *http.Request) {
 	if !ready || notice != "" {
 		for i := range sessions {
 			sessions[i].Active = false
+			sessions[i].Running = false
 		}
 	}
 	jsonReply(w, map[string]any{"sessions": sessions, "notice": notice})
