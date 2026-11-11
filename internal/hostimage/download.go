@@ -43,6 +43,7 @@ type progressReader struct {
 	activity string
 	system   string
 	last     time.Time
+	touch    func()
 }
 
 func (r *progressReader) Read(p []byte) (int, error) {
@@ -50,6 +51,9 @@ func (r *progressReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 	n, err := r.reader.Read(p)
+	if n > 0 && r.touch != nil {
+		r.touch()
+	}
 	r.received += int64(n)
 	if time.Since(r.last) > 3*time.Second || err == io.EOF || (r.total > 0 && r.received >= r.total) {
 		operation := "download"
@@ -245,6 +249,8 @@ func Prepare(ctx context.Context, cache string, plan Plan, output io.Writer, tra
 }
 
 func download(ctx context.Context, plan Plan, file *os.File, offset int64, output io.Writer, transport http.RoundTripper) error {
+	ctx, touch, stop := watchDownload(ctx)
+	defer stop()
 	client := &http.Client{Transport: transport, Timeout: 2 * time.Hour, CheckRedirect: func(request *http.Request, previous []*http.Request) error {
 		if len(previous) >= 5 {
 			return errors.New("系统下载重定向次数过多")
@@ -263,8 +269,13 @@ func download(ctx context.Context, plan Plan, file *os.File, offset int64, outpu
 	}
 	response, err := client.Do(request)
 	if err != nil {
+		if errors.Is(context.Cause(ctx), errDownloadIdle) {
+			return errDownloadIdle
+		}
 		return err
 	}
+	// Receiving headers is progress; give the response body its full idle window.
+	touch()
 	defer response.Body.Close()
 	switch response.StatusCode {
 	case http.StatusOK:
@@ -288,8 +299,11 @@ func download(ctx context.Context, plan Plan, file *os.File, offset int64, outpu
 	if plan.Bytes > 0 {
 		limit = plan.Bytes
 	}
-	count, err := io.Copy(file, &progressReader{ctx: ctx, reader: io.LimitReader(response.Body, limit-offset+1), out: output, received: offset, total: plan.Bytes, activity: "下载系统材料", system: plan.Host.System})
+	count, err := io.Copy(file, &progressReader{ctx: ctx, reader: io.LimitReader(response.Body, limit-offset+1), out: output, received: offset, total: plan.Bytes, activity: "下载系统材料", system: plan.Host.System, touch: touch})
 	if err != nil {
+		if errors.Is(context.Cause(ctx), errDownloadIdle) {
+			return errDownloadIdle
+		}
 		return err
 	}
 	if offset+count > limit || (plan.Bytes > 0 && offset+count != plan.Bytes) {
