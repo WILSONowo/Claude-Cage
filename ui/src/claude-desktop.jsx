@@ -31,7 +31,7 @@ export function useDesktopZoom(automatic = false) {
   return [zoom, setZoom];
 }
 
-export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, onStop, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
+export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, onStop, onActivate, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem("cage-desktop-toolbar-hidden") === "true"; }
     catch { return false; }
@@ -79,6 +79,17 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
               {desktopZooms.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%{value === 1 ? "（默认）" : ""}</option>)}
             </InlineSelect>
           </label>
+        )}
+        {desktop?.running && desktop.native_user_session && platform === "Windows" && (
+          <button
+            className="quiet-button"
+            disabled={busy}
+            onClick={onActivate}
+            title="重新激活 Claude 窗口，保留当前会话"
+          >
+            <Monitor size={15} />
+            恢复操作
+          </button>
         )}
         {desktop?.running && (
           <button
@@ -172,7 +183,11 @@ export function ClaudeDesktop({
     }
   };
   useEffect(() => {
-    if (!screenVisible || !status.vm_running || status.job?.running) return;
+    if (!screenVisible) {
+      opened.current = false;
+      return;
+    }
+    if (!status.vm_running || status.job?.running) return;
     let disposed = false;
     let timer;
     const poll = async () => {
@@ -180,7 +195,10 @@ export function ClaudeDesktop({
       if (disposed) return;
       if (value && !opened.current) {
         opened.current = true;
-        if (value.installed && !value.running && !value.failed && !jobID)
+        // Explicitly opening the native Windows view also activates its app.
+        // Status polling while the view stays visible must not steal focus.
+        const activateNative = value.native_user_session && automatic;
+        if (value.installed && (!value.running || activateNative) && !value.failed && !jobID)
           await run("start");
       }
       if (!disposed) timer = setTimeout(poll, 5000);
@@ -219,7 +237,7 @@ export function ClaudeDesktop({
         }}
       />}
       <DesktopToolbar desktop={desktop} platform={status.guest_system === "windows-11" ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
-        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
+        onConfirm={onConfirm} onStop={() => run("stop")} onActivate={() => run("start")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
         {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
           if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存工作。Claude Desktop 会关闭，从官方软件源更新后重新打开。登录资料会保留。", confirm: "更新应用" })) run("update");
         }}>更新应用</button>}
