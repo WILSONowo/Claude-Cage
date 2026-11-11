@@ -12,6 +12,7 @@ my $source = "$tmp/source";
 my $mount = "$tmp/mount";
 my @children;
 my $attached = '';
+my $failure = 1; # mount/permission failure; 2 = unmount, 3 = cleanup
 sub mounted_line {
     open my $list, '-|', '/sbin/mount' or die "mount list";
     my @matches = grep { index($_, " on $mount (") >= 0 } <$list>;
@@ -54,7 +55,10 @@ my $ok = eval {
 # Never unmount a replacement or remove a mounted tree.
 my $live = mounted_line();
 if ($ok && $live && $live eq $attached) {
-    $ok = 0 unless system('/sbin/umount','-f',$mount) == 0;
+    # FSKit mounts belong to the ordinary GUI user. diskutil goes through
+    # Disk Arbitration; direct umount(8) can return EPERM despite approval.
+    $failure = 2;
+    $ok = 0 unless system('/usr/sbin/diskutil','unmount','force',$mount) == 0;
 }
 for my $pid (@children) {
     if (waitpid($pid,WNOHANG)==0) {kill 'TERM',$pid}
@@ -63,8 +67,9 @@ select undef,undef,undef,0.15;
 for my $pid (@children) {
     if (waitpid($pid,WNOHANG)==0) {kill 'KILL',$pid;waitpid($pid,0)}
 }
+$failure = 3 if $ok;
 $ok = 0 if mounted_line();
 $ok = 0 unless rmdir $mount;
 $ok = 0 unless rmdir $source;
 $ok = 0 unless rmdir $tmp;
-exit($ok ? 0 : 1);
+exit($ok ? 0 : $failure);

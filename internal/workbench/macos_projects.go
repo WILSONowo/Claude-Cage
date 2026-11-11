@@ -145,9 +145,9 @@ func (s *Server) macOSMountCleanup(ctx context.Context, guestDir string) (func()
 		!strings.Contains(options, "fskit") || !strings.Contains(options, "mounted by "+s.macosGuest.User+")") {
 		return nil, errors.New("无法核对本次挂载的 macOS 卷标识")
 	}
-	detach := "if test \"$(" + query + ")\" = " + shellescape.Quote(line) + "; then /sbin/umount -f " + shellescape.Quote(guestDir) + "; fi"
+	detach := "if test \"$(" + query + ")\" = " + shellescape.Quote(line) + "; then /usr/sbin/diskutil unmount force " + shellescape.Quote(guestDir) + "; fi"
 	return func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_, _ = s.guest(cleanup, detach)
 	}, nil
