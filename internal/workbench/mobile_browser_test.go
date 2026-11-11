@@ -46,6 +46,7 @@ func testPairedBrowser(t *testing.T, ctx context.Context, s *Server, phone *mobi
 	s.desktopDisplayUpdate = func(show bool) error { desktopVisible.Store(show); return nil }
 	var slowFrame, desktopDensity atomic.Bool
 	var desktopOpenStatus, desktopFrameStatus atomic.Int32
+	var browserFrameStatus, browserActionStatus atomic.Int32
 	receiving := make(chan struct{})
 	id := uuid.NewString()
 	s.browserControl = browserClientForTest(t, s, browserTransport(func(r *http.Request) (*http.Response, error) {
@@ -68,6 +69,9 @@ func testPairedBrowser(t *testing.T, ctx context.Context, s *Server, phone *mobi
 			}
 			opens.Add(1)
 		case "/phone-browser/frame":
+			if status := browserFrameStatus.Load(); status != 0 {
+				return &http.Response{StatusCode: int(status), Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+			}
 			if input.After == frameTag {
 				body = fmt.Sprintf(`{"id":%q,"frame_tag":%q,"unchanged":true}`, id, frameTag)
 				break
@@ -79,6 +83,9 @@ func testPairedBrowser(t *testing.T, ctx context.Context, s *Server, phone *mobi
 			}
 			body = fmt.Sprintf(`{"id":%q,"document":"test","image":"dGVzdA==","width":390,"height":640}`, id)
 		case "/phone-browser/action":
+			if status := browserActionStatus.Load(); status != 0 {
+				return &http.Response{StatusCode: int(status), Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+			}
 			if input.ReturnFrame {
 				body = fmt.Sprintf(`{"id":%q,"frame_tag":%q,"image":%q}`, id, frameTag, strings.Repeat("A", 8192))
 			}
@@ -202,6 +209,15 @@ func testPairedBrowser(t *testing.T, ctx context.Context, s *Server, phone *mobi
 	if !strings.Contains(do("GET", id+"/frame", "", 200), "dGVzdA==") {
 		t.Fatal("frame did not cross paired link")
 	}
+	// An asynchronously navigating page invalidates a screenshot; the phone
+	// may retry that read, but must never replay a rejected user action.
+	browserFrameStatus.Store(409)
+	do("GET", id+"/frame", "", 425)
+	browserFrameStatus.Store(0)
+	do("GET", id+"/frame", "", 200)
+	browserActionStatus.Store(409)
+	do("POST", id+"/action", `{"type":"tap","x":0,"y":32,"document":"test"}`, 409)
+	browserActionStatus.Store(0)
 	do("POST", id+"/action", `{"type":"tap","x":0,"y":32,"document":"test"}`, 200)
 	if out := do("GET", id+"/frame?after="+frameTag, "", 200); !strings.Contains(out, `"unchanged":true`) || strings.Contains(out, `"image"`) {
 		t.Fatal("unchanged frame did not round-trip through the paired transport")

@@ -459,48 +459,7 @@ func (s *Server) phoneSurfaceRequest(surface phoneSurface, w http.ResponseWriter
 			http.Error(w, "客机浏览器暂时无法启动，请稍后重新打开；若仍失败，请在电脑 Cage 中检查并更新客机组件。", status)
 			return
 		}
-		switch status {
-		case 400:
-			s.mu.Lock()
-			needsUpdate := s.guestUpdateRequired
-			s.mu.Unlock()
-			if op == "open" && needsUpdate {
-				http.Error(w, "请在电脑上更新 Cage 环境后再打开"+surface.label(), 409)
-			} else {
-				http.Error(w, surface.label()+"操作无效，请检查输入后再试", 400)
-			}
-		case 409:
-			if surface == phoneDesktop && op == "frame" {
-				http.Error(w, "正在等待 Claude Desktop 窗口", http.StatusTooEarly)
-				return
-			}
-			http.Error(w, "画面或焦点已变化，请查看最新画面后再操作", 409)
-		case 410:
-			var native windowsWindowFailure
-			if surface == phoneDesktop && errors.As(err, &native) && native.code == "requires_gui_login" {
-				http.Error(w, "请在电脑的 Cage 中解锁已绑定的 Windows 客机账户，再从手机重新打开 Claude Desktop。", 410)
-			} else {
-				http.Error(w, surface.label()+"会话已结束，请重新打开", 410)
-			}
-		case 404:
-			http.Error(w, "当前客机未提供"+surface.label()+"，请在电脑上更新环境", 409)
-		case 403:
-			if surface == phoneDesktop && s.macosGuest != nil {
-				http.Error(w, "请在电脑的 Cage 中完成虚拟 Mac 的屏幕录制和辅助功能授权，再重新打开。", 403)
-			} else {
-				http.Error(w, "客机拒绝此次访问", 403)
-			}
-		case 426:
-			http.Error(w, "请在电脑的 Cage 中更新 Windows 客机组件，再从手机打开 Claude Desktop。", http.StatusUpgradeRequired)
-		case 501:
-			if surface == phoneDesktop {
-				http.Error(w, "请先在电脑的 Cage 中安装 Claude Desktop，再从手机打开", 501)
-			} else {
-				http.Error(w, "请在电脑上更新 Cage 环境", 501)
-			}
-		default:
-			http.Error(w, surface.label()+"暂时不可用，请检查电脑上的环境", 502)
-		}
+		s.writePhoneSurfaceFailure(w, surface, op, status, err)
 		return
 	}
 	if ctx.Err() != nil || epoch.Err() != nil || room.Err() != nil {
@@ -548,4 +507,57 @@ func (s *Server) phoneSurfaceRequest(surface phoneSurface, w http.ResponseWriter
 
 func desktopPreparing(status int) bool {
 	return status == http.StatusConflict || status == http.StatusPreconditionFailed || status == http.StatusServiceUnavailable
+}
+
+// writePhoneSurfaceFailure maps guest failures after request authorization and
+// network checks. Only frame reads may ask the phone to retry automatically.
+func (s *Server) writePhoneSurfaceFailure(w http.ResponseWriter, surface phoneSurface, op string, status int, err error) {
+	switch status {
+	case 400:
+		s.mu.Lock()
+		needsUpdate := s.guestUpdateRequired
+		s.mu.Unlock()
+		if op == "open" && needsUpdate {
+			http.Error(w, "请在电脑上更新 Cage 环境后再打开"+surface.label(), 409)
+		} else {
+			http.Error(w, surface.label()+"操作无效，请检查输入后再试", 400)
+		}
+	case 409:
+		if surface == phoneDesktop && op == "frame" {
+			http.Error(w, "正在等待 Claude Desktop 窗口", http.StatusTooEarly)
+			return
+		}
+		if surface == phoneBrowser && op == "frame" {
+			// Navigation may replace the document during capture. Only the
+			// rejected read may repeat; input conflicts remain HTTP 409.
+			http.Error(w, "正在等待网页完成切换", http.StatusTooEarly)
+			return
+		}
+		http.Error(w, "画面或焦点已变化，请查看最新画面后再操作", 409)
+	case 410:
+		var native windowsWindowFailure
+		if surface == phoneDesktop && errors.As(err, &native) && native.code == "requires_gui_login" {
+			http.Error(w, "请在电脑的 Cage 中解锁已绑定的 Windows 客机账户，再从手机重新打开 Claude Desktop。", 410)
+		} else {
+			http.Error(w, surface.label()+"会话已结束，请重新打开", 410)
+		}
+	case 404:
+		http.Error(w, "当前客机未提供"+surface.label()+"，请在电脑上更新环境", 409)
+	case 403:
+		if surface == phoneDesktop && s.macosGuest != nil {
+			http.Error(w, "请在电脑的 Cage 中完成虚拟 Mac 的屏幕录制和辅助功能授权，再重新打开。", 403)
+		} else {
+			http.Error(w, "客机拒绝此次访问", 403)
+		}
+	case 426:
+		http.Error(w, "请在电脑的 Cage 中更新 Windows 客机组件，再从手机打开 Claude Desktop。", http.StatusUpgradeRequired)
+	case 501:
+		if surface == phoneDesktop {
+			http.Error(w, "请先在电脑的 Cage 中安装 Claude Desktop，再从手机打开", 501)
+		} else {
+			http.Error(w, "请在电脑上更新 Cage 环境", 501)
+		}
+	default:
+		http.Error(w, surface.label()+"暂时不可用，请检查电脑上的环境", 502)
+	}
 }
