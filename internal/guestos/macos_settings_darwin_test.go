@@ -22,6 +22,12 @@ enum MacSetupPassword {
 }
 @main struct Check {
     @MainActor static func main() {
+        for version in ["5.5", "5.5.0", "5.10.0", "6.0.0"] {
+            guard MacFUSESetup.supportsVersion(version) else { exit(3) }
+        }
+        for version in ["", "5.4.9", "4.99.0", "5.5.0-beta", "5.5.0.1", "5..5"] {
+            guard !MacFUSESetup.supportsVersion(version) else { exit(4) }
+        }
         for purpose in ["projects", "screen", "input"] {
             guard let url = MacMaintenance.settingsURL(for: purpose) else { exit(1) }
             print("\(purpose) \(url.absoluteString)")

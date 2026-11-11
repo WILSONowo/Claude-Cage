@@ -254,7 +254,11 @@ private func handle(_ input: Request, inputSession: MacWindowInputSession) async
     case "audio-status":
         return MacAudioCapture.status()
     case "setup-status":
-        return ["screen": CGPreflightScreenCaptureAccess(), "input": AXIsProcessTrusted()]
+        return ["screen": CGPreflightScreenCaptureAccess(), "input": AXIsProcessTrusted(),
+                "macfuse_installer": MacFUSESetup.installerAvailable, "macfuse": MacFUSESetup.installed]
+    case "setup-macfuse":
+        try await MacFUSESetup.openInstaller()
+        return ["ok": true]
     case "setup-password-focus":
         return try MacSetupPassword.probe()
     case "setup-screen", "setup-input", "setup-projects":
@@ -267,7 +271,7 @@ private func handle(_ input: Request, inputSession: MacWindowInputSession) async
             _ = AXIsProcessTrustedWithOptions(options)
             purpose = "input"
         } else {
-            let vendor = URL(fileURLWithPath: "/Applications/macFUSE.app")
+            let vendor = MacFUSESetup.application
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = false
             _ = try await NSWorkspace.shared.openApplication(at: vendor, configuration: configuration)

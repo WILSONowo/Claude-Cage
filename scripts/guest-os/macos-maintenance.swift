@@ -1,6 +1,53 @@
 import AppKit
 import IOKit
 import Security
+import CryptoKit
+
+// Only the pinned, root-owned package staged by the provisioning script may
+// be opened. Installation and authorization remain Apple's responsibility.
+@MainActor
+enum MacFUSESetup {
+    static let package = URL(fileURLWithPath: "/Library/Application Support/Cage/Installers/macFUSE.pkg")
+    static let bundledApplication = URL(fileURLWithPath: "/Library/Filesystems/macfuse.fs/Contents/Resources/macfuse.app")
+    static var installerAvailable: Bool { FileManager.default.fileExists(atPath: package.path) }
+    static func supportsVersion(_ version: String) -> Bool {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard (2...3).contains(parts.count),
+              parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
+              let major = Int(parts[0]), let minor = Int(parts[1]) else { return false }
+        return major > 5 || (major == 5 && minor >= 5)
+    }
+    static var installed: Bool {
+        let driver = URL(fileURLWithPath: "/Library/Filesystems/macfuse.fs")
+        guard let version = Bundle(url: driver)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+              supportsVersion(version) else { return false }
+        var code: SecStaticCode?, requirement: SecRequirement?
+        let identity = "anchor apple generic and identifier \"io.macfuse.app\" and certificate leaf[subject.OU] = \"3T5GSNBU6W\""
+        return SecStaticCodeCreateWithPath(bundledApplication as CFURL, [], &code) == errSecSuccess &&
+            SecRequirementCreateWithString(identity as CFString, [], &requirement) == errSecSuccess &&
+            code != nil && requirement != nil && SecStaticCodeCheckValidity(code!, [], requirement!) == errSecSuccess
+    }
+    static var application: URL {
+        let alias = URL(fileURLWithPath: "/Applications/macFUSE.app")
+        return FileManager.default.fileExists(atPath: alias.path) ? alias : bundledApplication
+    }
+    static func openInstaller() async throws {
+        let attributes = try FileManager.default.attributesOfItem(atPath: package.path)
+        guard attributes[.type] as? FileAttributeType == .typeRegular,
+              attributes[.ownerAccountID] as? Int == 0,
+              let mode = attributes[.posixPermissions] as? Int, mode & 0o022 == 0 else {
+            throw Failure(7, "macfuse_installer_untrusted")
+        }
+        let data = try Data(contentsOf: package, options: .mappedIfSafe)
+        let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard digest == "5acf9e30bab227707de8d15eb28472a0cc9ed45709846b3e067d283294dc7f9e" else {
+            throw Failure(7, "macfuse_installer_untrusted")
+        }
+        let installer = URL(fileURLWithPath: "/System/Library/CoreServices/Installer.app")
+        _ = try await NSWorkspace.shared.open([package], withApplicationAt: installer,
+                                             configuration: NSWorkspace.OpenConfiguration())
+    }
+}
 
 // Invoked directly by the installation identity after verifying this bundle.
 // Only Apple system settings and its authorization UI can supply a target.
@@ -56,7 +103,7 @@ enum MacMaintenance {
             if purpose == "projects" {
                 let configuration = NSWorkspace.OpenConfiguration()
                 configuration.activates = false
-                NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/macFUSE.app"), configuration: configuration)
+                NSWorkspace.shared.openApplication(at: MacFUSESetup.application, configuration: configuration)
             }
             guard NSWorkspace.shared.open(url) else { throw Failure(8, "maintenance_open_failed") }
             return ["opened": true]

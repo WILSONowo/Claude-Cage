@@ -8,17 +8,26 @@ import { MacOSLogin } from "./macos-login";
 import { DiagnosticSettings } from "./diagnostics.jsx";
 import "./initialization.css";
 
-const steps = [
+const permissionSteps = [
   { id: "screen", label: "窗口录制", hint: "打开 Cage Guest Window 的窗口录制开关。如果提示「退出并重新打开」，按提示操作。" },
   { id: "input", label: "辅助功能", hint: "打开 Cage Guest Window 的辅助功能开关，允许 Cage 操作客机窗口。" },
   { id: "projects", label: "文件系统扩展", hint: "打开 macFUSE 和 macFUSE (local) 两个开关，用于在客机中访问你选择的项目。" },
 ];
+
+function setupSteps(permissions) {
+  return permissions.macfuse_installer ? [
+    ...permissionSteps.slice(0, 2),
+    { id: "macfuse", label: "安装 macFUSE", hint: "在客机的 Apple 安装器中完成安装。要求管理员时，用户名填 cagesetup，密码与 Cage 账户相同。" },
+    ...permissionSteps.slice(2),
+  ] : permissionSteps;
+}
 
 export function MacOSFirstSetup() {
   const { account, refresh } = useAccount();
   const [permissionPage, setPermissionPage] = useState("screen");
   const [state, setState] = useState(null);
   const [permissions, setPermissions] = useState({});
+  const steps = setupSteps(permissions);
   const [error, setError] = useState("");
   const [readError, setReadError] = useState("");
   const [completionFailed, setCompletionFailed] = useState(false);
@@ -69,7 +78,7 @@ export function MacOSFirstSetup() {
       if (!c.active) return;
       setReadError("");
       setPermissions(measured);
-      const pending = steps.find(({ id }) => !measured[id]);
+      const pending = setupSteps(measured).find(({ id }) => !measured[id]);
       if (pending && c.pending !== pending.id) {
         c.pending = pending.id;
         setPermissionPage(pending.id);
@@ -126,7 +135,7 @@ export function MacOSFirstSetup() {
   }
 
   const pending = steps.find(({ id }) => !permissions[id]);
-  const selected = steps.find(({ id }) => id === permissionPage);
+  const selected = steps.find(({ id }) => id === permissionPage) || steps[0];
   const running = Boolean(state?.job?.running);
   const canOperate = Boolean(state?.vm_running && !running && !busy);
   const canFinish = Boolean(state?.ready && !account.macos_password_pending && !pending && !readError);
@@ -135,7 +144,7 @@ export function MacOSFirstSetup() {
     !state.ready ? "虚拟 Mac 已启动，正在等待客机连接。若停在登录画面，请打开客机画面完成登录。" :
     readError ? "暂时无法确认权限状态，已显示的结果供参考。恢复连接后会继续检查。" :
     pending ? `当前需要确认「${pending.label}」。完成后 Cage 会自动检查并继续。` :
-    completionFailed ? "三项权限已验证，最后的设置收尾未完成。请重试完成设置。" : "三项权限已验证，正在保存设置；随后继续工作区授权和联网检查。";
+    completionFailed ? "所需权限已验证，最后的设置收尾未完成。请重试完成设置。" : "所需权限已验证，正在保存设置；随后继续工作区授权和联网检查。";
   const controls = <button type="button" className="primary" disabled={!canOperate} onClick={() => act(pending?.id || permissionPage)}>
     {busy ? "正在处理…" : `打开${pending?.label || selected.label}`}
   </button>;
@@ -143,7 +152,7 @@ export function MacOSFirstSetup() {
 
   return <main className="setup-scene initialization"><SetupBrand context="首次设置" /><section className="initialization-content mac-setup-content">
     <div className="initialization-title"><p className="mac-setup-eyebrow">安装与检查 · macOS 系统权限</p><h1>完成虚拟 Mac 的系统授权</h1>
-      <p>在虚拟 Mac 内完成三项授权，每项验证通过后自动继续。安装文件和客机磁盘已保留。</p></div>
+      <p>在虚拟 Mac 内逐项完成授权，验证后会自动继续。安装文件和客机磁盘已保留。</p></div>
     <ol className="mac-setup-checklist" aria-label="系统授权进度">
       {steps.map(({ id, label }, index) => <li key={id} data-complete={Boolean(permissions[id])} aria-current={pending?.id === id ? "step" : undefined}>
         <span className="mac-setup-marker">{permissions[id] ? <Check size={16} aria-hidden="true" /> : index + 1}</span>

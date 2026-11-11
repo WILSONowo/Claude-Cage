@@ -164,7 +164,7 @@ func TestInitialMacSetupQuarantinesRegularWorkbench(t *testing.T) {
 		}
 	}
 	s.macosGuest.SetupID = ""
-	for _, action := range []string{"open", "finish", "frame", "fill-password"} {
+	for _, action := range []string{"open", "finish", "frame", "fill-password", "macfuse"} {
 		req := httptest.NewRequest("POST", s.origin+"/api/macos/first-setup", strings.NewReader(`{"action":"`+action+`"}`))
 		req.Header.Set("Origin", s.origin)
 		req.Header.Set("Content-Type", "application/json")

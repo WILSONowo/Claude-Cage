@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { createWorkbench } from "./workbench-fixture.mjs";
-for (const failure of ["http", "native"]) {
+for (const failure of ["http", "native", "macfuse"]) {
   const user = "cage";
   const permissions = { screen:false, input:false, projects:false, managed_credential:true };
+  if (failure === "macfuse") Object.assign(permissions, { macfuse_installer:true, macfuse:false });
   const calls = []; let finishFailed = false;
   const {page, browser, errors} = await createWorkbench({
     async beforeNavigate(page, state) {
@@ -64,6 +65,13 @@ for (const failure of ["http", "native"]) {
     await waitCall("input");
     await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/打开 Cage Guest Window 的辅助功能开关/).waitFor();
     permissions.input=true;
+    if (failure === "macfuse") {
+      await waitCall("macfuse");
+      await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/在客机的 Apple 安装器中完成安装/).waitFor();
+      assert.ok(!calls.includes("projects"), "opened extensions before macFUSE installation");
+      assert.ok(!calls.includes("finish"), "finished before macFUSE installation");
+      permissions.macfuse=true;
+    }
     await waitCall("projects");
     await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/打开 macFUSE 和 macFUSE \(local\) 两个开关，用于/).waitFor();
     assert.ok(!calls.includes("finish"),"finished before filesystem permission");

@@ -4,7 +4,8 @@
 set -euo pipefail
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 fail() { printf '%s\n' "$*" >&2; exit 1; }
-[[ $# == 1 && $1 == /* ]] || fail 'Usage: install-macos-project-tools.sh /path/to/root-owned-guest-project-kit'
+[[ ( $# == 1 || ( $# == 2 && ${2:-} == --defer-macfuse ) ) && $1 == /* ]] ||
+    fail 'Usage: install-macos-project-tools.sh /path/to/root-owned-guest-project-kit [--defer-macfuse]'
 [[ $(uname -sm) == 'Darwin arm64' && $(sysctl -n hw.model) =~ ^VirtualMac[0-9]+,[0-9]+$ && $(id -u) == 0 ]] ||
     fail 'Run this installer in the target arm64 Cage guest as administrator.'
 marker=/var/db/cage-guest-os
@@ -57,9 +58,31 @@ if [[ -n $installed ]]; then
     if (( 10#${BASH_REMATCH[1]} > 5 || (10#${BASH_REMATCH[1]} == 5 && 10#${BASH_REMATCH[2]} >= 5) )); then up_to_date=yes; fi
 fi
 if [[ $up_to_date == no ]]; then
-    installer -pkg "$pkg" -target /
+    major=$(sw_vers -productVersion)
+    major=${major%%.*}
+    if [[ ${2:-} == --defer-macfuse && $major =~ ^[0-9]+$ ]] && (( 10#$major >= 27 )); then
+        # macOS 27 denies SystemPolicySysAdminFiles to the SSH provisioning
+        # session. Keep the verified vendor package for the user's first-setup
+        # session, where Apple's Installer can request administrator consent.
+        installers='/Library/Application Support/Cage/Installers'
+        for directory in '/Library/Application Support/Cage' "$installers"; do
+            [[ ! -L $directory ]] || fail 'Refusing a linked installer directory.'
+            if [[ -e $directory ]]; then
+                [[ -d $directory && $(stat -f %u "$directory") == 0 ]] || fail 'Untrusted installer directory.'
+                mode=$(stat -f %OLp "$directory")
+                (( (8#$mode & 022) == 0 )) || fail 'Writable installer directory.'
+            else
+                install -d -o root -g wheel -m 755 "$directory"
+            fi
+        done
+        [[ ! -L $installers/macFUSE.pkg ]] || fail 'Refusing a linked installer package.'
+        install -o root -g wheel -m 644 "$pkg" "$installers/macFUSE.pkg"
+        printf '%s\n' 'macFUSE 将在客机首次设置中由 Apple 安装器请求授权。'
+    else
+        installer -pkg "$pkg" -target /
+    fi
 fi
-codesign --verify --strict -R "=$macfuse_requirement" "$vendor_app"
+if [[ -e $driver ]]; then codesign --verify --strict -R "=$macfuse_requirement" "$vendor_app"; fi
 
 install_app() {
     local source=$1 target=$2 requirement=$3 stage
@@ -78,7 +101,7 @@ install_app() {
         fail "Could not install $target"
     fi
 }
-install_app "$vendor_app" /Applications/macFUSE.app "$macfuse_requirement"
+if [[ -e $driver ]]; then install_app "$vendor_app" /Applications/macFUSE.app "$macfuse_requirement"; fi
 install_app "$work/CageProjectAccess.app" /Applications/CageProjectAccess.app "identifier \"$access_id\""
 libexec=/usr/local/libexec
 mkdir -p "$libexec"

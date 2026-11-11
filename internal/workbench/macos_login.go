@@ -45,6 +45,8 @@ type macSetupPermissions struct {
 	Screen            bool   `json:"screen"`
 	Input             bool   `json:"input"`
 	Projects          bool   `json:"projects"`
+	MacFUSE           bool   `json:"macfuse"`
+	MacFUSEInstaller  bool   `json:"macfuse_installer,omitempty"`
 	ProjectsError     string `json:"projects_error,omitempty"`
 	Error             string `json:"error,omitempty"`
 	ManagedCredential bool   `json:"managed_credential,omitempty"`
@@ -122,7 +124,7 @@ func (s *Server) macSetupPermissions(ctx context.Context) (macSetupPermissions, 
 	status.Projects = !s.macSetupProjectsChecked.IsZero() && time.Since(s.macSetupProjectsChecked) < 2*time.Minute
 	probeDue := time.Since(s.macSetupProjectsAttempt) > 15*time.Second
 	s.mu.Unlock()
-	if status.Screen && status.Input && !status.Projects && probeDue && s.op.TryLock() {
+	if status.Screen && status.Input && (!status.MacFUSEInstaller || status.MacFUSE) && !status.Projects && probeDue && s.op.TryLock() {
 		s.mu.Lock()
 		s.macSetupProjectsAttempt = time.Now()
 		s.mu.Unlock()
@@ -226,6 +228,10 @@ func (s *Server) macOSLoginWindow(w http.ResponseWriter, r *http.Request) {
 				jsonReply(w, perm)
 				return
 			}
+			if perm.MacFUSEInstaller && !perm.MacFUSE {
+				http.Error(w, "请先在客机画面中完成 macFUSE 安装", 409)
+				return
+			}
 			if input.Action == "finish" && (!perm.Screen || !perm.Input) {
 				http.Error(w, "请先完成窗口录制、辅助功能和文件系统扩展三项授权", 409)
 				return
@@ -253,7 +259,7 @@ func (s *Server) macOSLoginWindow(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "临时设置账户未关闭，请重试完成设置", 409)
 				return
 			}
-		case "screen", "input", "projects":
+		case "screen", "input", "macfuse", "projects":
 			s.macOSWindowRPC(w, r, macOSWindowRequest{Action: "setup-" + input.Action})
 			return
 		case "open", "close", "frame", "click", "key", "scroll":
