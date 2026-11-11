@@ -4,9 +4,12 @@ import { assertConnection, connectionHeaders, getClientContext, isProjectSharesP
 import { installAgentNativeConsumer } from "./agent-native.js";
 let sessionRenewal;
 class WorkbenchUnreachable extends Error {}
-async function responseError(response, path, method = "GET") {
+async function responseError(response, path, method = "GET", signal) {
+  let body;
+  try { body = await response.text(); }
+  catch (error) { if (signal?.aborted) throw signal.reason; throw error; }
   const error = new Error(
-    httpErrorMessage(path, response.status, await response.text(), response.headers.get("Content-Type") || "", method),
+    httpErrorMessage(path, response.status, body, response.headers.get("Content-Type") || "", method),
   );
   error.status = response.status;
   error.recovery = response.headers.get("X-Cage-Recovery") || "";
@@ -33,7 +36,21 @@ async function renewSession() {
   }
   return sessionRenewal;
 }
+async function waitForSessionRenewal(signal) {
+  signal?.throwIfAborted();
+  const renewal = renewSession();
+  if (!signal) return renewal;
+  // The renewal belongs to all rejected requests. Cancel only this waiter,
+  // leaving the shared ticket exchange available to the other callers.
+  await new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    renewal.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
 export async function api(path, body, method, headers = {}, { signal } = {}) {
+  signal?.throwIfAborted();
   const connection = getClientContext().connection_id;
   const options = {
     method: method || (body === undefined ? "GET" : "POST"),
@@ -55,14 +72,18 @@ export async function api(path, body, method, headers = {}, { signal } = {}) {
   // Authentication fails before a handler runs, so retrying this rejected
   // request once does not repeat an accepted mutation.
   if (response.status === 401 && path !== "/session" && nativeAvailable()) {
-    await renewSession();
+    await waitForSessionRenewal(signal);
     response = await send();
   }
   if (response.status === 423 && !path.startsWith("/client/")) window.dispatchEvent(new Event("cage-account-locked"));
-  if (!response.ok) throw await responseError(response, path, options.method);
+  if (!response.ok) throw await responseError(response, path, options.method, signal);
   let value;
   try { value = await response.json(); }
-  catch (error) { reportDiagnostic("frontend", error); throw new Error(`${operationName(path, options.method)}失败：后台返回的结果格式无效。请重新连接；仍出现时在设置中导出诊断包。`, { cause: error }); }
+  catch (error) {
+    if (signal?.aborted) throw signal.reason;
+    reportDiagnostic("frontend", error);
+    throw new Error(`${operationName(path, options.method)}失败：后台返回的结果格式无效。请重新连接；仍出现时在设置中导出诊断包。`, { cause: error });
+  }
   if (path !== "/session" && !path.startsWith("/agent/native") && (!path.startsWith("/client/") || isProjectSharesPath(path))) assertConnection(connection);
   return value;
 }
@@ -98,7 +119,7 @@ export async function uploadFile(path, file, { signal, onProgress } = {}) {
   try { return await send(); }
   catch (error) {
     if (error.status !== 401 || !nativeAvailable() || signal?.aborted) throw error;
-    await renewSession();
+    await waitForSessionRenewal(signal);
     return send();
   }
 }
