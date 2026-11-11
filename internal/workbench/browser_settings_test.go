@@ -3,14 +3,51 @@ package workbench
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestBrowserHomeRollbackSurvivesRequestCancellation(t *testing.T) {
+	s := testServer(t)
+	s.ready = true
+	s.preferences.BrowserHomeURL = "https://example.test/original"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var homes []string
+	s.browserControl = browserClientForTest(t, s, browserTransport(func(r *http.Request) (*http.Response, error) {
+		if err := r.Context().Err(); err != nil {
+			return nil, err
+		}
+		var input browserInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			t.Fatal(err)
+		}
+		homes = append(homes, input.URL)
+		// The browser accepted the change before the client disconnected.
+		cancel()
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"ok":true}`)), Header: http.Header{}}, nil
+	}))
+	// Force the subsequent host preference write to fail.
+	if err := os.Mkdir(filepath.Join(s.profile, "workbench.json"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/api/browser/preferences", nil).WithContext(ctx)
+	s.saveBrowserHome(w, r, "https://example.test/new")
+	if w.Code == http.StatusOK || s.preferences.BrowserHomeURL != "https://example.test/original" {
+		t.Fatalf("failed save committed preferences: status=%d preferences=%+v", w.Code, s.preferences)
+	}
+	if strings.Join(homes, ",") != "https://example.test/new,https://example.test/original" {
+		t.Fatalf("cancelled request prevented guest rollback: %v", homes)
+	}
+}
 
 func TestBrowserPreferencesPatchAndFailure(t *testing.T) {
 	s := testServer(t)
