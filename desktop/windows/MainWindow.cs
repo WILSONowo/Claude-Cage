@@ -24,7 +24,7 @@ internal sealed class MainWindow : Form
 
     public MainWindow()
     {
-        nativeInput = new NativeInput(value => Script("window.dispatchEvent(new CustomEvent('cage-native-input',{detail:" + JsonSerializer.Serialize(value) + "}));"));
+        nativeInput = new NativeInput(PublishInput);
         AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96, 96);
         Text = "Cage";
         StartPosition = FormStartPosition.CenterScreen;
@@ -156,6 +156,13 @@ internal sealed class MainWindow : Form
         catch (InvalidOperationException) { }
         catch (System.Runtime.InteropServices.COMException) { }
     }
+    private void PublishInput(Dictionary<string, object?> value)
+    {
+        if (web.IsDisposed || web.CoreWebView2 == null || IsDisposed) return;
+        try { web.CoreWebView2.PostWebMessageAsJson(NativeBridge.InputMessage(value)); }
+        catch (InvalidOperationException) { }
+        catch (System.Runtime.InteropServices.COMException) { }
+    }
     private void Error(string text)
     {
         _ = Backend.Report(text);
@@ -200,7 +207,7 @@ internal sealed class MainWindow : Form
                 }
                 status.Hide(); web.Show(); web.Focus(); PublishVisibility();
             };
-            await core.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript);
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(NativeBridge.Script);
             if (Program.SmokeOutput != null) await core.AddScriptToExecuteOnDocumentCreatedAsync(SmokeDiagnosticsScript);
             webFailed = false;
             await Bootstrap();
@@ -565,29 +572,4 @@ internal sealed class MainWindow : Form
         })();
         """;
 
-    private const string BridgeScript = """
-        (() => {
-          if (window !== window.top || location.protocol !== 'http:' || location.hostname !== 'localhost') return;
-          window.cageNativeIMEAvailable = true;
-          const pending = new Map();
-          const fileActions = new Set([
-            'uploadHostFiles', 'chooseUploadFiles', 'clipboardSyncRead', 'clipboardSyncWrite',
-            'saveBrowserDownload', 'browserDownloadAction', 'desktopFileAction', 'exportDiagnostics',
-            'importTheme', 'exportTheme', 'shareLocalProject', 'chooseFolder', 'chooseGuestMedia',
-          ]);
-          chrome.webview.addEventListener('message', ({data}) => {
-            const item = pending.get(data.id); if (!item) return;
-            pending.delete(data.id); clearTimeout(item.timer);
-            data.error ? item.reject(new Error(data.error)) : item.resolve(data.result);
-          });
-          const cage = {postMessage(request) { return new Promise((resolve, reject) => {
-            const id = crypto.randomUUID();
-            // File commands have a 30-minute backend deadline. Leave time for
-            // the native file dialog and the final subprocess response.
-            const timer = setTimeout(() => { pending.delete(id); reject(new Error('原生操作超时，请重试')); }, fileActions.has(request.action) ? 3600000 : 240000);
-            pending.set(id, {resolve, reject, timer}); chrome.webview.postMessage({id, request});
-          }); }};
-          Object.defineProperty(window, 'webkit', {value: {messageHandlers: {cage}}, writable: false});
-        })();
-        """;
 }
