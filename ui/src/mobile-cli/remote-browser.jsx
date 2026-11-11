@@ -59,7 +59,8 @@ function RemoteKeyboard({frame, busy, send, onClose}) {
   const insert = async event => {
     event.preventDefault();
     if (!draft || !frame.focus || busy || new TextEncoder().encode(draft).length > 8192) return;
-    if (await send({type: "text", focus: frame.focus, text: draft}, frame)) setDraft("");
+    if (await send({type: "text", focus: frame.focus, text: draft}, frame))
+      setDraft(current => current === draft ? "" : current);
   };
   const tooLong = new TextEncoder().encode(draft).length > 8192;
   return <form className="remote-keyboard" onSubmit={insert}>

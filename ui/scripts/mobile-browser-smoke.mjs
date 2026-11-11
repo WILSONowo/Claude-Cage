@@ -44,7 +44,7 @@ try {
   });
   const homeNotice = "电脑的新标签页无法在手机浏览器打开，请输入其他网址。";
   let enabled = false, frame, opens = 0, closes = 0, reads = 0;
-  let dropNextText = false, resizeHold, reloadHold;
+  let dropNextText = false, resizeHold, reloadHold, textHold;
   let modern = false, readGate, writeGate, failedScroll, disconnectNavigation, idOnly;
   let tag = 0;
   const frameTag = () => tag.toString(16).padStart(32,"0");
@@ -153,6 +153,10 @@ try {
     if (body.type === "navigate") Object.assign(frame, {url:body.url,document:"doc-2"});
     if (body.type === "tap") frame.focus = "email-field";
     if (body.type === "text" || body.type === "key") assert.equal(body.focus,frame.focus);
+    if (body.type === "text" && textHold) {
+      const pending = textHold; textHold = null;
+      await pending.wait();
+    }
     if (body.type === "text" && dropNextText) {
       dropNextText = false;
       return route.abort("internetdisconnected");
@@ -302,6 +306,18 @@ try {
   await page.getByRole("button",{name:"发送回车",exact:true}).click();
   assert.deepEqual(actions.filter(a => a.type === "text").map(a => a.text),["手机中文输入"]);
   assert.deepEqual(actions.filter(a => a.type === "key").map(a => a.key),["Enter"]);
+  // A slow receipt must not erase text typed while the previous insert was
+  // pending. Only the submitted snapshot is sent to the guest.
+  await field.fill("already submitted");
+  const pendingText = textHold = gate();
+  await page.getByRole("button",{name:"插入文字",exact:true}).click();
+  await pendingText.entered;
+  await field.fill("new text while waiting");
+  pendingText.release();
+  await ready();
+  assert.equal(await field.inputValue(), "new text while waiting");
+  assert.equal(actions.filter(action => action.type === "text" && action.text === "already submitted").length, 1);
+  assert.equal(actions.some(action => action.type === "text" && action.text === "new text while waiting"), false);
   // An ambiguous text write may already have reached the host. Refresh must
   // only read status, and no password/text draft should survive the disconnect.
   await field.fill("uncertain");
