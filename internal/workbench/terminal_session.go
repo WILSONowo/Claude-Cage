@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"unicode/utf8"
 )
 
 var errTerminalInputFull = errors.New("terminal input queue is full")
@@ -219,7 +220,13 @@ func (t *terminalSession) read() {
 			if t.kind != "claude-login" {
 				t.history = append(t.history, chunk...)
 				if len(t.history) > 512<<10 {
-					t.history = t.history[len(t.history)-(512<<10):]
+					start := len(t.history) - (512 << 10)
+					// A reconnect starts a new UTF-8 decoder. Drop the rest of a
+					// character crossing the limit instead of replaying its tail.
+					for start < len(t.history) && !utf8.RuneStart(t.history[start]) {
+						start++
+					}
+					t.history = t.history[start:]
 				}
 			}
 			for channel := range t.clients {
