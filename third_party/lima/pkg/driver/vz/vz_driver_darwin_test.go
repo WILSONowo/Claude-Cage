@@ -123,7 +123,9 @@ func TestPinnedMacOSRestoreChecksPrivateInstallerInput(t *testing.T) {
 	assert.NilError(t, os.WriteFile(source, []byte("selected"), 0o600))
 	got, err := verifiedMacOSIPSW(t.Context(), inst)
 	assert.NilError(t, err)
-	assert.Equal(t, got, target)
+	realTarget, err := filepath.EvalSymlinks(target)
+	assert.NilError(t, err)
+	assert.Equal(t, got, realTarget)
 	assert.NilError(t, os.WriteFile(source, []byte("changed again"), 0o600))
 	data, err := os.ReadFile(target)
 	assert.NilError(t, err)
@@ -132,4 +134,38 @@ func TestPinnedMacOSRestoreChecksPrivateInstallerInput(t *testing.T) {
 	assert.NilError(t, os.Remove(source))
 	_, err = verifiedMacOSIPSW(t.Context(), inst)
 	assert.NilError(t, err)
+}
+
+func TestMacOSRestoreMediaThroughStorageSymlink(t *testing.T) {
+	physical := filepath.Join(t.TempDir(), "external", "state")
+	instance := filepath.Join(physical, "lima", "mac")
+	assert.NilError(t, os.MkdirAll(instance, 0o700))
+	logical := filepath.Join(t.TempDir(), "state")
+	assert.NilError(t, os.Symlink(physical, logical))
+	logicalInstance := filepath.Join(logical, "lima", "mac")
+	assert.NilError(t, os.WriteFile(filepath.Join(instance, filenames.Image), []byte("selected"), 0o600))
+	expected, err := filepath.EvalSymlinks(instance)
+	assert.NilError(t, err)
+	expected = filepath.Join(expected, filenames.ImageIPSW)
+
+	// Hardware model discovery and the installer must both use the real path.
+	path, err := macOSIPSWPath(logicalInstance)
+	assert.NilError(t, err)
+	assert.Equal(t, path, expected)
+	for _, images := range [][]limatype.Image{
+		nil,
+		{{File: limatype.File{Location: "/selected.ipsw", Digest: digest.FromString("selected")}}},
+	} {
+		inst := &limatype.Instance{Dir: logicalInstance, Config: &limatype.LimaYAML{Images: images}}
+		path, err = verifiedMacOSIPSW(t.Context(), inst)
+		assert.NilError(t, err)
+		assert.Equal(t, path, expected)
+		assert.Equal(t, inst.Dir, logicalInstance)
+	}
+	// The extension is a hard link, not another symbolic link for Apple to follow.
+	original, err := os.Stat(filepath.Join(instance, filenames.Image))
+	assert.NilError(t, err)
+	installer, err := os.Lstat(expected)
+	assert.NilError(t, err)
+	assert.Assert(t, installer.Mode().IsRegular() && os.SameFile(original, installer))
 }
