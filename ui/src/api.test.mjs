@@ -16,6 +16,19 @@ test("address input retains loopback inside guest and rejects active schemes", (
   assert.throws(() => normalizeURL("file:///etc/passwd"));
 });
 
+test("address input recognizes ports and bracketed IPv6 before URI schemes", () => {
+  for (const [input, expected] of [
+    ["example.com:8080/docs", "https://example.com:8080/docs"],
+    ["EXAMPLE.com:8443?q=1#section", "https://example.com:8443/?q=1#section"],
+    ["LOCALHOST:3000", "http://localhost:3000/"],
+    ["[::1]:3000/test", "http://[::1]:3000/test"],
+    ["[2001:db8::1]:8443/path", "https://[2001:db8::1]:8443/path"],
+  ]) assert.equal(normalizeURL(input), expected);
+  for (const input of ["javascript:alert(1)", "data:text/plain,example.com", "file:///tmp/test", "mailto:user@example.com"])
+    assert.throws(() => normalizeURL(input), /http 或 https/);
+  assert.equal(normalizeURL("find example.com:8080"), "https://www.google.com/search?q=find%20example.com%3A8080");
+});
+
 import { api, native, nativeAvailable } from "./api.js";
 function nativeRuntime(t, fetcher, bridge) {
   const saved = {

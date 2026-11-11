@@ -154,15 +154,14 @@ export function normalizeURL(text) {
   const value = text.trim();
   if (!value || value === "about:blank") return "about:blank";
   if (/^https?:\/\//i.test(value)) return new URL(value).href;
-  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^localhost:\d+/i.test(value))
-    throw new Error("地址仅支持 http 或 https");
-  if (
-    !/\s/.test(value) &&
-    (value.includes(".") || /^localhost(?::\d+)?(?:\/|$)/i.test(value))
-  )
-    return new URL(
-      (/^localhost|^127\./.test(value) ? "http://" : "https://") + value,
-    ).href;
+  // A hostname followed by a port can also match the URI-scheme grammar.
+  // Recognize an address authority first, then let URL validate its port/IP.
+  if (!/\s/.test(value) && /^(?:\[[0-9a-f:.]+\]|localhost|[^/?#:\s]+\.[^/?#:\s]+)(?::\d+)?(?:[/?#]|$)/i.test(value)) {
+    const url = new URL("https://" + value);
+    if (url.hostname === "localhost" || /^127\./.test(url.hostname) || url.hostname === "[::1]") url.protocol = "http:";
+    return url.href;
+  }
+  if (/^[a-z][a-z\d+.-]*:/i.test(value)) throw new Error("地址仅支持 http 或 https");
   return "https://www.google.com/search?q=" + encodeURIComponent(value);
 }
 
