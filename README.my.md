@@ -12,7 +12,7 @@
 
 **[ပရောဂျက်ဝက်ဘ်ဆိုက်](https://claude-cage.com/) · [အက်ပ်ကို ဒေါင်းလုဒ်လုပ်ရန်](https://claude-cage.com/my/#download) · [စတင်လုပ်ဆောင်ခြင်း။](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [အသုံးပြုမှုလမ်းညွှန် (တရုတ်ဘာသာ)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
