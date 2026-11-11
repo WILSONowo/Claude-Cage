@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createTailnetClient } from "./tailnet-client.mjs";
+import { EventEmitter } from "node:events";
+import { PassThrough, Writable } from "node:stream";
 
 test("stdio requests are serialized, preserve component errors and reject wire commands", async () => {
   const seen = [];
@@ -28,4 +30,44 @@ test("service destinations are validated and forwarded through the same private 
   for (const input of [{host:"100.88.2.4",port:0},{host:"100.88.2.4",port:65536},{host:"100.88.2.4",port:"80"},{host:"100.88.2.4\ncommand",port:80}]) await assert.rejects(client.request({action:"open-service",...input}));
   assert.equal((await client.request({action:"status"})).action,"status");
  } finally {client.close();}
+});
+
+test("a timeout detaches the old process before the next request starts", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const children = [];
+  const client = createTailnetClient({ executable: process.execPath, start: () => {
+    const child = new EventEmitter();
+    child.writes = [];
+    child.stdin = new Writable({ write(chunk, _encoding, done) { child.writes.push(JSON.parse(chunk)); done(); } });
+    child.stdout = new PassThrough();
+    child.kill = () => { child.killed = true; };
+    children.push(child);
+    return child;
+  } });
+  const until = async predicate => {
+    for (let i = 0; i < 100 && !predicate(); i++) await new Promise(resolve => setImmediate(resolve));
+    assert.ok(predicate(), "component request did not start");
+  };
+  try {
+    const first = client.request({action:"status"});
+    const firstRejected = assert.rejects(first, /暂未响应/);
+    await until(() => children[0]?.writes.length === 1);
+    t.mock.timers.tick(12000);
+    await firstRejected;
+    assert.equal(children[0].killed, true);
+
+    let completed = false;
+    const next = client.request({action:"connect"}).then(result => { completed = true; return result; });
+    await until(() => children.some(child => child.writes.some(input => input.action === "connect")));
+    try {
+      assert.equal(children.length, 2, "do not send a request to the timed-out process while its exit is pending");
+      children[0].stdout.write('{"action":"old-status"}\n');
+      children[0].emit("exit", 0);
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(completed, false, "late output/exit must not settle the replacement's request");
+    } finally {
+      children.at(-1).stdout.write('{"action":"connect","installed":true}\n');
+    }
+    assert.deepEqual(await next, {action:"connect", installed:true});
+  } finally { client.close(); }
 });
