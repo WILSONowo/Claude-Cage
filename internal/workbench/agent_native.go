@@ -15,6 +15,7 @@ type agentNativeItem struct {
 	Result     json.RawMessage `json:"result,omitempty"`
 	Error      string          `json:"error,omitempty"`
 	created    time.Time
+	finished   time.Time
 }
 type agentNativeQueue struct {
 	mu      sync.Mutex
@@ -72,7 +73,11 @@ func (s *Server) agentNative(w http.ResponseWriter, r *http.Request) {
 				item.Error = "Desktop did not claim this request in time. No native action was executed."
 				item.Request = nil
 			}
-			if now.Sub(item.created) < 30*time.Minute {
+			retainedSince := item.created
+			if !item.finished.IsZero() {
+				retainedSince = item.finished
+			}
+			if now.Sub(retainedSince) < 30*time.Minute {
 				kept = append(kept, item)
 			}
 		}
@@ -151,6 +156,7 @@ func (s *Server) agentNative(w http.ResponseWriter, r *http.Request) {
 				item.Result = in.Result
 				item.Error = in.Error
 				item.Request = nil
+				item.finished = time.Now()
 				item.Status = "completed"
 				if in.Error != "" {
 					item.Status = "failed"
