@@ -14,11 +14,12 @@ import {
   LoaderCircle,
   Square,
   CircleHelp,
+  Copy,
   ArrowRight,
   X,
   Route,
 } from "lucide-react";
-import { api } from "./api";
+import { api, writeClipboard } from "./api";
 import { SafetyMessage } from "./safety-message";
 import { ProxyYAMLInput } from "./proxy-yaml-input";
 import "./proxy.css";
@@ -51,6 +52,14 @@ const emptyForm = {
   interval_hours: 24,
   host_download: false,
 };
+const proxyAgentPrompt = `请将本机 Cage 的最终出口设为【节点名称】。以下命令中的 cage 代表安装包里的后台 CLI，请用它的实际路径执行。
+先运行 cage agent capabilities 核对当前版本支持的操作，再用 cage agent call proxy.status 从 sources 中按名称找到节点 ID。找不到时，请引导我在“添加来源”中导入。重名时，请让我选定具体节点。
+运行 cage agent call status，结合 vm_running 和 safety.gate.reason 核对联网状态。已手动暂停时保留暂停，只报告状态。首次配置或客机尚未启动时，network_open 可以为 false。若外网关闭的原因仍不明确，先问我是否允许应用节点并恢复联网。若首次应用会重启正在运行的客机，请先提醒我并等我确认。
+若 selected 已是目标节点且 active 为 true，无需重新应用。需要应用时，按现有 route 选择下面一条命令，将示例中的 ID 换成实际 ID，通过标准输入传入 JSON。
+单节点：cage agent call proxy.select --input - --wait 2m，输入 {"node_id":"目标ID"}。
+已有中转链：cage agent call proxy.route --input - --wait 2m，输入 {"node_ids":["中转ID","目标ID"]}。保留 route 中全部中转 ID 和顺序，只替换最后一个 ID。
+最后用 cage agent call proxy.status 读回 selected，按 ID 核对节点名称，并分别报告代理是否已应用（active）和客机外网是否已放行（network_open）。若任务失败或超时，请报告原因，先核对状态再决定下一步。请勿在对话中回显订阅地址或凭据。`;
+
 export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializing = false }) {
   const proxyPasswordId = useId();
   const [proxy, setProxy] = useState(null),
@@ -78,6 +87,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   const [routeDraft, setRouteDraft] = useState(null);
   const [hostRefresh, setHostRefresh] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [promptCopyState, setPromptCopyState] = useState("");
   const [readingFile, setReadingFile] = useState(false);
   const alive = useRef(true),
     loading = useRef(false),
@@ -302,9 +312,33 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           >
             <CircleHelp size={17} aria-hidden="true" />
           </button>
+          <button
+            type="button"
+            title="复制代理配置提示词给本机 AI 助手"
+            onClick={async () => {
+              try {
+                await writeClipboard(proxyAgentPrompt);
+                setPromptCopyState("copied");
+              } catch {
+                setPromptCopyState("manual");
+              }
+            }}
+          >
+            <Copy size={14} aria-hidden="true" />
+            复制提示词
+          </button>
         </div>
         <p>Cage 内的程序共用此出口，可按需添加中转。</p>
       </div>
+      {promptCopyState === "copied" && (
+        <p className="field-help" role="status">提示词已复制。粘贴给本机 AI 助手后，将【节点名称】换成想使用的出口。</p>
+      )}
+      {promptCopyState === "manual" && (
+        <>
+          <p className="field-help" role="alert">复制失败，请手动复制下方提示词。</p>
+          <textarea aria-label="代理配置提示词" readOnly rows={5} value={proxyAgentPrompt} />
+        </>
+      )}
       {helpOpen && (
         <section
           id="proxy-help"
