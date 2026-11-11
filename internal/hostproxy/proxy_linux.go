@@ -30,7 +30,11 @@ func gnomeProxy(req *http.Request, settings string) (*url.URL, error) {
 	for _, line := range strings.Split(settings, "\n") {
 		parts := strings.SplitN(line, " ", 3)
 		if len(parts) == 3 {
-			values[parts[0]+" "+parts[1]] = strings.Trim(parts[2], " '")
+			value, err := gnomeSettingValue(strings.TrimSpace(parts[2]))
+			if err != nil {
+				return nil, errors.New("无法读取主机桌面代理字段，请检查代理设置")
+			}
+			values[parts[0]+" "+parts[1]] = value
 		}
 	}
 	switch values["org.gnome.system.proxy mode"] {
@@ -43,11 +47,15 @@ func gnomeProxy(req *http.Request, settings string) (*url.URL, error) {
 			if host == "" || port == "0" || port == "" {
 				return ""
 			}
-			scheme := "http://"
+			scheme := "http"
 			if protocol == "socks" {
-				scheme = "socks5://"
+				scheme = "socks5"
 			}
-			return scheme + net.JoinHostPort(host, port)
+			proxy := &url.URL{Scheme: scheme, Host: net.JoinHostPort(host, port)}
+			if protocol == "http" && values[prefix+"use-authentication"] == "true" {
+				proxy.User = url.UserPassword(values[prefix+"authentication-user"], values[prefix+"authentication-password"])
+			}
+			return proxy.String()
 		}
 		httpProxy, httpsProxy, socks := address("http"), address("https"), address("socks")
 		if values["org.gnome.system.proxy use-same-proxy"] == "true" {
@@ -74,4 +82,27 @@ func gnomeProxy(req *http.Request, settings string) (*url.URL, error) {
 	default:
 		return nil, nil
 	}
+}
+
+// gsettings prints strings as quoted GVariant literals. Trimming quote bytes
+// would change credentials with leading/trailing spaces, quotes or backslashes.
+func gnomeSettingValue(value string) (string, error) {
+	if value == "" || value[0] != '\'' && value[0] != '"' {
+		return value, nil
+	}
+	quote := value[0]
+	if len(value) < 2 || value[len(value)-1] != quote {
+		return "", errors.New("invalid quoted setting")
+	}
+	value = value[1 : len(value)-1]
+	var text strings.Builder
+	for value != "" {
+		r, _, tail, err := strconv.UnquoteChar(value, quote)
+		if err != nil {
+			return "", err
+		}
+		text.WriteRune(r)
+		value = tail
+	}
+	return text.String(), nil
 }
