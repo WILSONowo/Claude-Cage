@@ -15,6 +15,20 @@ function Assert-NoLink([string]$Path){
     $item=Get-Item -LiteralPath $Path -Force
     while($item){if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Manager files cannot traverse links.'};if($item -is [IO.FileInfo]){$item=$item.Directory}else{$item=$item.Parent}}
 }
+function Copy-ManagerExecutable([string]$Source,[string]$Destination){
+    # SCM can report Stopped before the executable's last mapped handle closes.
+    $timer=[Diagnostics.Stopwatch]::StartNew()
+    while($true){
+        try{
+            [IO.File]::Copy($Source,$Destination,$true)
+            return
+        }catch{
+            $cause=$_.Exception.GetBaseException()
+            if($cause -isnot [IO.IOException] -or ($cause.HResult -band 0xffff) -notin 32,33 -or $timer.Elapsed.TotalSeconds -ge 10){throw}
+            Start-Sleep -Milliseconds 200
+        }
+    }
+}
 function Protect-ManagerPath([string]$Path,[switch]$Shared){
     $item=Get-Item -LiteralPath $Path -Force
     if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Manager paths cannot be links.'}
@@ -64,7 +78,7 @@ if($LASTEXITCODE -ne 0){throw 'The exact VM/disk binding could not be verified.'
 $binding=$raw|ConvertFrom-Json
 if($binding.version -ne 1 -or [guid]$binding.vm_id -ne $VMId -or $binding.host_sid -cne $HostSID){throw 'The prepared manager binding does not match.'}
 if(Test-Path -LiteralPath $bindingPath){
-    Assert-NoLink $bindingPath;$old=Get-Content -LiteralPath $bindingPath -Raw|ConvertFrom-Json
+    Assert-NoLink $bindingPath;$old=Get-Content -LiteralPath $bindingPath -Raw -Encoding UTF8|ConvertFrom-Json
     foreach($key in @('version','vm_id','host_sid','disk_path','disk_volume','disk_file_id')){if([string]$old.$key -cne [string]$binding.$key){throw 'The existing protected VM/disk binding changed; preserved it.'}}
 }
 $rollback=$null;$cleanupRollback=$false;$wasRunning=$service -and $service.Status -eq 'Running'
@@ -75,7 +89,7 @@ try{
         Copy-Item -LiteralPath $exe -Destination $rollback;Protect-ManagerPath $rollback
         if($service.Status -ne 'Stopped'){Stop-Service -Name $name;$service.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(30))}
     }
-    Copy-Item -LiteralPath $payload.FullName -Destination $exe -Force;Protect-ManagerPath $exe
+    Copy-ManagerExecutable $payload.FullName $exe;Protect-ManagerPath $exe
     if((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -cne $PayloadSHA256.ToLowerInvariant()){throw 'The copied manager checksum does not match.'}
     if(!(Test-Path -LiteralPath $bindingPath)){[IO.File]::WriteAllText($bindingPath,($binding|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))}
     Protect-ManagerPath $bindingPath
@@ -91,7 +105,7 @@ try{
     if($rollback){
         Stop-Service -Name $name -ErrorAction SilentlyContinue
         (Get-Service -Name $name).WaitForStatus('Stopped',[TimeSpan]::FromSeconds(30))
-        Copy-Item -LiteralPath $rollback -Destination $exe -Force;Protect-ManagerPath $exe
+        Copy-ManagerExecutable $rollback $exe;Protect-ManagerPath $exe
         if($wasRunning){Start-Service -Name $name}
         $cleanupRollback=$true
     }

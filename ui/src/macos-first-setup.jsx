@@ -17,7 +17,7 @@ const permissionSteps = [
 function setupSteps(permissions) {
   return permissions.macfuse_installer ? [
     ...permissionSteps.slice(0, 2),
-    { id: "macfuse", label: "安装 macFUSE", hint: "在客机的 Apple 安装器中完成安装。要求管理员时，用户名填 cagesetup，密码与 Cage 账户相同。" },
+    { id: "macfuse", label: "安装 macFUSE", hint: "在虚拟 Mac 中完成安装。若提示输入管理员凭据，请使用 cagesetup 和你的 Cage 账户密码。" },
     ...permissionSteps.slice(2),
   ] : permissionSteps;
 }
@@ -177,7 +177,7 @@ export function MacOSFirstSetup() {
     {failure && <section className="initialization-notice" role="alert"><h2>这一步尚未完成</h2><p>{failure}</p><p>安装进度已保留。可重新打开设置页或重新检查。</p></section>}
     <details className="mac-setup-help"><summary>管理员密码与找不到设置页时的帮助</summary>
       <p>系统要求管理员时，用户名填 <strong>cagesetup</strong>，{account.macos_password_pending ? "密码同步完成前可能仍需原客机密码。" : account.macos_credentials_ready ? "密码与 Cage 账户相同。" : "在客机画面中选中密码框，再点击「填写授权密码」。"}你确认授权后继续；此临时管理员在收尾时停用。</p>
-      <p>文件系统扩展的手动入口：客机「系统设置 → 通用 → 登录项与扩展 → 按类别 → 文件系统扩展」，同时打开 macFUSE 和 macFUSE (local)。</p>
+      <p>如需手动设置，在虚拟 Mac 的「系统设置 → 通用 → 登录项与扩展 → 按类别 → 文件系统扩展」中打开 macFUSE 和 macFUSE (local)。</p>
       <div className="initialization-recovery">{steps.map(({ id, label }) => <button key={id} disabled={!canOperate} onClick={() => act(id)}>重新打开{label}</button>)}</div>
     </details>
     <p className="mac-setup-retention">授权后将检查共享工作区和网络隔离，通过后进入工作台。</p>

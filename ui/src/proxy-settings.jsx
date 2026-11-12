@@ -314,7 +314,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </button>
           <button
             type="button"
-            title="复制代理配置提示词给本机 AI 助手"
+            title="复制给本机 AI 助手的代理配置提示词"
             onClick={async () => {
               try {
                 await writeClipboard(proxyAgentPrompt);
@@ -325,17 +325,17 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             }}
           >
             <Copy size={14} aria-hidden="true" />
-            复制提示词
+            复制配置提示词
           </button>
         </div>
         <p>Cage 内的程序共用此出口，可按需添加中转。</p>
       </div>
       {promptCopyState === "copied" && (
-        <p className="field-help" role="status">提示词已复制。粘贴给本机 AI 助手后，将【节点名称】换成想使用的出口。</p>
+        <p className="field-help" role="status">已复制。粘贴给本机 AI 助手，把【节点名称】换成要使用的节点。</p>
       )}
       {promptCopyState === "manual" && (
         <>
-          <p className="field-help" role="alert">复制失败，请手动复制下方提示词。</p>
+          <p className="field-help" role="alert">无法写入剪贴板，请复制下方提示词。</p>
           <textarea aria-label="代理配置提示词" readOnly rows={5} value={proxyAgentPrompt} />
         </>
       )}
@@ -378,8 +378,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <li>
               <strong>确认可以联网</strong>
               <p>
-                {initializing ? "点击“开始安装”，等待客机安装和网络检查完成。以初始化界面的检查结果为准；" : "回到工作台启动环境，等待网络检查通过。以工作台的联网状态为准；"}「测速」只检测节点延迟。Cage
-                内的浏览器、终端和开发工具会共用所选节点，无需分别配置代理。
+                {initializing ? "点击「开始安装」，安装后查看网络检查结果。" : "回到工作台，启动环境并查看联网状态。"}「测速」显示节点延迟。浏览器、终端和开发工具共用所选节点。
               </p>
             </li>
           </ol>

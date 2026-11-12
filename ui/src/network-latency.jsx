@@ -36,7 +36,7 @@ export function NetworkLatency({ enabled, revision, selected }) {
           } else {
             setSample({
               label: "延迟不可用",
-              detail: "当前节点测速未成功，点击重试",
+              detail: "测速失败，点击重试",
             });
           }
         }

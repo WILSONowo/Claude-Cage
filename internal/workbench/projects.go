@@ -209,6 +209,10 @@ func (p *projectShare) close() {
 // The local SFTP server owns the host authorization boundary for both macOS
 // and Linux mounts. The remote shell receives only that directory's byte stream.
 func startProjectTransport(cmd *exec.Cmd, path string) (*projectShare, error) {
+	identity, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -225,7 +229,7 @@ func startProjectTransport(cmd *exec.Cmd, path string) (*projectShare, error) {
 	}
 	go func() {
 		defer close(share.done)
-		_ = reversesshfs.ServeConfined(share.transport, path, false, nil)
+		_ = reversesshfs.ServeConfinedPinned(share.transport, path, false, nil, identity)
 		share.stop()
 		_ = cmd.Wait()
 	}()

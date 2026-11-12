@@ -8,7 +8,7 @@
 
 [![Release](https://img.shields.io/github/v/release/Lee-xeo/Claude-Cage?include_prereleases)](https://github.com/Lee-xeo/Claude-Cage/releases) [![CI](https://github.com/Lee-xeo/Claude-Cage/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Lee-xeo/Claude-Cage/actions/workflows/ci.yml) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**[プロジェクトサイト](https://lee-xeo.github.io/Claude-Cage/) · [アプリをダウンロード](https://lee-xeo.github.io/Claude-Cage/#download) · [利用ドキュメント](https://lee-xeo.github.io/Claude-Cage/docs/) · [よくある質問](https://lee-xeo.github.io/Claude-Cage/docs/troubleshooting/)**
+**[プロジェクトサイト](https://claude-cage.com/) · [アプリをダウンロード](https://claude-cage.com/#download) · [利用ドキュメント](https://claude-cage.com/docs/) · [よくある質問](https://claude-cage.com/docs/troubleshooting/)**
 
 [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
@@ -47,7 +47,7 @@ Claude Cage を使うと、使い慣れたシステムの上で Claude と一緒
 - **環境を自分のサーバーに置けます。** SSH で Linux VPS にデプロイまたは接続すれば、ツール、タスク、データはサーバーに残り、KVM は不要です。[クラウドデプロイと SSH](docs/guide/cloud.md)
 - **プライベートネットワーク経由でデバイスに接続できます。** Cage の中で Tailscale にログインし、ネットワーク内のデバイスを確認して、SSH、Web、その他の TCP サービスを利用できます。 [Tailscale プライベートネットワーク](docs/guide/tailscale.md)
 
-ブラウザのブックマーク、プライベートセッション、Cookie、拡張機能、パスワードマネージャー、そして外観、リソース、ストレージ、ツールの更新については、[完全な利用ドキュメント](https://lee-xeo.github.io/Claude-Cage/docs/)を参照してください。
+ブラウザのブックマーク、プライベートセッション、Cookie、拡張機能、パスワードマネージャー、そして外観、リソース、ストレージ、ツールの更新については、[完全な利用ドキュメント](https://claude-cage.com/docs/)を参照してください。
 
 ## クイックスタート
 
@@ -63,7 +63,7 @@ https://github.com/Lee-xeo/Claude-Cage をインストールして、Cage のプ
 
 Cage は macOS、Windows、Linux に対応しています。対象は、macOS 14 以降の Apple Silicon Mac、Windows 10 22H2 / 11 x64、Debian 12 / Ubuntu 22.04 / 24.04 x86_64 です。Windows 11 のゲストには、Hyper-V に対応した Windows 11 Pro、Enterprise、Education のホストが必要です。ほかの対応 Windows ホストでは、Debian または Ubuntu 22.04 を使えます。Intel Mac、Windows ARM64、Linux ARM64 は、今のところ未対応です。 [macOS](docs/getting-started.md) · [Windows](docs/windows.md) · [Linux](docs/linux.md)。
 
-1. [プロジェクトサイト](https://lee-xeo.github.io/Claude-Cage/#download)を開き、「アプリをダウンロード」をクリックしてプラットフォームを選びます。
+1. [プロジェクトサイト](https://claude-cage.com/#download)を開き、「アプリをダウンロード」をクリックしてプラットフォームを選びます。
 2. macOS：インストーラーを開き、**Cage** を **Applications（アプリケーション）** にドラッグして、「アプリケーション」から起動します。Windows：[インストール手順](docs/windows.md#安装并开始工作) · Linux：[インストール手順](docs/linux.md#安装并开始工作)。
 3. アプリ内のガイドに従って自分のプロキシを設定し、環境を起動してからプロジェクトを開きます。
 
@@ -100,26 +100,26 @@ Clash/Mihomo の YAML サブスクリプションまたはローカルの設定�
 
 ## ドキュメントとコントリビューション
 
-ユーザー向けの[公式サイトの利用ドキュメント](https://lee-xeo.github.io/Claude-Cage/docs/)では、機能ごとの閲覧、検索、セクションへの直接移動ができます。各操作は[利用ドキュメントのナビゲーション](docs/README.md)を参照してください。
+ユーザー向けの[公式サイトの利用ドキュメント](https://claude-cage.com/docs/)では、機能ごとの閲覧、検索、セクションへの直接移動ができます。各操作は[利用ドキュメントのナビゲーション](docs/README.md)を参照してください。
 
 | やりたいこと | ここから始める |
 |---|---|
-| 自分のエージェントに Cage をダウンロード、インストール、設定、トラブルシューティングさせる | [エージェント利用ガイド](https://lee-xeo.github.io/Claude-Cage/docs/agent/) |
-| 初めてのインストール、プロキシの設定、プロジェクトを開く | [インストールと初回起動](https://lee-xeo.github.io/Claude-Cage/docs/installation/) |
-| macOS、Windows、Debian、Ubuntu 22.04 のゲストを選び、ネイティブの開発ツールを使う | [ゲスト OS を選ぶ](https://lee-xeo.github.io/Claude-Cage/docs/guest-systems/) |
-| 複数のサブスクリプションを追加し、利用枠を確認し、ターミナルに割り当てる | [複数アカウントと利用枠](https://lee-xeo.github.io/Claude-Cage/docs/accounts/) |
-| スマートフォンでの QR コード読み取り、ツールの承認、リモートブラウザ | [スマートフォン接続とリモートセッション](https://lee-xeo.github.io/Claude-Cage/docs/mobile/) |
-| 自分の VPS に環境をデプロイして接続する | [クラウドデプロイと SSH](https://lee-xeo.github.io/Claude-Cage/docs/cloud/) |
-| 各設定の内容と、いつ反映されるかを知る | [設定リファレンス](https://lee-xeo.github.io/Claude-Cage/docs/settings/) |
-| ストレージ、リソース、更新、バックアップを管理する | [メンテナンス、リソース、データ](https://lee-xeo.github.io/Claude-Cage/docs/maintenance/) |
-| ダウンロード、起動、ネットワーク接続、ログインの問題に対処する | [トラブルシューティング](https://lee-xeo.github.io/Claude-Cage/docs/troubleshooting/) |
-| ファイル、キー操作、ウィンドウを閉じるときと終了するときの動作を知る | [プロジェクト、ターミナル、ファイル](https://lee-xeo.github.io/Claude-Cage/docs/workbench/) |
+| 自分のエージェントに Cage をダウンロード、インストール、設定、トラブルシューティングさせる | [エージェント利用ガイド](https://claude-cage.com/docs/agent/) |
+| 初めてのインストール、プロキシの設定、プロジェクトを開く | [インストールと初回起動](https://claude-cage.com/docs/installation/) |
+| macOS、Windows、Debian、Ubuntu 22.04 のゲストを選び、ネイティブの開発ツールを使う | [ゲスト OS を選ぶ](https://claude-cage.com/docs/guest-systems/) |
+| 複数のサブスクリプションを追加し、利用枠を確認し、ターミナルに割り当てる | [複数アカウントと利用枠](https://claude-cage.com/docs/accounts/) |
+| スマートフォンでの QR コード読み取り、ツールの承認、リモートブラウザ | [スマートフォン接続とリモートセッション](https://claude-cage.com/docs/mobile/) |
+| 自分の VPS に環境をデプロイして接続する | [クラウドデプロイと SSH](https://claude-cage.com/docs/cloud/) |
+| 各設定の内容と、いつ反映されるかを知る | [設定リファレンス](https://claude-cage.com/docs/settings/) |
+| ストレージ、リソース、更新、バックアップを管理する | [メンテナンス、リソース、データ](https://claude-cage.com/docs/maintenance/) |
+| ダウンロード、起動、ネットワーク接続、ログインの問題に対処する | [トラブルシューティング](https://claude-cage.com/docs/troubleshooting/) |
+| ファイル、キー操作、ウィンドウを閉じるときと終了するときの動作を知る | [プロジェクト、ターミナル、ファイル](https://claude-cage.com/docs/workbench/) |
 | 再現できる問題を報告する | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
 
 本プロジェクトはまだ急速に更新を重ねています。ご意見はぜひ交流グループにお寄せください。コミュニティの皆さんと一緒にメンテナンスしていただけるとうれしいです。
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="Claude Cage QQ 交流グループの QR コード（グループ番号：1134250870）" width="240" /></a>
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="Claude Cage QQ 交流グループの QR コード（グループ番号：1127457578）" width="240" /></a>
 </p>
 
 ## 由来とライセンス
