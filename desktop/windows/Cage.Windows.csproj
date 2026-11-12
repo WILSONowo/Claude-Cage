@@ -14,7 +14,7 @@
     <RootNamespace>Cage.Windows</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.1.0-alpha.1</Version>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../VERSION').Trim())</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>../../packaging/windows/Cage.ico</ApplicationIcon>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

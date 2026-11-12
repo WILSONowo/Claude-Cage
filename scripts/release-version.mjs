@@ -137,11 +137,20 @@ export function versionFiles(root, version) {
 }
 
 function main(args) {
-  const [command, platform, output] = args;
-  if (args.length !== 3 || command !== 'metadata' || !['macos', 'windows', 'linux'].includes(platform)) {
-    throw new Error('Usage: node scripts/release-version.mjs metadata <macos|windows|linux> <output>');
-  }
   const root = fileURLToPath(new URL('../', import.meta.url));
+  const [command, argument, output] = args;
+  if (command === 'bump' && args.length === 2) {
+    const current = readFileSync(resolve(root, 'VERSION'), 'utf8').trim();
+    const tags = execFileSync('git', ['-C', root, 'tag', '--list', 'v*'], { encoding: 'utf8' }).trim().split(/\r?\n/);
+    const version = nextVersion(current, argument, tags);
+    for (const [path, contents] of versionFiles(root, version)) writeFileSync(path, contents);
+    console.log(`${current} -> ${version}`);
+    return;
+  }
+  const platform = argument;
+  if (args.length !== 3 || command !== 'metadata' || !['macos', 'windows', 'linux'].includes(platform)) {
+    throw new Error('Usage: node scripts/release-version.mjs bump <patch|minor|major|prerelease> or metadata <macos|windows|linux> <output>');
+  }
   const version = readFileSync(resolve(root, 'VERSION'), 'utf8').trim();
   parseVersion(version);
   const commitSha = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();

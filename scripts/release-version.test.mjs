@@ -129,6 +129,21 @@ test('handles escaped JSON keys and rejects duplicate target version fields', t 
   assert.throws(() => versionFiles(root, '1.2.3'), /must be strings/);
 });
 
+test('local bump CLI updates the app and both npm packages without creating a commit or tag', t => {
+  const root = fixture(t);
+  execFileSync('git', ['-C', root, 'init', '-q']);
+  mkdirSync(join(root, 'scripts'));
+  const script = join(root, 'scripts/release-version.mjs');
+  writeFileSync(script, readFileSync(new URL('./release-version.mjs', import.meta.url)));
+  const bump = () => execFileSync(process.execPath, [script, 'bump', 'patch'], { encoding: 'utf8' }).trim();
+  assert.equal(bump(), '1.2.3-alpha.9 -> 1.2.3');
+  assert.equal(bump(), '1.2.3 -> 1.2.4');
+  assert.equal(readFileSync(join(root, 'VERSION'), 'utf8').trim(), '1.2.4');
+  assert.equal(versionFiles(root, '1.2.4').size, 5);
+  assert.equal(execFileSync('git', ['-C', root, 'tag'], { encoding: 'utf8' }), '');
+  assert.notEqual(spawnSync('git', ['-C', root, 'rev-parse', '--verify', 'HEAD']).status, 0);
+});
+
 test('metadata CLI reads the repository root even from a different working directory', t => {
   const destination = fixture(t);
   const modulePath = fileURLToPath(new URL('./release-version.mjs', import.meta.url));

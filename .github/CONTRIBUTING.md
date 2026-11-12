@@ -46,3 +46,7 @@ Cage 采用“贡献 Issue 审核 → 邀请成为协作者 → 提交 PR → �
 自动化读取默认分支中的脚本，不执行申请者的代码。它只负责审核后的邀请和提醒；方案审核、接受邀请、实现代码和 PR 审查由对应参与者完成。
 
 GitHub 参考：[邀请协作者 API](https://docs.github.com/en/rest/collaborators/collaborators#add-a-repository-collaborator)、[工作流令牌的权限边界](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token#granting-additional-permissions)。
+
+## 本 fork 的版本迭代
+
+每轮向 `main` 交付产品改动时递增应用版本。修复使用 `node scripts/release-version.mjs bump patch`，再用 `node scripts/check-version.mjs` 核对应用、前端与站点的版本。将版本文件和该轮改动一起提交，回归通过后从同一提交本地打包 Windows 和 Linux。同一提交的重新构建沿用原版本。
