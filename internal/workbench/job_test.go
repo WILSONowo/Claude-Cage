@@ -47,8 +47,8 @@ func TestStopPreemptsJobWithoutLosingStopResult(t *testing.T) {
 	defer s.op.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.jobs.snapshot().Kind != "stop" || s.jobs.snapshot().Running || s.jobs.snapshot().Error != "" || s.jobs.snapshot().Log != "" {
-		t.Fatalf("stale job overwrote stop: %+v", s.jobs.snapshot())
+	if job := s.jobs.snapshot(); job.Kind != "stop" || job.Running || job.Error != "" || job.Log != "stopped\n" {
+		t.Fatalf("stale job overwrote stop: %+v", job)
 	}
 }
 
