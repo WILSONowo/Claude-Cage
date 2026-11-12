@@ -38,7 +38,7 @@ export function InlineSelect({
   });
   const selected = options.find((option) => option.value === String(value));
   const searchable = filterable && !editable && options.length >= 10;
-  const needle = (editable && !selected ? String(value || "") : searchable && open ? filter : "").trim().toLocaleLowerCase();
+  const needle = open ? filter.trim().toLocaleLowerCase() : "";
   const filtered = needle ? options.filter(item =>
     [item.label, item.value, item.group].some(text => text?.toLocaleLowerCase().includes(needle))) : options;
   const visible = open && !disabled;
@@ -65,7 +65,7 @@ export function InlineSelect({
     };
   }, [open]);
   const show = () => {
-    setFilter("");
+    setFilter(editable && !selected ? String(value ?? "") : "");
     setCursor(selected?.value ?? null);
     setOpen(true);
     if (searchable) requestAnimationFrame(() => filterInput.current?.focus({ preventScroll: true }));
@@ -90,7 +90,7 @@ export function InlineSelect({
       control.current.focus({ preventScroll: true });
       setOpen(false);
     } else if (key === "Enter" || (!editable && key === " ")) {
-      if (editable && (!visible || active < 0)) return;
+      if (editable && !visible) return;
       event.preventDefault();
       if (!visible) show();
       else if (active >= 0) choose(filtered[active]);
@@ -145,9 +145,10 @@ export function InlineSelect({
           aria-autocomplete="list"
           autoComplete="off"
           value={value}
-          onClick={show}
+          onClick={() => { if (!visible) show(); }}
           onChange={(event) => {
             onValueChange(event.target.value);
+            setFilter(event.target.value);
             setCursor(null);
             setOpen(true);
           }}

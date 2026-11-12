@@ -233,6 +233,9 @@ final class ConnectionModel: ObservableObject {
         config.userContentController.add(DeviceWebBridge(model: self, id: id, origin: connection.launchURL), name: "cageDevices")
         config.userContentController.addUserScript(WKUserScript(source: deviceScript(id), injectionTime: .atDocumentStart, forMainFrameOnly: true))
         let web = WKWebView(frame: .zero, configuration: config)
+        web.isOpaque = false
+        web.backgroundColor = .systemBackground
+        web.scrollView.backgroundColor = .systemBackground
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.navigationDelegate = delegate
         // WKWebView holds its navigation delegate weakly.
@@ -408,12 +411,15 @@ private struct QRScannerScreen: View {
     let result: (String?) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sweeping = false
+    @State private var instructionsHeight: CGFloat = 160
     @State private var hint = "将 Cage 配对二维码放入框内\n在电脑「设置 → 远程连接」中生成"
     private let accent = Color(red: 0.91, green: 0.72, blue: 0.62)
     var body: some View {
         GeometryReader { geometry in
-            let side = max(96, min(280, min(geometry.size.width - 56, geometry.size.height - 190)))
-            let box = CGRect(x: (geometry.size.width - side) / 2, y: 24 + max(0, (geometry.size.height - 190 - side) / 2), width: side, height: side)
+            let footerHeight = min(instructionsHeight, geometry.size.height * 0.4)
+            let scannerHeight = geometry.size.height - footerHeight
+            let side = max(1, min(280, min(geometry.size.width - 32, scannerHeight - 16)))
+            let box = CGRect(x: (geometry.size.width - side) / 2, y: (scannerHeight - side) / 2, width: side, height: side)
             ZStack(alignment: .bottom) {
                 #if targetEnvironment(simulator)
                 Color(white: 0.15)
@@ -431,16 +437,23 @@ private struct QRScannerScreen: View {
                 VStack(spacing: 0) {
                     LinearGradient(colors: [accent.opacity(0), accent.opacity(0.22)], startPoint: .top, endPoint: .bottom).frame(height: 26)
                     Capsule().fill(accent).frame(height: 2)
-                }.frame(width: side - 24)
+                }.frame(width: max(0, side - 24))
                     .position(x: box.midX, y: reduceMotion ? box.midY : box.minY + 24 + (sweeping ? side - 48 : 0))
                     .animation(reduceMotion ? nil : .linear(duration: 2.4).repeatForever(autoreverses: true), value: sweeping)
                     .accessibilityHidden(true)
-                VStack(spacing: 12) {
-                    Text("连接你的电脑").font(.title2.bold())
-                    Text(hint).font(.subheadline).foregroundStyle(.white.opacity(0.88)).multilineTextAlignment(.center)
-                    Text(simulatorPreviewEnabled ? "模拟器预览 · 即将进入示例工作台" : "仅识别 Cage 配对码")
-                        .font(.caption).foregroundStyle(.white.opacity(0.6))
-                }.foregroundStyle(.white).padding(.horizontal, 24).padding(.bottom, 24).accessibilityElement(children: .combine)
+                ScrollView {
+                    VStack(spacing: 12) {
+                        Text("连接你的电脑").font(.title2.bold())
+                        Text(hint).font(.subheadline).foregroundStyle(.white.opacity(0.88)).multilineTextAlignment(.center)
+                        Text(simulatorPreviewEnabled ? "模拟器预览 · 即将进入示例工作台" : "仅识别 Cage 配对码")
+                            .font(.caption).foregroundStyle(.white.opacity(0.6))
+                    }.foregroundStyle(.white).padding(.horizontal, 24).padding(.bottom, 24).accessibilityElement(children: .combine)
+                        .background(GeometryReader { content in
+                            Color.clear.onChange(of: content.size.height, initial: true) { _, height in
+                                instructionsHeight = height
+                            }
+                        })
+                }.frame(height: footerHeight).scrollBounceBehavior(.basedOnSize)
             }.background(Color.black).onAppear {sweeping = true}
                 .task {
                     #if targetEnvironment(simulator)
@@ -454,6 +467,7 @@ private struct QRScannerScreen: View {
 }
 
 private struct ConnectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var model: ConnectionModel
     let previewConnected: () -> Void
     @State private var manual = false
@@ -504,6 +518,11 @@ private struct ConnectionSheet: View {
                 }.padding(24).frame(maxWidth: 520)
                     .frame(maxWidth: .infinity)
             }.background(CageStyle.paper).buttonStyle(CageButtonStyle())
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("关闭") {dismiss()}.accessibilityLabel("关闭配对窗口")
+                    }
+                }
                 .navigationDestination(isPresented: $manual) {
                     Form {
                         Section {
@@ -517,17 +536,19 @@ private struct ConnectionSheet: View {
                     }.navigationTitle("配对码")
                 }
                 .sheet(item: $disconnecting) {device in
-                    VStack(spacing: 20) {
-                        Text("取消连接？").font(.title2.bold())
-                        Text(device.name).foregroundStyle(.secondary)
-                        Text("将断开设备连接，保留配对信息。")
-                            .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        Button("取消连接", role: .destructive) {
-                            model.disconnectDevice(device.id)
-                            disconnecting = nil
-                        }.frame(maxWidth: .infinity, minHeight: 48)
-                        Button("保留连接") {disconnecting = nil}.frame(minHeight: 44)
-                    }.padding(24).presentationDetents([.height(300)]).presentationDragIndicator(.visible)
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            Text("取消连接？").font(.title2.bold())
+                            Text(device.name).foregroundStyle(.secondary)
+                            Text("将断开设备连接，保留配对信息。")
+                                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            Button("取消连接", role: .destructive) {
+                                model.disconnectDevice(device.id)
+                                disconnecting = nil
+                            }.frame(maxWidth: .infinity, minHeight: 48)
+                            Button("保留连接") {disconnecting = nil}.frame(minHeight: 44)
+                        }.padding(24).frame(maxWidth: .infinity)
+                    }.presentationDetents([.height(300), .large]).presentationDragIndicator(.visible)
                 }
                 .sheet(isPresented: $scanning, onDismiss: {
                     if previewScanned {previewScanned = false; previewConnected()}
@@ -540,7 +561,7 @@ private struct ConnectionSheet: View {
                             else {model.status = "无法读取二维码，请重试或使用配对码。"}
                         }.navigationTitle("扫描电脑二维码").navigationBarTitleDisplayMode(.inline)
                         .toolbar {Button("取消") {scanning = false}}
-                    }
+                    }.tint(.white)
                 }
         }.disabled(model.connecting).interactiveDismissDisabled(model.connecting)
             .presentationDetents([.fraction(0.72), .large]).presentationDragIndicator(.visible)

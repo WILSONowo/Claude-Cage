@@ -265,14 +265,13 @@ export default forwardRef(function RemoteView(
           <h3>
             {connection === "connecting" ? "正在连接画面" : "画面连接已断开"}
           </h3>
-          <p>画面断开后，后台任务继续运行。</p>
           {connection === "disconnected" && (
-            <button
-              className="primary"
-              onClick={() => setAttempt((v) => v + 1)}
-            >
-              重新连接画面
-            </button>
+            <>
+              <p>后台任务仍在运行。</p>
+              <button className="primary" onClick={() => setAttempt((v) => v + 1)}>
+                重新连接画面
+              </button>
+            </>
           )}
         </div>
       )}

@@ -6,7 +6,7 @@ import { MacOSLogin } from "./macos-login";
 // supports restoring the flow after the in-memory job has been replaced.
 export function initializationRecovery(status) {
   if (status?.guest_system !== "macos") return null;
-  const workspace = status.workspace;
+  const workspace = status.workspace || (status.environment_workspace ? status.environment_directory : "");
   const failure = status.project_errors?.find(item => item.path === workspace);
   if (failure) return { ...failure, workspace };
   if (status.job?.error && status.job.recovery) return { recovery: status.job.recovery, message: status.job.error, workspace: status.job.workspace || workspace };

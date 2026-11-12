@@ -57,7 +57,7 @@ try {
   await fs.mkdir(output, { recursive: true });
   await page.screenshot({ path: output + "/display-size-open.png" });
   const options = page.getByRole("listbox");
-  const bounds = await options.boundingBox();
+  const bounds = await page.locator(".select-surface").filter({ has: options }).boundingBox();
   const trigger = await selector.boundingBox();
   assert.equal(bounds.x, trigger.x);
   assert.ok(bounds.y >= trigger.y + trigger.height && bounds.y + bounds.height > before.y);
@@ -76,10 +76,10 @@ try {
   assert.equal(display.stats.connections, connections, "zoom must preserve the active RFB connection");
   failResize = true;
   await chooseInline(selector, "1.1");
-  await page.getByRole("alert").filter({ hasText: "画面尺寸未能同步" }).waitFor();
+  await page.getByRole("alert").filter({ hasText: "画面尺寸未同步" }).waitFor();
   failResize = false;
   await matched(1.1);
-  await page.getByRole("alert").filter({ hasText: "画面尺寸未能同步" }).waitFor({ state: "hidden" });
+  await page.getByRole("alert").filter({ hasText: "画面尺寸未同步" }).waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
   await matched(1.1);
   await page.reload();
@@ -91,7 +91,7 @@ try {
   await page.setViewportSize({ width: 820, height: 558 });
   await matched();
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("switch", { name: /流畅画质/ }).check();
+  await page.getByRole("switch", { name: /优先流畅/ }).check();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await page.getByRole("region", { name: "设置", exact: true }).waitFor({ state: "hidden" });
   assert.equal(state.settings.balanced_display, true);

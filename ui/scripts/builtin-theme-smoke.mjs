@@ -177,22 +177,18 @@ try {
     .click();
   await page.getByRole("menuitem", { name: "普通终端", exact: true }).click();
   await page.getByRole("tab", { name: "终端 1", exact: true }).waitFor();
-  await page.waitForFunction(
-    () =>
-      getComputedStyle(document.querySelector(".xterm-scrollable-element"))
-        .backgroundColor === "rgb(255, 255, 255)",
-  );
+  const waitForTerminalColor = color => page.waitForFunction(expected => {
+    const surface = document.querySelector(".xterm-scrollable-element");
+    return surface && getComputedStyle(surface).backgroundColor === expected;
+  }, color);
+  await waitForTerminalColor("rgb(255, 255, 255)");
   const connections = state.terminalConnections;
   await open();
   await select("light", "high-contrast");
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await saved();
   await page.getByRole("button", { name: "返回工作台", exact: true }).click();
-  await page.waitForFunction(
-    () =>
-      getComputedStyle(document.querySelector(".xterm-scrollable-element"))
-        .backgroundColor === "rgb(18, 27, 36)",
-  );
+  await waitForTerminalColor("rgb(18, 27, 36)");
   assert.equal(state.terminalConnections, connections);
   await page.setViewportSize({ width: 1280, height: 850 });
   await page.screenshot({

@@ -45,14 +45,14 @@ try {
   const surface = await page.locator(".remote-view").elementHandle();
   await openSettings();
   const picker = page.getByRole("combobox", { name: "标签栏布局", exact: true });
-  const help = settings.getByText("浏览器设置页跟随 Cage 当前的字体与配色。", { exact: true });
+  const row = settings.locator(".browser-setting-row").filter({ has: picker });
   await settings.locator('.browser-settings-section').evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
-  const before = await help.boundingBox();
+  const before = await row.boundingBox();
   await picker.click();
-  const expanded = await help.boundingBox();
-  assert.ok(Math.abs(expanded.y - before.y) < 1, "floating options must not move the following content");
+  const expanded = await row.boundingBox();
+  assert.deepEqual(expanded, before, "floating options must not resize or move the setting");
   await page.keyboard.press("Escape");
-  assert.ok(Math.abs((await help.boundingBox()).y - before.y) < 1, "closing options restores the layout");
+  assert.deepEqual(await row.boundingBox(), before, "closing options restores the layout");
   await picker.click();
   await page.getByRole("option", { name: "竖排（左侧）", exact: true }).click();
   await shot("browser-settings");
@@ -94,7 +94,7 @@ try {
   await tabs.getByRole("tab", { name: "测试网页 2", exact: true }).click();
   await page.getByRole("button", { name: "关闭 测试网页 2", exact: true }).click();
   await tabs.getByRole("tab", { name: "测试网页 2", exact: true }).waitFor({ state: "hidden" });
-  checks.push("横排默认值；设置下拉内嵌展开与收起；竖排切换保留画面组件；上下键和 Home/End；拖动排序、置顶、刷新保留、新建和关闭");
+  checks.push("横排默认值；设置下拉展开与收起时不移动内容；竖排切换保留画面组件；上下键和 Home/End；拖动排序、置顶、刷新保留、新建和关闭");
 
   // Drag from the rail into the page to exercise native dual-browser splitting.
   await drag(tabs.getByRole("tab", { name: "测试网页 3", exact: true }), page.locator(".browser-lane .pane-body"));

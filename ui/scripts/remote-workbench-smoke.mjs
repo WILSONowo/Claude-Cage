@@ -50,7 +50,7 @@ try {
   const macKeyboard = page.getByRole("radio", { name: /Mac 快捷键/ });
   assert.equal(await macKeyboard.isChecked(), true, "Mac client defaults must not follow Linux server keyboard mode");
   const savesBefore = state.requests.filter((item) => item.path === "/settings" && item.method === "POST").length;
-  await page.getByRole("radio", { name: /原生 Linux 快捷键/ }).check();
+  await page.getByRole("radio", { name: /客机原生快捷键/ }).check();
   assert.equal(await page.evaluate((instance) => localStorage.getItem(`cage-keyboard:remote:${instance}`), instance), "native");
   assert.equal(state.requests.filter((item) => item.path === "/settings" && item.method === "POST").length, savesBefore, "client keyboard changes must not write cloud settings");
   await macKeyboard.check();

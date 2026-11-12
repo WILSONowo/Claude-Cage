@@ -200,6 +200,7 @@ export async function createWorkbench({
         if (state.failAppearance)
           return route.fulfill({
             status: 500,
+            contentType: "text/plain; charset=utf-8",
             body: "外观设置未能保存，请重试",
           });
         state.appearance = structuredClone(body);

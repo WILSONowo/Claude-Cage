@@ -73,6 +73,51 @@ try {
   await history.first().waitFor();
   await page.reload();
   await page.getByRole("button", { name: "你好", exact: true }).waitFor();
+  // The compact Windows header and project toolbar must also fit a resized
+  // sidebar. Their geometry is independent of the full window width.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "platform", { value: "Win32" });
+    localStorage.setItem("cage-sidebar-width", "192");
+  });
+  await page.reload();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const [width, height, font] of [[1280, 850, 14], [720, 400, 24]]) {
+    await page.setViewportSize({ width, height });
+    const sidebar = page.locator(".native-sidebar");
+    await sidebar.waitFor();
+    await page.evaluate(size => document.documentElement.style.setProperty("--ui-font-size", size + "px"), font);
+    await project.locator(".project-disclosure").hover();
+    const layout = await sidebar.evaluate(root => {
+      const rect = selector => root.querySelector(selector).getBoundingClientRect();
+      const center = selector => rect(selector).top + rect(selector).height / 2;
+      return {
+        headerOffset: center(".workspace-modes") - center(".sidebar-top .icon-button"),
+        clipped: [...root.querySelectorAll(".workspace-modes button")].some(button => button.scrollWidth > button.clientWidth + 1),
+        folderHover: getComputedStyle(root.querySelector(".project-heading")).backgroundColor,
+        rowGap: rect(".sidebar-tab").top - rect(".project-heading").bottom,
+        footerBottom: rect(".sidebar-bottom").bottom,
+      };
+    });
+    assert.ok(Math.abs(layout.headerOffset) <= 1 && !layout.clipped, JSON.stringify(layout));
+    assert.notEqual(layout.folderHover, "rgba(0, 0, 0, 0)");
+    assert.ok(layout.rowGap >= 2 && layout.footerBottom <= height + 1, JSON.stringify(layout));
+    const collapse = sidebar.getByRole("button", { name: "收起侧栏" });
+    await collapse.press("Enter");
+    const expand = page.getByRole("button", { name: "展开侧栏" });
+    await expand.waitFor();
+    assert.ok(await expand.evaluate(node => document.activeElement === node));
+    await expand.press("Enter");
+    await collapse.waitFor();
+    assert.ok(await collapse.evaluate(node => document.activeElement === node));
+  }
+  const ssh = page.getByRole("button", { name: "SSH 主机", exact: true });
+  await ssh.press("Enter");
+  const back = page.getByRole("button", { name: "返回工作台侧栏" });
+  await back.waitFor();
+  assert.ok(await back.evaluate(node => document.activeElement === node));
+  await back.press("Enter");
+  await ssh.waitFor();
+  assert.ok(await ssh.evaluate(node => document.activeElement === node));
   assert.deepEqual(errors, []);
   await writeFile(`${output}/${engine}-result.json`, JSON.stringify(evidence, null, 2));
   console.log(`${engine}: live/history alignment, short/long/pinned titles, hover, keyboard, collapse and reload passed`);

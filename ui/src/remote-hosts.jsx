@@ -157,6 +157,8 @@ function Environment({ context, refresh, children }) {
   const runningAction = useRef(false);
   const serial = useRef(0);
   const secretForTrust = useRef(null);
+  const sidebarPanel = useRef(null);
+  const sidebarOpener = useRef("");
   const shellPresent = useRef(true);
   const acknowledged = useRef(false);
   const awaitingTarget =
@@ -166,6 +168,15 @@ function Environment({ context, refresh, children }) {
   );
   const defaultLocal = awaitingTarget && !stayInSSH && context.candidate?.mode !== "remote";
   const showHosts = expanded || (!ready && !defaultLocal);
+  useEffect(() => {
+    if (!sidebarOpener.current) return;
+    if (showHosts) {
+      sidebarPanel.current?.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    } else {
+      document.getElementById(sidebarOpener.current)?.focus({ preventScroll: true });
+      sidebarOpener.current = "";
+    }
+  }, [showHosts]);
   const candidate = gateway ? context.candidate : null;
   const verifying = candidate?.connection?.state === "connecting";
   const connection =
@@ -265,7 +276,8 @@ function Environment({ context, refresh, children }) {
     setPassword("");
     setError("");
   };
-  const openSidebar = () => {
+  const openSidebar = (event) => {
+    sidebarOpener.current = event?.currentTarget?.id || "";
     setExpanded(true);
     setError("");
   };
@@ -505,7 +517,7 @@ function Environment({ context, refresh, children }) {
           </span>
         )}
         {ready && !showHosts && (
-          <button className="ssh-fallback" onClick={openSidebar}>
+          <button id="open-ssh-toolbar" aria-controls="ssh-hosts" className="ssh-fallback" onClick={openSidebar}>
             <Server size={15} />
             SSH 主机
           </button>
@@ -551,7 +563,7 @@ function Environment({ context, refresh, children }) {
       >
         {showHosts && (
           <aside
-            className="workspace-sidebar ssh-sidebar"
+            ref={sidebarPanel} id="ssh-hosts" className="workspace-sidebar ssh-sidebar"
             aria-label="SSH 主机"
           >
             <div className="sidebar-top">
@@ -780,7 +792,7 @@ function Environment({ context, refresh, children }) {
                   (!showHosts || localLost) &&
                   localButton("重新连接本机")}
                 {!showHosts && (
-                  <button disabled={Boolean(busy)} onClick={openSidebar}>
+                  <button id="open-ssh-picker" aria-controls="ssh-hosts" disabled={Boolean(busy)} onClick={openSidebar}>
                     <Server size={16} />
                     连接 SSH 主机
                   </button>

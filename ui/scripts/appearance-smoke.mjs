@@ -100,7 +100,7 @@ try {
   await page.getByLabel("代码字号", { exact: true }).fill("15");
   await page
     .getByRole("alert")
-    .filter({ hasText: "HTTP 500" })
+    .filter({ hasText: "外观设置未能保存" })
     .waitFor();
   assert.equal(
     await page.getByLabel("代码字号", { exact: true }).inputValue(),

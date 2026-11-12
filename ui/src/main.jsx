@@ -219,7 +219,7 @@ function App() {
   useEffect(() => {
     // Preserve the return destination until the last tab's removal is handled,
     // including removals received through events or fallback polling.
-    if (browserWasVisible.current && !tabs.some(tab => tab.kind !== "terminal")) closeBrowser();
+    if (!desktopOpen && browserWasVisible.current && !tabs.some(tab => tab.kind !== "terminal")) closeBrowser();
     else if (!browserVisible) viewBeforeBrowser.current = {
       layout, home: showHome, desktopOpen, selectedProject,
     };
@@ -839,7 +839,7 @@ function App() {
       if (!Array.isArray(b?.tabs)) return;
       browserStreamReady.current = true;
       setBrowserError("");
-      if (b.desktopFocus === true) {
+      if (!b.handoff?.sequence && b.desktopFocus === true) {
         setDesktopOpen(true);
         setHome(false);
         setSettingsOpen(false);
@@ -1399,6 +1399,7 @@ function App() {
       <div
         className="workbench-shell"
         inert={settingsOpen || hostGitOpen || undefined}
+        aria-hidden={settingsOpen || hostGitOpen || undefined}
       >
         {
           <WorkspaceSidebar sidebarCollapsed={sidebarCollapsed}
@@ -1886,7 +1887,6 @@ function App() {
           onClose={() => setRename(null)}
           footer={
             <>
-              <span className="save-note">仅在工作台中生效</span>
               <button onClick={() => setRename(null)}>取消</button>
               <button
                 className="primary"
@@ -1934,6 +1934,7 @@ function App() {
             <input
               id="tab-title"
               autoFocus
+              onFocus={event => event.currentTarget.select()}
               maxLength={100}
               value={rename.title}
               onChange={(event) =>

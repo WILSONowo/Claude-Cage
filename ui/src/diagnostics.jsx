@@ -38,7 +38,7 @@ export function DiagnosticSettings() {
   return <section className="settings-group" aria-label="日志与诊断">
     <h3>日志与诊断</h3>
     <p className="footnote">仅记录故障和运行状态，脱敏保留 14 天。每份后台日志上限 40 MiB，环境服务日志预算 10 MiB，诊断包最大 96 MiB。</p>
-    {info && <p className="footnote">{remote ? "服务器" : "本机"}日志 {(info.bytes / 1024 / 1024).toFixed(1)} MiB · {info.files} 个文件</p>}
+    {Number.isFinite(info?.bytes) && Number.isInteger(info?.files) && <p className="footnote">{remote ? "服务器" : "本机"}日志 {(info.bytes / 1024 / 1024).toFixed(1)} MiB · {info.files} 个文件</p>}
     <button className="secondary-button" disabled={busy} onClick={save}>
       {busy ? <LoaderCircle size={14} className="spin" /> : <ArrowDownToLine size={14} />}
       {busy ? "正在导出…" : remote ? "导出服务器诊断包" : "导出诊断包"}

@@ -21,7 +21,7 @@ try {
   ] });
   workbench = await createWorkbench({ browserRequest: async (route, path, body) => {
     if (path === '/browser/resize') return route.fulfill({ json: { ok: true } });
-    if (path === '/browser/cookies' && failCookies) return route.fulfill({ status: 502, body: '测试：Cookie 服务暂时不可用' });
+    if (path === '/browser/cookies' && failCookies) return route.fulfill({ status: 502, contentType: 'text/plain; charset=utf-8', body: '测试：Cookie 服务暂时不可用' });
     try { return await route.fulfill({ json: await controller.api(path.replace('/browser', ''), body ?? undefined) }); }
     catch (error) { return route.fulfill({ status: 400, body: error.message }); }
   } });
@@ -69,9 +69,9 @@ try {
   const listY = async () => (await panel.locator('.cookie-list').boundingBox()).y;
   const collapsedY = await listY();
   await range.click();
-  await panel.getByRole('option', { name: '所有网站', exact: true }).waitFor();
-  assert.ok(await listY() > collapsedY + 30, 'inline choices occupy layout space');
-  await page.screenshot({ path: fileURLToPath(new URL(`cookie-range-inline-${engine}.png`, output)) });
+  await page.getByRole('option', { name: '所有网站', exact: true }).waitFor();
+  assert.ok(Math.abs(await listY() - collapsedY) < 1, 'floating options leave cookie rows in place');
+  await page.screenshot({ path: fileURLToPath(new URL(`cookie-range-menu-${engine}.png`, output)) });
   await range.press('ArrowDown'); await range.press('Enter');
   await panel.getByText('unrelated', { exact: true }).waitFor();
   await panel.getByRole('textbox', { name: '搜索 Cookie' }).fill('fixture-session');
@@ -79,7 +79,7 @@ try {
   await panel.getByRole('button', { name: '删除 Cookie fixture-session', exact: true }).click();
   await panel.getByText('没有匹配的 Cookie。', { exact: true }).waitFor();
   assert.equal((await controller.api('/cookies', { id: normal, mode: 'list', scope: 'all' })).total, 1);
-  checks.push('real cookies viewed, values revealed and hidden, range selects inline with keyboard, search and exact deletion preserve other cookies');
+  checks.push('real cookies viewed, values revealed and hidden, range menu supports keyboard selection, search and exact deletion preserve other cookies');
 
   await panel.getByRole('textbox', { name: '搜索 Cookie' }).fill('');
   await panel.getByText('unrelated', { exact: true }).waitFor();
@@ -88,7 +88,7 @@ try {
   assert.equal((await controller.api('/cookies', { id: normal, mode: 'list', scope: 'all' })).total, 1);
   failCookies = true;
   await panel.getByRole('button', { name: '刷新 Cookie', exact: true }).click();
-  await panel.getByRole('alert').getByText('测试：Cookie 服务暂时不可用', { exact: true }).waitFor();
+  await panel.getByRole('alert').filter({ hasText: '测试：Cookie 服务暂时不可用' }).waitFor();
   failCookies = false;
   await panel.getByRole('button', { name: '刷新 Cookie', exact: true }).click();
   await panel.getByText('unrelated', { exact: true }).waitFor();

@@ -2,8 +2,15 @@ import React, { useEffect, useState } from "react";
 import { api } from "./api";
 import { SafetyMessage } from "./safety-message";
 
-const gib = (bytes) => `${(bytes / 1073741824).toFixed(1)} GiB`;
+const gib = (bytes) => Number.isFinite(bytes) ? `${(bytes / 1073741824).toFixed(1)} GiB` : "—";
 const allocationFrom = (data) => ({ automatic: data.automatic, memory_gib: data.memory_gib, cpus: data.cpus });
+
+async function readResources() {
+  const data = await api("/environment/resources");
+  if (data?.runtime !== "container" && ![data?.memory_gib, data?.cpus, data?.max_memory_gib, data?.max_cpus].every(Number.isFinite))
+    throw new Error("暂时无法读取资源配置，正在重新检查。");
+  return data;
+}
 
 export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
   const [data, setData] = useState(null);
@@ -21,7 +28,7 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
     setSaved(false);
     try {
       await api("/environment/resources", { allocation: draft });
-      const next = await api("/environment/resources");
+      const next = await readResources();
       setData(next);
       setDraft(allocationFrom(next));
       setSaved(true);
@@ -34,7 +41,7 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
     let timer;
     const refresh = async () => {
       try {
-        const next = await api("/environment/resources");
+        const next = await readResources();
         if (live) { setData(next); setReadError(""); }
       } catch (e) { if (live) setReadError(e.message); }
       if (live) timer = setTimeout(refresh, 4000);

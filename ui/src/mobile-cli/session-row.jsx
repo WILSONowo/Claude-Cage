@@ -84,7 +84,8 @@ export function SessionActionDialog({ action, busy, error, onCancel, onSubmit })
     onCancel={event => { event.preventDefault(); if (!busy) onCancel(); }}>
     <form onSubmit={event => { event.preventDefault(); onSubmit(rename ? {title:title.trim()} : {}); }}>
       <h2>{rename ? "重命名会话" : "归档会话？"}</h2>
-      {rename ? <label>会话名称<input autoFocus value={title} maxLength={100} disabled={busy} onChange={event => setTitle(event.target.value)}/></label>
+      {rename ? <label>会话名称<input autoFocus value={title} maxLength={100} disabled={busy}
+        onFocus={event => event.currentTarget.select()} onChange={event => setTitle(event.target.value)}/></label>
         : <p>归档“{action.session.title || "新会话"}”会关闭关联终端并保留历史。可在设置的“已归档会话”中恢复。</p>}
       {error && <p role="alert" className="session-action-error">{error}</p>}
       <footer><button type="button" disabled={busy} onClick={onCancel}>取消</button>

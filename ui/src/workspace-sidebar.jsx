@@ -83,6 +83,14 @@ export function WorkspaceSidebar({
     return saved > 0 ? Math.min(420, Math.max(192, saved)) : 244;
   });
   const dragOffset = useRef(null);
+  const previousCollapsed = useRef(sidebarCollapsed);
+  useEffect(() => {
+    if (sidebarCollapsed === previousCollapsed.current) return;
+    previousCollapsed.current = sidebarCollapsed;
+    const controls = document.querySelectorAll('button[aria-controls="workspace-sidebar"]');
+    const visible = [...controls].find(button => !button.closest("[inert]") && button.getClientRects().length);
+    visible?.focus({ preventScroll: true });
+  }, [sidebarCollapsed]);
   const needle = query?.trim().toLocaleLowerCase() || "";
   const matches = text => String(text || "").toLocaleLowerCase().includes(needle);
   const resize = value => {
@@ -98,11 +106,17 @@ export function WorkspaceSidebar({
       setCollapsed((previous) => ({ ...previous, [activeWorkspace]: false }));
   }, [active, activeWorkspace]);
   if (ssh?.expanded) return null;
+  const modes = (
+    <div className="workspace-modes" aria-label="工作模式">
+      <button aria-pressed={desktopOpen} disabled={!running || busy} onClick={onClaudeDesktop} aria-label="Claude Desktop" title="安装或打开 Claude Desktop">{compactHeader && guestSystem ? <GuestSystemIcon system={guestSystem} /> : <Monitor size={15} />}<span><span className="mode-prefix">Claude </span>Desktop</span></button>
+      <button aria-pressed={!desktopOpen} onClick={onHome} aria-label="Code" title="Code"><Code2 size={15} /><span className="mode-label">Code</span></button>
+    </div>
+  );
   return (
-    <aside className={`workspace-sidebar${compactHeader ? " native-sidebar" : ""}`} aria-label="项目与终端" inert={sidebarCollapsed || undefined}
+    <aside id="workspace-sidebar" className={`workspace-sidebar${compactHeader ? " native-sidebar" : ""}`} aria-label="项目与终端" inert={sidebarCollapsed || undefined}
       style={{ "--expanded-sidebar": width + "px" }}>
       <div className="sidebar-top">
-        {!compactHeader && <span className="sidebar-brand">
+        {compactHeader ? modes : <span className="sidebar-brand">
           <img className="brand-logo" src={logo} alt="" />
           Cage
           <GuestSystemIcon system={guestSystem} />
@@ -110,16 +124,15 @@ export function WorkspaceSidebar({
         <button
           className="icon-button"
           onClick={onCollapse}
+          aria-controls="workspace-sidebar" aria-expanded="true"
           aria-label="收起侧栏"
           title="收起侧栏"
         >
           <PanelLeftClose size={17} />
         </button>
       </div>
-      <div className="workspace-modes" aria-label="工作模式">
-        <button aria-pressed={desktopOpen} disabled={!running || busy} onClick={onClaudeDesktop} aria-label="Claude Desktop" title="安装或打开 Claude Desktop">{compactHeader && guestSystem ? <GuestSystemIcon system={guestSystem} /> : <Monitor size={15} />}Claude Desktop</button>
-        <button aria-pressed={!desktopOpen} onClick={onHome}><Code2 size={15} />Code</button>
-      </div>
+      {!compactHeader && modes}
+      <div className="sidebar-content">
       <nav className="sidebar-navigation" aria-label="主导航">
         <button
           className={`sidebar-link ${home ? "selected" : ""}`}
@@ -140,7 +153,7 @@ export function WorkspaceSidebar({
           浏览器
         </button>
         <button className="sidebar-link" onClick={onTailscale} aria-label="打开 Tailscale"><Network size={17} />Tailscale</button>
-        {ssh && <button className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
+        {ssh && <button id="open-ssh-sidebar" aria-controls="ssh-hosts" className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
         <div className="claude-shortcuts">
           <button className="sidebar-link" onClick={onClaudeWeb} disabled={!ready || busy} title="在 Cage 浏览器打开 claude.ai"><MessageCircle size={17} />claude.ai</button>
 
@@ -291,11 +304,12 @@ export function WorkspaceSidebar({
           <p className="sidebar-empty">打开本地文件夹开始工作</p>
         )}
       </div>
+      </div>
       <div className="sidebar-bottom">
         <div className="sidebar-footer-actions">
           <AccountMenu onSettings={onSettings} onConfirm={onAccountConfirm} onStatus={onAccountStatus} busy={busy} />
           <button className="icon-button" aria-label="设置" title={shortcut("设置 ⌘,")} onClick={() => onSettings("keyboard")}><Settings size={17} /></button>
-          {updateAction}
+          {!sidebarCollapsed && updateAction}
         </div>
       </div>
       <div className="sidebar-resizer" role="separator" aria-label="调整侧栏宽度" aria-orientation="vertical"

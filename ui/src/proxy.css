@@ -6,10 +6,12 @@
 .proxy-heading {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .settings-content .proxy-heading h3 {
   margin: 0;
+  flex: none;
 }
 .proxy-heading + p {
   margin-top: 10px;
@@ -33,13 +35,13 @@
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-size: 13px;
+  font-size: .929rem;
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
 .settings-content .proxy-help h4 {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: 1rem;
 }
 .proxy-help p {
   margin: 6px 0 0;
@@ -88,7 +90,7 @@
   overflow-wrap: anywhere;
 }
 .proxy-summary > div > span {
-  font-size: 12px;
+  font-size: .857rem;
   opacity: 0.65;
   margin-top: 5px;
 }
@@ -96,7 +98,7 @@
   padding: 4px 9px;
   background: color-mix(in srgb, currentColor 6%, transparent);
   border-radius: 20px;
-  font-size: 11px;
+  font-size: .786rem;
   white-space: nowrap;
 }
 .proxy-badge.online {
@@ -133,7 +135,7 @@
 .proxy-toolbar > span:not(.search-field, .inline-select) {
   margin-right: auto;
   opacity: 0.65;
-  font-size: 12px;
+  font-size: .857rem;
 }
 .proxy-toolbar .inline-select {
   max-width: 150px;
@@ -176,14 +178,14 @@
   overflow-wrap: anywhere;
 }
 .proxy-node-choice strong {
-  font-size: 13px;
+  font-size: .929rem;
   font-weight: 550;
 }
 .proxy-node small,
 .proxy-source small,
 .proxy-connection small {
   opacity: 0.6;
-  font-size: 11px;
+  font-size: .786rem;
   margin-top: 4px;
 }
 .proxy-radio {
@@ -200,7 +202,7 @@
   color: var(--paper);
 }
 .proxy-delay {
-  font-size: 11px;
+  font-size: .786rem;
   opacity: 0.6;
   white-space: nowrap;
 }
@@ -214,7 +216,7 @@
   text-align: center;
 }
 .proxy-empty p {
-  font-size: 12px;
+  font-size: .857rem;
   opacity: 0.65;
   margin: 0;
 }
@@ -231,7 +233,7 @@
   overflow-wrap: anywhere;
 }
 .proxy-source strong {
-  font-size: 13px;
+  font-size: .929rem;
 }
 .proxy-source-actions {
   display: flex;
@@ -241,14 +243,14 @@
   padding: 7px;
 }
 .proxy-source-error {
-  font-size: 12px;
+  font-size: .857rem;
   color: var(--danger, #bc4c4c);
   display: block;
   margin-top: 6px;
 }
 .proxy-source-skipped {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: .857rem;
   line-height: 1.6;
 }
 .proxy-source-skipped summary {
@@ -330,14 +332,14 @@
 }
 .proxy-yaml-file strong {
   display: block;
-  font-size: 13px;
+  font-size: .929rem;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 .proxy-yaml-file > span {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: .857rem;
   color: var(--muted);
 }
 .proxy-yaml-choose {
@@ -346,13 +348,13 @@
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--paper);
-  font-size: 12px;
+  font-size: .857rem;
 }
 .proxy-yaml-help,
 .proxy-yaml-status,
 .proxy-yaml-error {
   margin: 8px 0 16px;
-  font-size: 12px;
+  font-size: .857rem;
   line-height: 1.6;
   color: var(--muted);
 }
@@ -401,7 +403,7 @@
 }
 .proxy-migration {
   margin-top: 20px;
-  font-size: 12px;
+  font-size: .857rem;
   opacity: 0.8;
 }
 .proxy-migration summary {
@@ -416,11 +418,11 @@
   border-radius: 10px;
 }
 .proxy-metrics span {
-  font-size: 12px;
+  font-size: .857rem;
 }
 .proxy-metrics strong {
   display: block;
-  font-size: 20px;
+  font-size: 1.429rem;
   font-weight: 500;
   margin: 6px 0;
 }
@@ -436,7 +438,7 @@
   justify-content: space-between;
   padding: 12px;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: .857rem;
   gap: 12px;
   overflow-wrap: anywhere;
 }
@@ -444,7 +446,7 @@
   padding: 12px;
   border-radius: 8px;
   background: color-mix(in srgb, currentColor 4%, transparent);
-  font-size: 12px;
+  font-size: .857rem;
   line-height: 1.8;
   margin-bottom: 18px;
   overflow-wrap: anywhere;
@@ -454,7 +456,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: .857rem;
 }
 .proxy-notice {
   color: var(--success);
@@ -467,7 +469,7 @@
   padding-top: 18px;
 }
 .external-proxy > summary {
-  font-size: 13px;
+  font-size: .929rem;
   cursor: pointer;
   margin-bottom: 18px;
 }
@@ -504,11 +506,11 @@
 .settings-content .proxy-route h4,
 .settings-content .proxy-node-heading h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: 1rem;
 }
 .proxy-route-heading p {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: .929rem;
   color: var(--muted);
 }
 .proxy-route-mode {
@@ -567,7 +569,7 @@
   flex: none;
   border: 1px solid var(--line);
   border-radius: 50%;
-  font-size: 12px;
+  font-size: .857rem;
   color: var(--muted);
 }
 .is-exit .proxy-hop-number {
@@ -584,7 +586,7 @@
   .proxy-hop-control
   label:not(.check-line):not(.choice):not(.toggle-row) {
   margin: 3px 0 7px;
-  font-size: 13px;
+  font-size: .929rem;
   font-weight: 600;
 }
 .proxy-hop-control .inline-select {
@@ -597,7 +599,7 @@
 }
 .proxy-hop-control small {
   display: block;
-  font-size: 12px;
+  font-size: .857rem;
   color: var(--muted);
   margin-top: 7px;
 }
@@ -616,7 +618,7 @@
   gap: 7px;
   border-top: 1px solid var(--line);
   padding-top: 15px;
-  font-size: 12px;
+  font-size: .857rem;
   line-height: 1.7;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -633,7 +635,7 @@
 }
 .proxy-route-actions > span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: .857rem;
 }
 .proxy-route-actions > div {
   display: flex;
@@ -645,11 +647,11 @@
 }
 .proxy-node-role {
   color: var(--muted);
-  font-size: 11px;
+  font-size: .786rem;
   white-space: nowrap;
 }
 .proxy-summary .proxy-current-route {
-  font-size: 12px;
+  font-size: .857rem;
   line-height: 1.6;
   opacity: 1;
   color: var(--muted);

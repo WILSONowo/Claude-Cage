@@ -70,8 +70,16 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         window.minSize = NSSize(width: 820, height: 580)
         window.isReleasedWhenClosed = false
         window.delegate = self
+        if !window.setFrameUsingName("CageMainWindow") {
+            if let bounds = window.screen?.visibleFrame {
+                var frame = window.frame
+                frame.size.width = min(frame.width, bounds.width)
+                frame.size.height = min(frame.height, bounds.height)
+                window.setFrame(frame, display: false)
+            }
+            window.center()
+        }
         window.setFrameAutosaveName("CageMainWindow")
-        window.center()
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "cage")
@@ -95,7 +103,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         nativeInput.configure(web: webView)
         content.addSubview(nativeInput)
         NSLayoutConstraint.activate([webView.leadingAnchor.constraint(equalTo: content.leadingAnchor), webView.trailingAnchor.constraint(equalTo: content.trailingAnchor), webView.topAnchor.constraint(equalTo: content.topAnchor), webView.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
-        loading = NSTextField(labelWithString: "正在启动 Cage 工作台…")
+        loading = NSTextField(wrappingLabelWithString: "正在启动 Cage 工作台…")
         loading.font = NSFont.systemFont(ofSize: 15, weight: .medium)
         loading.textColor = .labelColor
         loading.alignment = .center
@@ -175,6 +183,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         view.addItem(withTitle: "进入全屏", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "")
         let viewItem = NSMenuItem(title: "窗口", action: nil, keyEquivalent: ""); viewItem.submenu = view; main.addItem(viewItem)
         NSApp.mainMenu = main
+        NSApp.windowsMenu = view
     }
     @objc private func editUndo(){edit("undo",fallback:"undo:")}
     @objc private func editRedo(){edit("redo",fallback:"redo:")}
@@ -255,6 +264,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
     }
     private func bootstrap(options: [String] = []) {
         loading.stringValue = options.contains("--complete-update") ? "正在停止环境并切换到新版后台…" : "正在启动 Cage 工作台…"
+        loading.toolTip = nil
         loading.isHidden = false; retry.isHidden = true; webView.isHidden = true
         completeUpdateButton.isHidden = true; existingEnvironmentButton.isHidden = true
         requestEntry(options: options) { result in
@@ -354,7 +364,14 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         fileSelections[id] = (urls.map(\.path), now.addingTimeInterval(600))
         return ["fileSelection": id, "count": urls.count]
     }
-    private func showError(_ text: String) { CageDiagnostics.record(text); loading.stringValue = text; loading.isHidden = false; retry.isHidden = false; webView.isHidden = true }
+    private func showError(_ text: String) {
+        CageDiagnostics.record(text)
+        loading.stringValue = text
+        loading.toolTip = text
+        loading.isHidden = false
+        retry.isHidden = false
+        webView.isHidden = true
+    }
     private func applyAppearance(_ value: [String:Any]) {
         let mode = value["mode"] as? String ?? "system"
         NSApp.appearance = mode == "system" ? nil : NSAppearance(named: mode == "dark" ? .darkAqua : .aqua)

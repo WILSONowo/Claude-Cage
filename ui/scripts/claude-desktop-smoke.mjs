@@ -94,6 +94,7 @@ try {
   await desktopToolbar.waitFor();
   state.tabs.push({ ...loginTab, id: "desktop-login-poll" });
   state.active = "desktop-login-poll";
+  await page.evaluate(() => window.desktopBrowserEvents.onerror?.());
   await desktopToolbar.waitFor({ state: "hidden" });
   assert.equal(await page.getByRole("textbox", { name: "网页地址或搜索" }).inputValue(), loginTab.url);
   await page.getByRole("button", { name: "打开浏览器", exact: true }).click();

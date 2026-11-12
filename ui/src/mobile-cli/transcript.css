@@ -1,3 +1,12 @@
+.approval { margin-top: 10px; min-width: 0; border: 1px solid var(--line); border-radius: 11px; padding: 13px; }
+.approval h2 { margin: 0; font-size: 1.05em; }
+.approval pre {
+  margin: 8px 0; padding: 10px; border-radius: 6px; background: var(--soft);
+  font: .95em/1.55 var(--code-font-family, ui-monospace, monospace);
+  white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-height: min(15rem, 32vh);
+}
+.approval-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
 .message-body.markdown {
   white-space: normal;
   min-width: 0;

@@ -219,7 +219,9 @@ public final class MainActivity extends Activity {
         view.setStateListAnimator(null);
         view.setBackground(pressable(primary ? palette.action : palette.panel, 6, !primary));
         view.setOnClickListener(action);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(52));
+        view.setMinHeight(dp(52));
+        view.setPadding(dp(16), dp(8), dp(16), dp(8));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.topMargin = dp(8);
         parent.addView(view, lp);
         return view;
@@ -356,23 +358,29 @@ public final class MainActivity extends Activity {
         shade.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         shade.setFocusable(false);
         layer.addView(shade, -1, -1);
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new ScrollView(this) {
+            @Override protected void onMeasure(int width, int height) {
+                int available = Math.min(MeasureSpec.getSize(width), dp(500));
+                super.onMeasure(MeasureSpec.makeMeasureSpec(available, MeasureSpec.EXACTLY), height);
+            }
+        };
         scroll.setFillViewport(false);
         scroll.setBackground(surface(palette.panel, 12, true));
         scroll.setClickable(true);
-        FrameLayout.LayoutParams sheet = new FrameLayout.LayoutParams(Math.min(getResources().getDisplayMetrics().widthPixels, dp(500)), -2,
+        FrameLayout.LayoutParams sheet = new FrameLayout.LayoutParams(-1, -2,
             Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         sheet.setMargins(dp(8), dp(12), dp(8), dp(8));
-        sheet.width = Math.min(sheet.width - dp(16), dp(500));
         layer.addView(scroll, sheet);
         form = column();
         form.setPadding(dp(20), dp(14), dp(20), dp(14));
         scroll.addView(form);
-        FrameLayout heading = new FrameLayout(this);
-        form.addView(heading, -1, dp(48));
+        LinearLayout heading = new LinearLayout(this);
+        heading.setGravity(Gravity.CENTER_VERTICAL);
+        form.addView(heading, -1, -2);
         TextView title = text(code ? "配对码" : "连接电脑", 24, palette.ink);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.addView(title, new FrameLayout.LayoutParams(-2, -2, Gravity.LEFT | Gravity.CENTER_VERTICAL));
+        heading.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        heading.addView(icon("close", "关闭配对窗口", v -> closeSheet()), dp(48), dp(48));
         if (!code) {
             form.addView(image("pair_devices"), -1, dp(112));
             label("在电脑的「设置 → 远程连接」中生成配对二维码或配对码。", 14);
@@ -381,6 +389,8 @@ public final class MainActivity extends Activity {
         } else {
             label("粘贴电脑上的一次性配对码。", 15);
             EditText manualCode = field("一次性配对码", "");
+            manualCode.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            manualCode.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
             button(form, "连接电脑", true, v -> {
                 String value = manualCode.getText().toString().trim();
                 if (value.isEmpty()) { status.setText("请粘贴配对码。"); return; }
@@ -728,6 +738,7 @@ public final class MainActivity extends Activity {
     }
     private void createBrowser(ConnectedDevice connected) {
         WebView view = new WebView(this);
+        view.setBackgroundColor(palette.bg);
         connected.view = view;
         WebView.setWebContentsDebuggingEnabled(false);
         WebSettings settings = view.getSettings(); settings.setJavaScriptEnabled(true); settings.setAllowFileAccess(false); settings.setAllowContentAccess(false);
@@ -796,7 +807,10 @@ public final class MainActivity extends Activity {
         explanation.setPadding(0,dp(12),0,dp(12)); panel.addView(explanation);
         button(panel,"取消连接",true,v -> {dialog.dismiss(); disconnectDevice(selected);});
         button(panel,"继续连接",false,v -> dialog.dismiss());
-        dialog.setContentView(panel);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackground(surface(palette.panel, 26, false));
+        scroll.addView(panel);
+        dialog.setContentView(scroll);
         android.view.Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawableResource(android.R.color.transparent);

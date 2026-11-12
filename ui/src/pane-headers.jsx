@@ -11,7 +11,7 @@ import { shortcut } from "./platform.mjs";
 import logo from "./logo.png";
 
 export const ExpandSidebar = ({ onClick }) => <button className="icon-button sidebar-expand"
-  aria-label="展开侧栏" onClick={onClick}>
+  aria-controls="workspace-sidebar" aria-expanded="false" aria-label="展开侧栏" onClick={onClick}>
   <img className="sidebar-expand-logo" src={logo} alt="" />
   <PanelLeftOpen className="sidebar-expand-icon" size={18} />
 </button>;

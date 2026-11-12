@@ -18,6 +18,9 @@ const reportDirectory = process.env.CAGE_DIAGNOSTIC_REPORT
   : await fs.mkdtemp(path.join(os.tmpdir(), "cage-diagnostics-report-"));
 await fs.mkdir(reportDirectory, { recursive: true });
 try {
+  // Exercise diagnostics in an initialized, stopped environment without starting a VM.
+  await fs.mkdir(profile, { recursive: true });
+  await fs.writeFile(path.join(profile, "initialization.json"), JSON.stringify({ version: 1, completed: true }));
   const { stdout } = await run(cage, ["desktop", "--json"], { env });
   const entry = JSON.parse(stdout);
   assert.equal(entry.status, "ready");

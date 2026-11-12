@@ -37,7 +37,8 @@ try{
   const policy=page.getByRole("combobox",{name:"新会话切换授权",exact:true});
   const before=(await policy.boundingBox()).y;
   await select.click();
-  assert.ok((await policy.boundingBox()).y>before+20,"options must occupy layout space");
+  await page.getByRole("listbox").waitFor();
+  assert.ok(Math.abs((await policy.boundingBox()).y - before) < 1, "opening the options keeps the next control in place");
   await select.press("End");await select.press("Enter");
   await page.getByRole("region",{name:"账号优先顺序"}).count();
   assert.equal(scheduling.mode,"sequential");

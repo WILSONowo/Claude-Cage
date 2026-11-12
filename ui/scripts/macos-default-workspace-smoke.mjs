@@ -139,7 +139,7 @@ try {
   });
   try {
     const region = f.page.getByRole("region", { name: "默认工作区访问" });
-    const open = region.getByRole("button", { name: "查看并授权" });
+    const open = region.getByRole("button", { name: "打开工作区授权" });
     const dialog = f.page.getByRole("dialog", { name: "允许客机访问所选项目" });
     const enter = f.page.getByRole("button", { name: "进入工作台", exact: true });
     await open.waitFor();

@@ -103,7 +103,11 @@ try {
   const desktopActions = page.getByRole("group",{name:"手机改名同步电脑 的操作"});
   await desktopActions.waitFor();
   await desktopActions.getByRole("button",{name:"重命名",exact:true}).click();
-  await page.getByRole("textbox",{name:"标签名称"}).fill("电脑改名同步手机");
+  const nameField = page.getByRole("textbox",{name:"标签名称"});
+  assert.ok(await nameField.evaluate(input => document.activeElement === input &&
+    input.selectionStart === 0 && input.selectionEnd === input.value.length &&
+    input.offsetHeight >= 34 && parseFloat(getComputedStyle(input).paddingInlineStart) >= 8));
+  await nameField.fill("电脑改名同步手机");
   await page.getByRole("button",{name:"保存名称",exact:true}).click();
   await phone.getByRole("button",{name:"电脑改名同步手机",exact:true}).waitFor();
   await phone.reload();

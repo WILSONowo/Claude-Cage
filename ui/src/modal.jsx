@@ -1,9 +1,15 @@
 import { X } from "lucide-react";
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+const tabStops = 'input, button, select, textarea, a[href], [tabindex], [contenteditable="true"]';
+const available = node => node.tabIndex >= 0 && !node.matches(":disabled") &&
+  !node.closest("[inert]") && node.getClientRects().length > 0 && getComputedStyle(node).visibility === "visible";
 
 export function Modal({ title, children, onClose, wide = false, footer, anchor, className = "", style, headerActions, initialFocusRef }) {
   const panel = useRef(),
     closeRef = useRef(onClose);
+  // React focuses autoFocus children during commit, before layout effects run.
+  const [opener] = useState(() => anchor || document.activeElement);
   closeRef.current = onClose;
   useLayoutEffect(() => {
     if (!anchor) return;
@@ -29,7 +35,9 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor, 
     window.addEventListener("resize", position);
     document.addEventListener("scroll", position, true);
     return () => {
-      anchor.focus();
+      // Hover actions stay visible while expanded. Restore focus before
+      // removing that state so keyboard users can continue on the same row.
+      if (anchor.isConnected) anchor.focus({ preventScroll: true });
       anchor.removeAttribute("aria-expanded");
       observer.disconnect();
       window.removeEventListener("resize", position);
@@ -37,11 +45,9 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor, 
     };
   }, [anchor]);
   useEffect(() => {
-    const previous = anchor || document.activeElement;
-    const first = initialFocusRef?.current || panel.current.querySelector(
-      "input:not([disabled]),button:not([disabled]),select:not([disabled])",
-    );
-    first?.focus();
+    const first = initialFocusRef?.current || (panel.current.contains(document.activeElement)
+      ? document.activeElement : [...panel.current.querySelectorAll(tabStops)].find(available));
+    (first || panel.current).focus({ preventScroll: true });
     const key = (e) => {
       if (
         [...document.querySelectorAll('[role="dialog"]')].at(-1) !==
@@ -56,12 +62,8 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor, 
         closeRef.current?.();
       }
       if (e.key === "Tab") {
-        const nodes = [
-          ...panel.current.querySelectorAll(
-            "input:not([disabled]),button:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex='0']:not([disabled])",
-          ),
-        ].filter((n) => n.offsetParent !== null);
-        if (!nodes.length) return;
+        const nodes = [...panel.current.querySelectorAll(tabStops)].filter(available);
+        if (!nodes.length) { e.preventDefault(); return; }
         const popup = e.target.closest(".select-surface");
         if (popup) {
           // A floating select lives under body. Tab follows its trigger in the dialog.
@@ -95,7 +97,7 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor, 
     return () => {
       document.removeEventListener("keydown", key, true);
       document.removeEventListener("cage-close-modal", closeEvent);
-      previous?.focus?.();
+      if (opener?.isConnected) opener.focus?.({ preventScroll: true });
     };
   }, []);
   return (
@@ -110,6 +112,7 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor, 
         className={`modal ${wide ? "wide" : ""} ${className}`}
         style={style}
         role="dialog"
+        tabIndex={-1}
         aria-modal="true"
         aria-label={title}
       >

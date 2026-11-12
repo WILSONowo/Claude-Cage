@@ -616,7 +616,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   </button>
                 </div>
               </div>
-              {proxy.route_error && (
+              {proxy.route_error && proxy.route_error !== error && (
                 <p role="alert" className="proxy-source-error">
                   <SafetyMessage message={proxy.route_error} />
                 </p>

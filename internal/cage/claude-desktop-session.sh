@@ -29,6 +29,8 @@ for i in $(seq 1 100); do
   sleep .1
 done
 xdpyinfo -display "$DISPLAY" >/dev/null
+# Older standalone Desktop installs may predate the compositor dependency.
+if command -v picom >/dev/null; then picom --config /dev/null --backend xrender --daemon; fi
 openbox --config-file /etc/claude-cage/desktop-openbox.xml &
 X0tigervnc -display "$DISPLAY" -rfbport -1 -rfbunixpath "$XDG_RUNTIME_DIR/vnc.sock" -rfbunixmode 0600 -SecurityTypes VncAuth -PasswordFile "$XDG_RUNTIME_DIR/vnc-password" -AlwaysShared &
 # Lower the refresh rate of unattended animation. Optional on older guests.

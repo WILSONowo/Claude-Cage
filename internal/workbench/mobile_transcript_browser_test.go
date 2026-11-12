@@ -29,6 +29,9 @@ func TestMobileTranscriptInBrowser(t *testing.T) {
 	if err := writePrivate(filepath.Join(s.profile, "environment.json"), map[string]string{"directory": project}); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.rememberSharedProject(project); err != nil {
+		t.Fatal(err)
+	}
 	if out, err := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x240:r=24", "-t", "2", "-c:v", "libx264", "-qp", "0", "-movflags", "+faststart", filepath.Join(project, "demo.mp4")).CombinedOutput(); err != nil {
 		t.Fatalf("%v: %s", err, out)
 	}

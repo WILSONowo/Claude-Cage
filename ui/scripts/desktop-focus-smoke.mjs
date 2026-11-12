@@ -37,6 +37,14 @@ try {
   await page.getByRole("region", { name: "Claude Desktop", exact: true }).waitFor({ state: "hidden" });
   await notify(true);
   await page.getByRole("region", { name: "Claude Desktop", exact: true }).waitFor();
+  const sequenced = () => page.evaluate(snapshot => {
+    window.testBrowserEvents.onmessage({ data: JSON.stringify(snapshot) });
+  }, { tabs: state.tabs, active: state.active, desktopFocus: true, handoff: { sequence: "login-callback", view: "desktop" } });
+  await sequenced();
+  await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
+  await sequenced();
+  await page.getByRole("region", { name: "Claude Desktop", exact: true }).waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "关闭浏览器", exact: true }).waitFor();
   assert.deepEqual(errors, []);
   console.log("PASS: callback switches to the running desktop; ordinary snapshots do not reopen it; repeated callbacks work.");
 } finally {

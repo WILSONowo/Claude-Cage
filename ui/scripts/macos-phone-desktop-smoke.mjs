@@ -51,7 +51,7 @@ try {
   await page.getByRole("dialog", { name: "工作区侧栏" }).getByRole("button", { name: "Claude Desktop", exact: true }).click();
   const screen = page.getByRole("img", { name: "远程 Desktop 画面", exact: true });
   await screen.waitFor();
-  await page.getByText(/请在电脑的 Cage 中完成 Claude Desktop 登录/).waitFor();
+  await page.getByRole("status").filter({ hasText: /电脑.*登录 Claude Desktop/ }).waitFor();
   assert.equal(await page.getByRole("button", { name: "登录窗口", exact: true }).count(), 0);
   const keyboard = page.getByRole("button", { name: "输入文字", exact: true });
   assert.ok(await keyboard.isDisabled());

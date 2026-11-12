@@ -1,3 +1,4 @@
+import { useSelectPopup } from "./select-popup";
 import { SearchField } from "./search-field";
 import { shortcut } from "./platform.mjs";
 import React, { useEffect, useRef, useState } from "react";
@@ -66,6 +67,8 @@ export function WorkspaceTabs({
   const suppressClick = useRef(false);
   const trigger = useRef();
   const list = useRef();
+  const menuList = useRef(null);
+  const menuPosition = useSelectPopup(Boolean(menu), trigger, menuList, 3, true);
   useEffect(() => {
     if (!horizontal || !list.current) return;
     const observer = new ResizeObserver(([entry]) =>
@@ -200,12 +203,7 @@ export function WorkspaceTabs({
       return;
     }
     trigger.current = event.currentTarget;
-    const rect = event.currentTarget.getBoundingClientRect();
-    setMenu({
-      tab,
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - 224)),
-      top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 152)),
-    });
+    setMenu({ tab });
   };
   useEffect(() => {
     if (horizontal) return;
@@ -234,14 +232,37 @@ export function WorkspaceTabs({
       document.removeEventListener("click", outside, true);
     };
   }, [menu, allOpen]);
+  useEffect(() => {
+    if (menu && !menuPosition.visibility) menuList.current?.querySelector("button")?.focus();
+  }, [menu, menuPosition.visibility]);
+  const closeMenu = () => {
+    trigger.current?.focus({ preventScroll: true });
+    setMenu(null);
+  };
+  const focusRow = (button) => {
+    const row = button.closest("[data-tab-id]");
+    const stable = row?.querySelector('button:is([role="tab"], .sidebar-session):not(:disabled)')
+      || row?.closest(".sidebar-project")?.querySelector(".project-disclosure");
+    stable?.focus({ preventScroll: true });
+  };
   const actions = menu && (
     <div className="menu workspace-tab-menu"
-      style={{ top: menu.top, left: menu.left }}
+      ref={menuList} style={menuPosition}
+      onKeyDown={event => {
+        if (event.key === "Tab") { closeMenu(); return; }
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const items = [...menuList.current.querySelectorAll("button:not(:disabled)")];
+        const index = items.indexOf(document.activeElement);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+          : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+        items[next]?.focus();
+      }}
       role="menu" aria-label="标签操作">
               <button
                 role="menuitem"
                 onClick={() => {
-                  setMenu(null);
+                  closeMenu();
                   onRename(menu.tab);
                 }}
               >
@@ -250,7 +271,7 @@ export function WorkspaceTabs({
               <button
                 role="menuitem"
                 onClick={() => {
-                  setMenu(null);
+                  closeMenu();
                   onPin(menu.tab.id);
                 }}
               >
@@ -260,7 +281,7 @@ export function WorkspaceTabs({
               <button
                 role="menuitem"
                 onClick={() => {
-                  setMenu(null);
+                  closeMenu();
                   onClose(menu.tab);
                 }}
               >
@@ -390,7 +411,7 @@ export function WorkspaceTabs({
                   className="tab-close icon-button"
                   aria-label={`关闭 ${title}`}
                   disabled={busy}
-                  onClick={() => onClose(tab)}
+                  onClick={event => { focusRow(event.currentTarget); onClose(tab); }}
                 >
                   <X size={14} />
                 </button>
@@ -398,8 +419,12 @@ export function WorkspaceTabs({
                 <div className="terminal-row-actions" role="group" aria-label={`${title} 的操作`}>
                   <TerminalAction label={saved[tab.id]?.pinned ? "取消置顶" : "置顶"}
                     icon={saved[tab.id]?.pinned ? PinOff : Pin} disabled={busy} onClick={() => onPin(tab.id)} />
-                  <TerminalAction label="重命名" icon={Pencil} disabled={busy} onClick={() => onRename(tab)} />
-                  <TerminalAction label={tab.cli_session_id ? "归档" : "关闭终端"} icon={tab.cli_session_id ? Archive : X} disabled={busy} onClick={event => onClose(tab, event.currentTarget)} />
+                  <TerminalAction label="重命名" icon={Pencil} disabled={busy} onClick={event => { focusRow(event.currentTarget); onRename(tab); }} />
+                  <TerminalAction label={tab.cli_session_id ? "归档" : "关闭终端"} icon={tab.cli_session_id ? Archive : X} disabled={busy}
+                    onClick={event => {
+                      if (!tab.cli_session_id) focusRow(event.currentTarget);
+                      onClose(tab, event.currentTarget);
+                    }} />
                 </div>
               )}
             </div>

@@ -1,6 +1,23 @@
+/* Set the default geometry at low specificity so compact and compound controls
+   can retain their own layout. A bare input otherwise uses the WebView's 2px inset. */
+:where(#root) :where(
+  input:not([type]), input[type="text" i], input[type="search" i], input[type="url" i],
+  input[type="email" i], input[type="password" i], input[type="tel" i], input[type="number" i], textarea
+):not(:where(
+  .password-input *, .address-bar *, .search-field *, .home-composer *, .composer-field *,
+  .xterm *, .mac-login-keyboard, .remote-view *, .remote-text-input, [hidden]
+)) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  min-block-size: var(--control-height);
+  padding: .45em .75em;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
 /* Compound fields draw one edge on the wrapper. The editor and remote keyboard
    own their input surfaces, including inputs inserted by noVNC and xterm. */
-#root :is(
+:is(#root, .select-surface) :is(
   input:not([type]), input[type="text" i], input[type="search" i], input[type="url" i],
   input[type="email" i], input[type="password" i], input[type="tel" i], input[type="number" i], textarea,
   .address-bar, .search-field

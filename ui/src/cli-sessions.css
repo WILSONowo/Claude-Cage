@@ -12,25 +12,25 @@
 .archived-sessions .archive-page-title { display: block; font-size: 1.85rem; line-height: 1.25; letter-spacing: -.035em; }
 .archive-toolbar { display: grid; grid-template-columns: minmax(180px, 2.2fr) minmax(120px, 1fr) minmax(130px, 1.1fr); gap: 10px; align-items: start; }
 .archive-find { min-height: 40px; }
-.archive-toolbar .inline-select { display: flex; width: 100%; font-size: 14px; }
+.archive-toolbar .inline-select { display: flex; width: 100%; font-size: 1rem; }
 .archive-toolbar .inline-select-trigger, .settings-content .archive-toolbar .inline-select-trigger {
   display: flex; align-items: center; width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 11px; color: var(--muted); background: transparent; font: inherit;
 }
 .archive-filter-label { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .archive-filter-label > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .archive-toolbar .inline-select-trigger[aria-expanded="true"] .archive-filter-label svg { transform: none; }
-.archive-toolbar .inline-select-list { font-size: 13px; border-radius: 9px; }
+.archive-toolbar .inline-select-list { font-size: .929rem; border-radius: 9px; }
 .archive-toolbar .inline-select-list [role="option"] { padding: 9px; }
 .archive-project { display: grid; gap: 14px; min-width: 0; }
 .archive-project-heading { display: flex; align-items: center; gap: 10px; padding-inline: 2px; color: var(--muted); }
 .archive-project-heading > svg { flex: none; }
-.archive-project-heading h3 { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
-.archive-project-heading > span { font-size: 13px; white-space: nowrap; }
+.archive-project-heading h3 { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.071rem; font-weight: 600; }
+.archive-project-heading > span { font-size: .929rem; white-space: nowrap; }
 .archive-project-list { border: 1px solid var(--line); border-radius: 16px; padding: 0 20px; }
 .archive-bulk-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .archive-bulk-toolbar > .archived-session-actions { margin-left: auto; }
 .archive-bulk-note { flex-basis: 100%; }
-.archived-sessions .archive-selection { display: inline-flex; flex-direction: row; align-items: center; justify-content: center; flex: none; gap: 8px; margin: 0; min-height: 34px; color: var(--ink); font-size: 13px; cursor: pointer; }
+.archived-sessions .archive-selection { display: inline-flex; flex-direction: row; align-items: center; justify-content: center; flex: none; gap: 8px; margin: 0; min-height: 34px; color: var(--ink); font-size: .929rem; cursor: pointer; }
 .archived-sessions .archive-selection input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent, var(--focus)); cursor: pointer; }
 .archive-selection input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .archive-selection:has(input:disabled) { opacity: .5; cursor: default; }
@@ -40,17 +40,17 @@
 .archived-session + .archived-session { border-top: 1px solid var(--line); }
 .archived-session-row { display: flex; align-items: center; gap: 16px; min-height: 42px; }
 .archived-session-title { min-width: 0; flex: 1; display: grid; gap: 5px; }
-.archived-sessions .archived-session-title h4 { margin: 0; font-size: 15px; font-weight: 550; overflow-wrap: anywhere; line-height: 1.5; }
-.archived-session-title time, .archive-note { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; line-height: 1.5; }
+.archived-sessions .archived-session-title h4 { margin: 0; font-size: 1.071rem; font-weight: 550; overflow-wrap: anywhere; line-height: 1.5; }
+.archived-session-title time, .archive-note { color: var(--muted); font-size: .929rem; overflow-wrap: anywhere; line-height: 1.5; }
 .archived-session-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; }
 .archive-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; min-height: 34px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); }
 .archive-icon-button:hover { background: var(--hover, var(--soft)); color: var(--danger, var(--error)); }
-.archive-restore { min-height: 34px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--hover, var(--soft)); color: var(--ink); font: inherit; font-size: 13px; font-weight: 550; white-space: nowrap; }
+.archive-restore { min-height: 34px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--hover, var(--soft)); color: var(--ink); font: inherit; font-size: .929rem; font-weight: 550; white-space: nowrap; }
 .archive-restore:hover { background: var(--selected); }
 .archive-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px;
-  padding: 7px 12px; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; }
+  padding: 7px 12px; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: .929rem; }
 .archive-button:hover { background: var(--selected); }
-.archive-confirm { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; font-size: 14px; line-height: 1.6; }
+.archive-confirm { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; font-size: 1rem; line-height: 1.6; }
 .archive-delete, .archive-error { color: var(--danger, var(--error, #b54137)); }
 .phone-workspace .archive-button { min-height: 44px; }
 .mobile-session-settings .archive-page-title { display: block; font-size: 20px; }
@@ -66,7 +66,7 @@
   .archive-icon-button { width: 32px; min-height: 44px; }
   .archive-restore { padding: 7px 9px; min-height: 38px; }
   .archived-session-actions { gap: 3px; }
-  .archived-session-title time { font-size: 11px; }
+  .archived-session-title time { font-size: .786rem; }
 }
 
 .settings-content .archived-sessions { gap: 1.3rem; }

@@ -189,6 +189,7 @@ export function SettingsPanel({
   const changeSection = async id => {
     if (id !== section && accountDirty && !(await onConfirm({ title: "放弃尚未保存的修改？", body: "已保存的资料和密码保持不变。", confirm: "放弃修改" }))) return;
     if (id !== section && proxyDirty && !(await onConfirm({ title: "放弃尚未应用的代理修改？", body: "当前代理仍按已应用的链路运行。离开会丢弃这次节点选择。", confirm: "放弃修改" }))) return;
+    if (id !== section && resourceDirty && !(await onConfirm({ title: "放弃资源配置修改？", body: "离开后会丢弃尚未保存的内存和 CPU 配置。", confirm: "放弃修改" }))) return;
     setSection(id);
   };
   const contentRef = useRef();
@@ -225,9 +226,10 @@ export function SettingsPanel({
           id="settings-back"
           className="back-to-workspace"
           onClick={close}
+          aria-label="返回工作台"
         >
           <ArrowLeft size={17} />
-          返回工作台
+          <span>返回<span className="back-destination">工作台</span></span>
         </button>
         <h2>设置</h2>
         <div className="compact-settings-nav">

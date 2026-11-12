@@ -22,8 +22,8 @@ for (const system of ["debian-13", "windows-11", "macos"]) {
     if (system === "debian-13") baseline = labels;
     else assert.deepEqual(labels, baseline, system);
 
-    await nav.getByRole("button", { name: "Claude Desktop", exact: true }).click();
-    await page.locator(".claude-desktop-toolbar").getByText("Claude Desktop", { exact:true }).waitFor();
+    await page.getByRole("button", { name: "Claude Desktop", exact: true }).click();
+    await page.locator(".claude-desktop-toolbar").waitFor();
     const zoom = page.getByRole("combobox", {name:"Desktop 显示大小"});
     await zoom.click();
     await page.getByRole("option", {name:"125%"}).click();

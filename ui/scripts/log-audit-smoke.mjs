@@ -30,7 +30,10 @@ for (const platform of ["darwin", "windows"]) {
   } finally { await fixture.browser.close(); }
 }
 
-const fixture = await createWorkbench({ beforeNavigate: page => page.clock.install({ time: epoch }) });
+const fixture = await createWorkbench({ beforeNavigate: async page => {
+  await page.clock.install({ time: epoch });
+  await page.addInitScript(() => localStorage.setItem("cage.audio", JSON.stringify({ muted: true })));
+} });
 try {
   const { page, state } = fixture;
   let broken = true;
@@ -60,7 +63,7 @@ try {
   assert.ok(polls > recovered, "normal polling cadence returns after recovery");
 
   await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
-  const trigger = page.getByRole("button", { name: "浏览器下载", exact: true });
+  const trigger = page.getByRole("button", { name: "下载文件", exact: true });
   for (let round = 0; round < 4; round++) {
     await trigger.click();
     await page.getByRole("dialog", { name: "下载文件", exact: true }).waitFor();

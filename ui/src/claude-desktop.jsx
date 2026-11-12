@@ -44,7 +44,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
   if (hidden && desktop?.running) {
     return (
       <div className="desktop-toolbar-reveal">
-        {sidebarCollapsed && <button className="icon-button" aria-label="展开侧栏" title="展开侧栏" onClick={onExpand}><PanelLeftOpen size={15} /></button>}
+        {sidebarCollapsed && <button className="icon-button" aria-controls="workspace-sidebar" aria-expanded="false" aria-label="展开侧栏" title="展开侧栏" onClick={onExpand}><PanelLeftOpen size={15} /></button>}
         <button className="icon-button" aria-label="显示 Desktop 工具栏" title="显示 Desktop 工具栏" onClick={() => toggleToolbar(false)}><ChevronDown size={15} /></button>
       </div>
     );
@@ -54,7 +54,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
         {sidebarCollapsed && (
           <button
             className="icon-button"
-            aria-label="展开侧栏"
+            aria-controls="workspace-sidebar" aria-expanded="false" aria-label="展开侧栏"
             onClick={onExpand}
           >
             <PanelLeftOpen size={17} />
@@ -217,7 +217,7 @@ export function ClaudeDesktop({
     }
     if (["claude-desktop-install", "claude-desktop-update"].includes(status.job.kind)) run("start");
     else refresh();
-  }, [status.job]);
+  }, [jobID, status.job]);
   return (
     <section className="claude-desktop-view" aria-label="Claude Desktop">
       <BrowserUploads requests={uploads} onStatus={onStatus} />
@@ -309,7 +309,7 @@ export function ClaudeDesktop({
                 <button
                   className="quiet-button"
                   disabled={busy}
-                  onClick={refresh}
+                  onClick={() => refresh()}
                 >
                   刷新状态
                 </button>

@@ -822,6 +822,8 @@ button.large {
   width: min(760px, 100%);
 }
 .modal-head {
+  -webkit-user-select: none;
+  user-select: none;
   min-height: var(--control-height);
   display: flex;
   align-items: center;
@@ -1083,7 +1085,7 @@ button.large {
   display: flex;
   align-items: start;
   gap: 7px;
-  font-size: 0.7143rem;
+  font-size: 0.857rem;
   line-height: 1.7;
   color: var(--ink);
   background: var(--chrome);
@@ -1099,8 +1101,8 @@ button.large {
   flex: 1;
 }
 .inline-info button {
-  font-size: 0.7143rem;
-  min-height: 18px;
+  font-size: inherit;
+  min-height: 24px;
   padding: 0;
 }
 .choice-list {
@@ -2085,10 +2087,10 @@ svg {
 }
 @keyframes surface-enter {
   from {
-    transform: translateY(4px);
+    opacity: 0;
   }
   to {
-    transform: translateY(0);
+    opacity: 1;
   }
 }
 .settings-main {
@@ -2678,6 +2680,6 @@ svg {
 .environment-storage .field-help code { overflow-wrap: anywhere; }
 .environment-storage .storage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .environment-storage .storage-actions button:disabled { opacity: 1; color: var(--muted); background: var(--chrome); }
-.environment-storage .storage-repair-help { margin: 8px 0 0; }
-.environment-storage > [role="status"] { margin: 12px 0 20px; overflow-wrap: anywhere; }
+.settings-sheet .environment-storage .storage-repair-help { margin: 8px 0 0; }
+.settings-sheet .environment-storage > [role="status"] { margin: 12px 0 20px; overflow-wrap: anywhere; }
 .start-project-box .storage-entry { justify-self: start; margin: 0 16px 8px; }

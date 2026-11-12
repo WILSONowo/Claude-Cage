@@ -15,6 +15,9 @@ try {
   ]) {
     const { browser, page, state, errors } = await createWorkbench({
       url,
+      beforeNavigate: page => page.addInitScript(platform => {
+        Object.defineProperty(navigator, "platform", { value: platform });
+      }, host === "windows" ? "Win32" : host === "darwin" ? "MacIntel" : "Linux x86_64"),
       clientContext: { mode: "local", connection_id: "local", client_platform: host, server_platform: host },
     });
     try {
@@ -26,7 +29,7 @@ try {
       await icon.waitFor();
       assert.equal(await icon.getAttribute("title"), `客户机系统：${label}`);
       const iconBox = await icon.boundingBox();
-      const brandBox = await sidebar.locator(".sidebar-brand").boundingBox();
+      const brandBox = await sidebar.locator(host === "windows" ? ".workspace-modes" : ".sidebar-brand").boundingBox();
       const collapseBox = await sidebar.getByRole("button", { name: "收起侧栏" }).boundingBox();
       assert.ok(iconBox.x > brandBox.x && iconBox.x + iconBox.width < collapseBox.x);
       if (process.env.CAGE_TEST_CAPTURE) await page.screenshot({ path: `${process.env.CAGE_TEST_CAPTURE}-${label}.png` });

@@ -83,7 +83,7 @@ export function WorkspaceDrawer({open, active, name, onClose, onTool, onExit, on
       const rect = panel.current.getBoundingClientRect();
       if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) onClose();
     }}>
-    <header className="drawer-heading"><Monitor size={18} /><h2>{name || "远程工作台"}</h2></header>
+    <header className="drawer-heading"><Monitor size={18} aria-hidden="true" /><h2>{name || "远程工作台"}</h2></header>
     <div className="drawer-content">
       <nav className="workspace-tools" aria-label="远程工具">{workspaceTools.map(({id, name:toolName, icon:Icon}) =>
         <button key={id} type="button" className="tool-link" aria-current={id === active ? "page" : undefined} onClick={() => onTool(id)}>

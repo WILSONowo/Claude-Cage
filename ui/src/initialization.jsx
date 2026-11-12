@@ -87,6 +87,8 @@ function Initialization({ initial, onComplete }) {
   const exitCandidate = status?.guest_system === "macos" && status.safety?.macos_exit_candidate?.ip;
   const needsExitRestart = status?.guest_system === "macos" && status.safety?.error === "已保存固定出口。请重启 macOS 客机，登录后重新检测。";
   const ready = Boolean(status?.ready && status.vm_running && !busy && !job.error && !needsExitRestart && network.mode === "open");
+  const defaultApproval = status?.guest_system === "macos" && status.ready && status.vm_running
+    && status.project_errors?.find(item => item.path === status.environment_directory && item.recovery === "project-approval");
   const confirm = options => new Promise(resolve => setDialog({ ...options, resolve }));
   const settleDialog = value => { dialog?.resolve(value); setDialog(null); };
 
@@ -274,6 +276,12 @@ function Initialization({ initial, onComplete }) {
       {connectionError && <div className="initialization-notice" role="alert"><SafetyMessage message={connectionError} /><button onClick={() => pollNow.current?.()}>重新连接</button></div>}
       {!status ? <p role="status"><LoaderCircle size={18} className="spin" />正在读取安装状态…</p> : <>
         <div className="initialization-stage" key={step}>
+          {step === "install" && defaultApproval && (busy || network.mode === "open" || needsExitRestart) &&
+            <section className="initialization-notice" aria-label="默认工作区访问">
+              <p>虚拟 Mac 正在请求访问默认工作区。</p>
+              <p className="macos-approval-path">{defaultApproval.path}</p>
+              <button type="button" disabled={Boolean(connectionError)} onClick={() => setApprovalWorkspace(defaultApproval.path)}>打开工作区授权</button>
+            </section>}
           {step === "system" && <>
             <GuestSystemPicker system={choice} onChange={setChoice} preserveOnUnmount deferMatch />
             <InitializationStorage value={storage} onChange={setStorage} disabled={busy} />
@@ -311,7 +319,11 @@ function Initialization({ initial, onComplete }) {
       <div className="initialization-support"><button className="text-button" aria-expanded={help} onClick={() => setHelp(!help)}>日志与诊断</button>{navigation && !busy && <button className="text-button" onClick={() => navigation.open()}>只连接 SSH 主机</button>}</div>
       {help && <DiagnosticSettings />}
     </section>
-    {approvalWorkspace && <InitializationProjectApproval workspace={approvalWorkspace} jobRunning={Boolean(job.running)} onClose={() => { setApprovalWorkspace(""); pollNow.current?.(); }} onApproved={() => { setApprovalWorkspace(""); void checkNetwork(); }} />}
+    {approvalWorkspace && <InitializationProjectApproval workspace={approvalWorkspace} jobRunning={Boolean(job.running)} onClose={() => { setApprovalWorkspace(""); pollNow.current?.(); }} onApproved={() => {
+      setApprovalWorkspace("");
+      if (network.mode === "open") pollNow.current?.();
+      else void checkNetwork();
+    }} />}
     {details && <InitializationDetails status={status} onClose={() => setDetails(false)} />}
     {dialog && <Modal title={dialog.title} onClose={() => settleDialog(false)} footer={<><button onClick={() => settleDialog(false)}>取消</button><button className="primary" onClick={() => settleDialog(true)}>{dialog.confirm}</button></>}><div className="modal-body"><p>{dialog.body}</p></div></Modal>}
   </InitializationFrame>;

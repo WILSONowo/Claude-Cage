@@ -21,6 +21,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
     private SurfaceView preview;
     private TextView message;
     private Finder finder;
+    private LinearLayout bar, instructions;
     private final QRCodeReader reader = new QRCodeReader();
     private boolean resumed, finished;
     private static final int PERMISSION = 1;
@@ -35,19 +36,27 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         frame.addView(preview,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));
         preview.getHolder().addCallback(this);
         finder = new Finder(); frame.addView(finder,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout bar = new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(12),0,dp(20),0);
+        bar = new LinearLayout(this);bar.setMinimumHeight(dp(64));bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(12),0,dp(20),0);
         Button cancel = new Button(this);cancel.setText("取消");cancel.setTextColor(Color.WHITE);cancel.setTextSize(15);
-        cancel.setBackgroundColor(Color.TRANSPARENT);cancel.setOnClickListener(v -> finish());bar.addView(cancel,new LinearLayout.LayoutParams(dp(72),dp(56)));
+        cancel.setBackgroundColor(Color.TRANSPARENT);cancel.setOnClickListener(v -> finish());cancel.setMinHeight(dp(48));bar.addView(cancel,new LinearLayout.LayoutParams(-2,-2));
         TextView title = new TextView(this);title.setText("扫描电脑二维码");title.setTextColor(Color.WHITE);title.setTextSize(18);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        bar.addView(title); frame.addView(bar,new FrameLayout.LayoutParams(-1,dp(64),Gravity.TOP));
-        LinearLayout instructions = new LinearLayout(this);instructions.setOrientation(LinearLayout.VERTICAL);instructions.setGravity(Gravity.CENTER);
+        bar.addView(title); frame.addView(bar,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
+        instructions = new LinearLayout(this);instructions.setOrientation(LinearLayout.VERTICAL);instructions.setGravity(Gravity.CENTER);
         instructions.setPadding(dp(24),dp(12),dp(24),dp(20));
         TextView heading = new TextView(this);heading.setText("连接你的电脑");heading.setTextSize(22);heading.setTextColor(Color.WHITE);heading.setTypeface(Typeface.DEFAULT,Typeface.BOLD);instructions.addView(heading);
         message = new TextView(this);message.setGravity(Gravity.CENTER);message.setTextSize(15);message.setPadding(0,dp(12),0,dp(10));
         message.setTextColor(0xffe1e5e2);message.setText("将 Cage 配对二维码放入框内\n在电脑「设置 → 远程连接」中生成");
         message.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);instructions.addView(message);
         TextView privacy = new TextView(this);privacy.setText("仅识别 Cage 配对码");privacy.setTextSize(12);privacy.setTextColor(0xffa9b4ae);instructions.addView(privacy);
-        FrameLayout.LayoutParams copy = new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);frame.addView(instructions,copy);
+        ScrollView help = new ScrollView(this) {
+            @Override protected void onMeasure(int width, int height) {
+                int limit = Math.round(MeasureSpec.getSize(height) * 0.4f);
+                super.onMeasure(width, MeasureSpec.makeMeasureSpec(limit, MeasureSpec.AT_MOST));
+            }
+        };
+        help.addView(instructions);
+        frame.addView(help,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
+        help.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> finder.invalidate());
         frame.setOnApplyWindowInsetsListener((view,insets) -> {
             view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;
         });
@@ -118,8 +127,12 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             else {sweep.cancel();progress=.5f;invalidate();}
         }
         @Override protected void onDraw(Canvas canvas){
-            float side=Math.max(dp(96),Math.min(dp(280),Math.min(getWidth()-dp(56),getHeight()-dp(250))));
-            float left=(getWidth()-side)/2, top=dp(72)+Math.max(0,(getHeight()-dp(250)-side)/2);
+            View help = (View) instructions.getParent();
+            float start = bar.getBottom() - getTop() + dp(8);
+            float end = help.getTop() - getTop() - dp(8);
+            float side = Math.max(0, Math.min(dp(280), Math.min(getWidth() - dp(56), end - start)));
+            float left = (getWidth()-side)/2, top = start + (end - start - side)/2;
+            if (side < dp(48)) { canvas.drawColor(0xb8141716); return; }
             RectF box=new RectF(left,top,left+side,top+side);
             Path shade=new Path();shade.setFillType(Path.FillType.EVEN_ODD);
             shade.addRect(0,0,getWidth(),getHeight(),Path.Direction.CW);shade.addRoundRect(box,dp(18),dp(18),Path.Direction.CW);

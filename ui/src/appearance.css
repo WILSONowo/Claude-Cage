@@ -420,8 +420,8 @@ button.primary:hover:not(:disabled) {
   gap: 6px;
 }
 .settings-content .theme-color-value input[type="text"] {
-  width: 80px;
-  height: 30px;
+  width: max(80px, calc(7ch + 16px));
+  min-height: max(30px, 2em);
   padding: 4px 6px;
   font: 0.786rem var(--code-font-family);
 }

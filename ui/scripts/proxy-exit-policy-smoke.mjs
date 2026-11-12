@@ -20,6 +20,7 @@ const f = await createWorkbench({beforeNavigate: async (page,state)=>{
    state.settings.exit_policy={...policies[proxy.selected]};
   }
   state.status.job={id:`route-${++sequence}`,kind:'proxy',running:false,error:fail?'代理启动失败；原节点已保留':'',message:'节点已应用'};
+  proxy.route_error = state.status.job.error;
   return r.fulfill({json:{id:state.status.job.id}});
  });
 }});
@@ -45,6 +46,8 @@ try {
  fail=true;
  await select('second');
  await page.getByRole('alert').filter({hasText:'代理启动失败'}).waitFor();
+ await page.locator('.workbench-shell .start-error').filter({hasText:'代理启动失败'}).waitFor({state:'attached'});
+ assert.equal(await page.getByRole('alert').filter({hasText:'代理启动失败'}).count(), 1);
  assert.equal(await ip.inputValue(),policies.first.ip,'failed node switch replaced the binding');
  assert.equal(await dns.inputValue(),'https://dns.google/dns-query');
  assert.equal(state.settings.exit_policy.ip,policies.first.ip);
