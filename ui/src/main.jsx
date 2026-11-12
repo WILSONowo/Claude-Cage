@@ -1,4 +1,4 @@
-import { OperationLogDialog } from "./operation-log";
+import { WorkbenchOperationLog } from "./operation-log";
 import { shortcut, primaryModifier } from "./platform.mjs";
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
@@ -150,6 +150,7 @@ function App() {
   const terminalControls = useRef(new Map());
   const remote = useRef(),
     activeRef = useRef(active),
+    tabsRef = useRef(tabs),
     lastBrowserTab = useRef(""),
     readyRef = useRef(false),
     browserIds = useRef(new Set()),
@@ -161,6 +162,7 @@ function App() {
     lastJob = useRef(""),
     quitAfterStop = useRef(null);
   activeRef.current = active;
+  tabsRef.current = tabs;
   readyRef.current = Boolean(status?.ready);
   const storageRecovery = status?.storage_recovery?.required;
   const current = tabs.find((t) => t.id === active),
@@ -195,6 +197,23 @@ function App() {
     liveBrowser && splitReady && (!split || browser.active === liveBrowser.id);
   const viewBeforeBrowser = useRef(null);
   const browserDismissed = useRef(false);
+  const lastHandoff = useRef(undefined);
+  function applyGuestHandoff(snapshot) {
+    const request = snapshot.handoff;
+    const previous = lastHandoff.current;
+    lastHandoff.current = request?.sequence || "";
+    if (!request?.sequence || previous === request.sequence ||
+        (previous === undefined && !snapshot.focus && !snapshot.desktopFocus)) return;
+    if (request.view === "browser" && snapshot.tabs.some(tab => tab.id === request.id)) {
+      browserDismissed.current = false;
+      setLayout({ active: request.id });
+      setDesktopOpen(false);
+    } else if (request.view === "desktop") {
+      setDesktopOpen(true);
+    } else return;
+    setHome(false);
+    setSettingsOpen(false);
+  }
   const browserVisible = !desktopOpen && !showHome && webPanes.length > 0;
   const browserWasVisible = useRef(false);
   useEffect(() => {
@@ -653,7 +672,7 @@ function App() {
     let live = true,
       timer,
       polling = false;
-    const poll = async () => {
+    const poll = async (forceBrowser = false) => {
       if (!live || polling) return;
       clearTimeout(timer);
       polling = true;
@@ -679,19 +698,19 @@ function App() {
           if (next.job.error) notify(next.job.error);
         }
         if (next.ready) {
-          const fetchBrowser = !browserStreamReady.current || !initialized.current;
+          const before = browserSnapshot.current;
+          const fetchBrowser = forceBrowser || !browserStreamReady.current || !initialized.current;
           const [browserResult, t] = await Promise.all([
             fetchBrowser ? api("/browser/tabs").then(result => {
               if (live) setBrowserError("");
               return result;
             }).catch(error => {
-              if (live) setBrowserError(error.message);
+              if (live && before === browserSnapshot.current) setBrowserError(error.message);
               return null;
             }) : null,
             api("/terminals"),
           ]);
           if (!live) return;
-          const b = browserResult || browserSnapshot.current;
           const legacyMetadata = readLocal(clientStorageKey("cage-tab-layout"), {})[next.environment_identity_directory || next.environment_directory || next.workspace] || {};
           for (const item of t) {
             const saved = legacyMetadata["terminal:" + item.id];
@@ -704,10 +723,14 @@ function App() {
             } catch { /* Keep the existing local label until the host accepts it. */ }
           }
           if (!live) return;
-          browserSnapshot.current = b;
-          setBrowser(previous => sameSnapshot(previous, b) ? previous : b);
+          const fresh = before === browserSnapshot.current && browserResult;
+          const b = fresh || browserSnapshot.current;
+          if (fresh) {
+            browserSnapshot.current = b;
+            setBrowser(previous => sameSnapshot(previous, b) ? previous : b);
+          }
           const all = [
-            ...b.tabs,
+            ...(fresh ? b.tabs : tabsRef.current.filter(item => item.kind !== "terminal")),
             ...t.map((item) => ({
               ...item,
               id: "terminal:" + item.id,
@@ -727,14 +750,14 @@ function App() {
             ];
             return sameSnapshot(previous, ordered) ? previous : ordered;
           });
-          if (!browserDismissed.current && initialized.current && b.active && b.active !== activeRef.current && !browserIds.current.has(b.active)) {
+          if (fresh && !browserDismissed.current && initialized.current && b.active && b.active !== activeRef.current && !browserIds.current.has(b.active)) {
             setDesktopOpen(false);
             setHome(false);
           }
           if (
             !activeRef.current ||
             !all.some((item) => item.id === activeRef.current) ||
-            (!browserDismissed.current && initialized.current &&
+            (fresh && !browserDismissed.current && initialized.current &&
               b.active &&
               !browserIds.current.has(b.active))
           ) {
@@ -743,7 +766,10 @@ function App() {
             if (!layoutRef.current.other || all.some(item => item.id === activeRef.current))
               setActive(b.active || all[0]?.id || "");
           }
-          browserIds.current = new Set(b.tabs.map((item) => item.id));
+          if (fresh) {
+            browserIds.current = new Set(b.tabs.map(item => item.id));
+            applyGuestHandoff(b);
+          }
           initialized.current = true;
         }
       } catch (e) {
@@ -806,10 +832,12 @@ function App() {
     stream.addEventListener("clipboard", (event) => {
       remote.current?.receiveCopy(JSON.parse(event.data));
     });
-    stream.onopen = () => { browserStreamReady.current = true; };
     stream.onerror = () => { browserStreamReady.current = false; };
     stream.onmessage = (event) => {
-      const b = JSON.parse(event.data);
+      let b;
+      try { b = JSON.parse(event.data); } catch { return; }
+      if (!Array.isArray(b?.tabs)) return;
+      browserStreamReady.current = true;
       setBrowserError("");
       if (b.desktopFocus === true) {
         setDesktopOpen(true);
@@ -845,6 +873,7 @@ function App() {
           (!layoutRef.current.other && !activeRef.current.startsWith("terminal:")))
       )
         setActive(b.active);
+      applyGuestHandoff(b);
       browserIds.current = new Set(b.tabs.map((t) => t.id));
     };
     return () => {
@@ -1425,9 +1454,9 @@ function App() {
         }
         <div className="workbench-main">
           {showHome && terminalHeader(null)}
-          {browserError && running && !connectionError && <div className="connection-banner" role="status">
-            <span>客机浏览器暂时无法连接。{browserError}</span>
-            <button onClick={() => refreshStatus.current?.()}>重试</button>
+          {browserError && browserVisible && running && !connectionError && <div className="connection-banner" role="status">
+            <span title={browserError}>浏览器连接中断，正在重连。</span>
+            <button onClick={() => refreshStatus.current?.(true)}>重试</button>
           </div>}
           {connectionError && (
             <div className="connection-banner" role="alert">
@@ -1794,7 +1823,7 @@ function App() {
                       : "环境运行中 · 浏览器待恢复"
                     : "")} />
             </span>
-            {(status.job?.id || status.job?.log || status.job?.error) && (
+            {(status.has_job_history || status.job?.id || status.job?.log || status.job?.error) && (
               <button title="操作详情" onClick={() => setDetails(true)}>
                 <MoreHorizontal size={15} />
               </button>
@@ -1948,10 +1977,7 @@ function App() {
         </Modal>
       )}
       {details && (
-        <OperationLogDialog title="操作详情" job={status.job} onClose={() => setDetails(false)}
-          message={status.job?.message && <SafetyMessage message={status.job.message} />}>
-          {status.job?.error && <p role="alert"><SafetyMessage message={status.job.error} /></p>}
-        </OperationLogDialog>
+        <WorkbenchOperationLog job={status.job} onClose={() => setDetails(false)} />
       )}
       {safetyOpen && (
         <SafetyPanel

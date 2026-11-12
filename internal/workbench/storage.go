@@ -67,7 +67,7 @@ func storageRecoveryRoute(r *http.Request) bool {
 	}
 	if r.Method == http.MethodGet {
 		switch path {
-		case "/api/status", "/api/settings", "/api/appearance", "/api/favorites", "/api/proxy", "/api/agent/routes", "/api/environment/storage", "/api/environment/initialization":
+		case "/api/status", "/api/jobs/history", "/api/settings", "/api/appearance", "/api/favorites", "/api/proxy", "/api/agent/routes", "/api/environment/storage", "/api/environment/initialization":
 			return true
 		}
 	}

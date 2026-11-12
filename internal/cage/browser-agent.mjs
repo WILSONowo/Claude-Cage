@@ -19,7 +19,7 @@ import { nativeInput } from "./native-input.mjs";
 import { createDisplaySettings, displayDensity } from "./display-density.mjs";
 import { DownloadManager } from "./browser-downloads.mjs";
 import { UploadManager, uploadLimit } from "./browser-uploads.mjs";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 
 const config = JSON.parse(
   readFileSync("/etc/claude-cage/browser-control.json", "utf8"),
@@ -99,6 +99,11 @@ let sequence = 0,
   ready = false;
 let shuttingDown = false;
 const events = new Set();
+let handoff = null;
+function publishHandoff(view, id = "") {
+  handoff = { sequence: randomUUID(), view, id };
+  broadcastState(view === "browser", view === "desktop");
+}
 let navigation = { id: "", back: false, forward: false }, navigationSequence = 0;
 // Context IDs and unique blank-page URLs are registered before target creation.
 const auditExclusions = new Set();
@@ -223,8 +228,8 @@ function updateTargetInfo(t) {
   if (t.targetId === activeId) rememberSelection();
   broadcastState();
   if (!activeId) activeId = t.targetId;
-  if (ready && fresh && t.openerId)
-    void activate(t.targetId, true).catch(() => {});
+  if (ready && fresh && t.openerId && t.openerId === activeId && visibility.visible)
+    void activate(t.targetId, true).then(() => publishHandoff("browser", t.targetId)).catch(() => {});
   else if (ready && fresh && !visibility.visible)
     void visibility.set(false).catch(() => {});
 }
@@ -353,7 +358,8 @@ chrome.stdio[4].on("data", (chunk) => {
       uploads.cancelTab(uploadTab);
   }
 });
-chrome.on("exit", () => {
+chrome.on("exit", (code, signal) => {
+  if (!shuttingDown) console.error("Chromium exited", { code, signal });
   ready = false;
   for (const p of pending.values()) {
     clearTimeout(p.timer);
@@ -526,7 +532,7 @@ function checkedURL(value) {
   if (value === settingsURL || value.startsWith(settingsURL + "#")) return value;
   throw new Error("Only HTTP(S) URLs and supported browser pages are accepted");
 }
-async function newTab(url = homeURL, incognito = false) {
+async function newTab(url = homeURL, incognito = false, fromGuest = false) {
   const address = checkedURL(url);
   if (incognito) {
     const result = await privateBrowser.open("about:blank", async tab => {
@@ -544,7 +550,8 @@ async function newTab(url = homeURL, incognito = false) {
   if (!targets.has(targetId))
     targets.set(targetId, { targetId, type: "page", url: "about:blank", title: "" });
   await activate(targetId, true);
-  await cdp("Page.navigate", { url: address }, await session(targetId));
+  if (fromGuest) publishHandoff("browser", targetId);
+  await cdp("Page.navigate", { url: address }, await session(targetId), fromGuest ? 30000 : undefined);
   return { id: targetId };
 }
 async function browserSettings(section = "general") {
@@ -659,6 +666,7 @@ function displayTitle(tab) {
 function publicState() {
   return {
     active: activeId,
+    handoff,
     split: splitView,
     back: navigation.id === activeId && targets.has(activeId) && navigation.back,
     forward: navigation.id === activeId && targets.has(activeId) && navigation.forward,
@@ -781,7 +789,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   try {
-    if (!ready) throw new Error("Browser is starting");
+    if (!ready) {
+      res.writeHead(503, { "Retry-After": "1" });
+      res.end(JSON.stringify({ error: "Browser is starting" }));
+      return;
+    }
     const route = new URL(req.url, "http://localhost");
     if (req.method === "POST" && route.pathname === "/extensions-upload") {
       if (Number(req.headers["content-length"]) > extensionUploadLimit) throw new Error("扩展 ZIP 不能超过 32 MB");
@@ -856,7 +868,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (req.url === "/desktop-focus") {
-      broadcastState(false, true);
+      publishHandoff("desktop");
       res.end('{"ok":true}');
       return;
     }
@@ -888,7 +900,9 @@ const server = http.createServer(async (req, res) => {
       if (req.url === "/login-open") {
         return loginBrowser.open(input.login, input.url, async tab => {
           if (!targets.has(tab.targetId)) targets.set(tab.targetId, loginBrowser.tab(tab));
+          await visibility.set(true);
           await activate(tab.targetId, true);
+          publishHandoff("browser", tab.targetId);
           return session(tab.targetId);
         });
       }
@@ -942,7 +956,10 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.url === "/resize")
         return resizeDisplay(input.width, input.height, input.scale);
-      if (req.url === "/new") return newTab(input.url || undefined, input.incognito === true);
+      if (req.url === "/new") {
+        if (input.source === "guest") await visibility.set(true);
+        return newTab(input.url || undefined, input.incognito === true, input.source === "guest");
+      }
       if (req.url === "/editor") return editor(input.workspace || config.workspace);
       if (req.url === "/editor-restart") return restartEditor(input.workspace);
       if (req.url === "/ime") {
@@ -1052,7 +1069,7 @@ server.listen(18500, "127.0.0.1");
     downloadPath,
     eventsEnabled: true,
   });
-  if (!targets.size) await newTab();
+  if (!targets.size) await newTab("about:blank");
   else
     await activate(
       [...targets.values()].find((t) => t.url === restoreURL)?.targetId ||
@@ -1060,8 +1077,12 @@ server.listen(18500, "127.0.0.1");
     );
   await setSplit({}).catch(() => {});
   await browserExtensions.restore();
-  if (freshProfile && activeId)
-    await cdp("Page.navigate", { url: homeURL }, await session(activeId));
+  if ((freshProfile || !targetInfos.some(isBrowserTab)) && activeId) {
+    const sid = await session(activeId);
+    // Slow DNS, proxies or a blocked homepage must not take down the controller.
+    void cdp("Page.navigate", { url: homeURL }, sid).catch(() =>
+      console.warn("Initial browser navigation did not complete"));
+  }
   ready = true;
 })().catch(error => {
   console.error("Browser startup failed:", error.message);

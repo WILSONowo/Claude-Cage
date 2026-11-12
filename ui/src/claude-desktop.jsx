@@ -60,8 +60,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
             <PanelLeftOpen size={17} />
           </button>
         )}
-        <Monitor size={18} />
-        <strong>Claude Desktop</strong>
+        {sidebarCollapsed && <><Monitor size={18} /><strong>Claude Desktop</strong></>}
         <span className="desktop-version">
           {desktop?.version ? `v${desktop.version}` : platform}
         </span>

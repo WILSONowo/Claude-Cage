@@ -12,7 +12,7 @@ func nativeWorkbenchRoute(path string) bool {
 	case "/api/agent/settings", "/api/agent/routes":
 		return true
 	case "/api/account", "/api/session", "/api/launch", "/api/handoff", "/api/remote/manifest",
-		"/api/appearance", "/api/favorites", "/api/status", "/api/settings", "/api/settings/probe",
+		"/api/appearance", "/api/favorites", "/api/status", "/api/jobs/history", "/api/settings", "/api/settings/probe",
 		"/api/start", "/api/stop", "/api/restore", "/api/host/git", "/api/projects/open", "/api/projects/remove", "/api/projects/directories",
 		"/api/environment/initialization", "/api/environment/versions", "/api/environment/update", "/api/environment/tools", "/api/environment/resources", "/api/environment/storage",
 		"/api/environment/storage/recover",

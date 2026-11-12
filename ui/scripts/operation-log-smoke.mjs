@@ -41,6 +41,9 @@ try {
           message: "正在准备基础环境", ...(entry === "initialization" && {
             setup_progress: { system: "windows-11", phase: "image", label: "正在下载系统镜像", received: 32, total: 128 },
           }) };
+        if (entry === "workbench") await page.route("**/api/jobs/history", route => route.fulfill({ json: [
+          { id: "previous", label: "更新 Claude Desktop", kind: "claude-desktop-update", message: "已完成", log: "Package verification complete" },
+        ] }));
         await page.emulateMedia({ reducedMotion: "reduce" });
       },
     });
@@ -99,6 +102,14 @@ try {
         await dialog.getByText("复制失败，可选中日志复制。").waitFor({ state: "hidden" });
         await buffer.evaluate(n => { n.scrollTop = 0; });
         await page.screenshot({ path: `${evidence}/${entry}-${width}.png`, animations: "disabled" });
+      }
+      if (entry === "workbench") {
+        await dialog.getByRole("combobox", { name: "选择操作记录" }).click();
+        await page.getByRole("option", { name: "更新 Claude Desktop" }).click();
+        await buffer.getByText("Package verification complete").waitFor();
+        await page.keyboard.press("Escape");
+        await open.click();
+        await buffer.getByText("镜像校验未通过").waitFor();
       }
       state.status.job = { ...state.status.job, id: "retry", running: true, error: "", message: "正在重试", log: "" };
       await dialog.getByText("等待输出…").waitFor();

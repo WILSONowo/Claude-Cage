@@ -55,6 +55,8 @@ try {
     const paused = report.frames;
     await new Promise((resolve) => setTimeout(resolve, 300));
     assert.equal(report.frames, paused, "occluded native window continued receiving frames");
+    const search = page.getByRole("textbox", { name: "搜索项目与会话" });
+    await search.focus();
     await page.evaluate(() => {
       window.cageWindowVisible = true;
       window.dispatchEvent(new Event("cage-window-visibility"));
@@ -62,6 +64,7 @@ try {
     await page.getByText("正在连接画面", { exact: true }).waitFor({ state: "hidden" });
     await new Promise((resolve) => setTimeout(resolve, 250));
     assert.ok(report.frames > paused, "native window visibility did not resume frames");
+    assert.ok(await search.evaluate(field => field === document.activeElement), "reconnecting RFB stole keyboard focus");
   }
   assert.deepEqual(errors, []);
   report.checks.push("real RFB frames", "tabs preserved", "frames resumed");

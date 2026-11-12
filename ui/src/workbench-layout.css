@@ -61,6 +61,10 @@
 .workspace-sidebar .sidebar-section-heading { margin: 8px 0 5px; font-size: .86rem; color: var(--muted); }
 .workspace-sidebar .sidebar-bottom { border-top: 1px solid var(--line); }
 .workspace-sidebar .search-field { width: 100%; margin-block: 3px; }
+.native-sidebar { position: relative; }
+.native-sidebar .sidebar-top { position: absolute; top: 0; right: 8px; min-height: 0; padding: 0; }
+.native-sidebar .workspace-modes { margin-inline-end: 32px; }
+.native-sidebar .workspace-modes button { min-width: 0; padding-inline: 4px; }
 .sidebar-search-empty { margin: 10px; font-size: .86rem; color: var(--muted); }
 .sidebar-scroll:has(.sidebar-project) .sidebar-search-empty { display: none; }
 .sidebar-resizer { position: absolute; z-index: 3; inset: 0 -3px 0 auto; width: 6px; touch-action: none; cursor: col-resize; }
@@ -248,4 +252,18 @@
 
 :root[data-theme="dark"] :is(.desktop-actions, .safety-actions) .primary {
   background: color-mix(in srgb, var(--button) 83%, var(--paper)); color: var(--button-ink);
+}
+
+/* Keep project search aligned with the navigation even at narrow sidebar widths. */
+#root .sidebar-navigation .search-field { margin-block: 2px; }
+#root .sidebar-navigation .search-field:has(input:focus-visible) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 55%, var(--field-bg));
+}
+@media (forced-colors: active) {
+  #root .sidebar-navigation .search-field:has(input:focus-visible) { outline: 2px solid Highlight; }
+}
+.native-sidebar { container-type: inline-size; }
+@container (max-width: 195px) {
+  .native-sidebar .workspace-modes button { white-space: normal; line-height: 1.15; }
+  .native-sidebar .workspace-modes button svg { display: none; }
 }

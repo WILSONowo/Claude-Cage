@@ -206,6 +206,7 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 	}
 	defer s.remote.close()
 	if workload {
+		s.jobs.loadHistory(profile)
 		if err = guestos.RecoverWindowsStorage(context.Background(), profile); err != nil {
 			s.failStorageRecovery(err)
 		}
@@ -372,6 +373,7 @@ func (s *Server) handler() http.Handler {
 		jsonReply(w, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("GET /api/status", s.status)
+	mux.HandleFunc("GET /api/jobs/history", func(w http.ResponseWriter, r *http.Request) { jsonReply(w, s.jobs.recent()) })
 	mux.HandleFunc("GET /api/environment/initialization", s.initialization)
 	mux.HandleFunc("POST /api/environment/initialization", s.initialization)
 	mux.HandleFunc("GET /api/remote/manifest", s.remoteManifest)
@@ -665,6 +667,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		projectError = "当前本机项目已断开，请重新共享或选择其他项目。"
 	}
 	view := map[string]any{
+		"has_job_history": s.jobs.hasHistory(),
 		"projects": projects, "ready": s.ready, "vm_running": running,
 		"workspace": s.workspaceLocked(), "environment_directory": s.environmentDir(),
 		"environment_identity_directory": cage.EnvironmentIdentityDir(s.profile),

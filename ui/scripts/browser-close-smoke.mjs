@@ -55,6 +55,15 @@ try {
   await send({ focus: true });
   await home.waitFor();
   assert.equal(await page.locator('.browser-lane').count(), 0);
+  const handoff = { sequence: 'first-guest-open', view: 'browser', id: 'page-two' };
+  await send({ active: 'page-two', handoff });
+  await close.waitFor();
+  assert.equal(await page.getByRole('tab', { name: '网页二', exact: true }).getAttribute('aria-selected'), 'true');
+  await close.click();
+  await send({ active: 'page-two', handoff });
+  await home.waitFor();
+  assert.equal(await close.count(), 0, 'reconnecting with the same handoff preserves dismissal');
+  checks.push('a new guest handoff opens the requested tab after dismissal and is consumed once');
   checks.push('top-right X works by keyboard and with tab search expanded; returns to home; tabs retained; late focus does not reopen browser');
 
   await page.getByRole('tab', { name: '工作终端一', exact: true }).click();
@@ -150,7 +159,7 @@ try {
 
   await page.getByRole('tab', { name: '工作终端一', exact: true }).click();
   await singlePage();
-  await page.keyboard.press('Meta+w');
+  await page.keyboard.press(await page.evaluate(() => /Mac/i.test(navigator.platform)) ? 'Meta+w' : 'Control+w');
   await page.locator('.terminal-lane:not([hidden])').waitFor();
   assert.equal(await page.getByRole('tab', { name: '工作终端一', exact: true }).getAttribute('aria-selected'), 'true');
   assert.equal(state.tabs.length, 0);
@@ -176,7 +185,7 @@ try {
   checks.push('last-tab keyboard close restores the terminal; a destruction event before the close response restores Claude Desktop');
 
   await singlePage();
-  await page.route('**/api/browser/close', route => route.fulfill({ status: 400, body: '标签尚未关闭，请重试' }));
+  await page.route('**/api/browser/close', route => route.fulfill({ status: 400, contentType: 'text/plain; charset=utf-8', body: '标签尚未关闭，请重试' }));
   await page.getByRole('button', { name: '关闭 最后一页', exact: true }).click();
   await page.getByText('标签尚未关闭，请重试', { exact: true }).waitFor();
   assert.equal(await close.count(), 1, 'failed close preserves the browser');

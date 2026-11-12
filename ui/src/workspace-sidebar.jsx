@@ -1,5 +1,6 @@
 import { SearchField } from "./search-field";
-import { shortcut } from "./platform.mjs";
+import { isWindows, shortcut } from "./platform.mjs";
+import { nativeAvailable } from "./api";
 import React, { useEffect, useRef, useState } from "react";
 import {
   CircleAlert,
@@ -8,7 +9,6 @@ import {
   FolderOpen,
   Globe2,
   SquarePen,
-  Search,
   Code2,
   Monitor,
   Network,
@@ -76,12 +76,12 @@ export function WorkspaceSidebar({
 }) {
   const ssh = useSSHNavigation();
   const [collapsed, setCollapsed] = useState({});
-  const [query, setQuery] = useState(null);
+  const [query, setQuery] = useState("");
+  const compactHeader = isWindows && nativeAvailable();
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem("cage-sidebar-width"));
     return saved > 0 ? Math.min(420, Math.max(192, saved)) : 244;
   });
-  const searchButton = useRef(null);
   const dragOffset = useRef(null);
   const needle = query?.trim().toLocaleLowerCase() || "";
   const matches = text => String(text || "").toLocaleLowerCase().includes(needle);
@@ -99,14 +99,14 @@ export function WorkspaceSidebar({
   }, [active, activeWorkspace]);
   if (ssh?.expanded) return null;
   return (
-    <aside className="workspace-sidebar" aria-label="项目与终端" inert={sidebarCollapsed || undefined}
+    <aside className={`workspace-sidebar${compactHeader ? " native-sidebar" : ""}`} aria-label="项目与终端" inert={sidebarCollapsed || undefined}
       style={{ "--expanded-sidebar": width + "px" }}>
       <div className="sidebar-top">
-        <span className="sidebar-brand">
+        {!compactHeader && <span className="sidebar-brand">
           <img className="brand-logo" src={logo} alt="" />
           Cage
-                <GuestSystemIcon system={guestSystem} />
-        </span>
+          <GuestSystemIcon system={guestSystem} />
+        </span>}
         <button
           className="icon-button"
           onClick={onCollapse}
@@ -117,7 +117,7 @@ export function WorkspaceSidebar({
         </button>
       </div>
       <div className="workspace-modes" aria-label="工作模式">
-        <button aria-pressed={desktopOpen} disabled={!running || busy} onClick={onClaudeDesktop} title="安装或打开 Claude Desktop"><Monitor size={15} />Claude Desktop</button>
+        <button aria-pressed={desktopOpen} disabled={!running || busy} onClick={onClaudeDesktop} aria-label="Claude Desktop" title="安装或打开 Claude Desktop">{compactHeader && guestSystem ? <GuestSystemIcon system={guestSystem} /> : <Monitor size={15} />}Claude Desktop</button>
         <button aria-pressed={!desktopOpen} onClick={onHome}><Code2 size={15} />Code</button>
       </div>
       <nav className="sidebar-navigation" aria-label="主导航">
@@ -128,10 +128,7 @@ export function WorkspaceSidebar({
           <SquarePen size={17} />
           {ready ? "新建对话" : "工作台"}
         </button>
-        <button className="sidebar-link" ref={searchButton} aria-expanded={query !== null}
-          onClick={() => setQuery(query === null ? "" : null)}><Search size={17} />搜索</button>
-        {query !== null && <SearchField label="搜索项目与会话" placeholder="项目或会话" autoFocus value={query} onValueChange={setQuery}
-          onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setQuery(null); searchButton.current?.focus(); } }} />}
+        <SearchField label="搜索项目与会话" placeholder="搜索项目或会话" value={query} onValueChange={setQuery} />
         <button
           className={`sidebar-link ${!desktopOpen && !home && tabs.some((tab) => tab.id === active && tab.kind !== "terminal") ? "selected" : ""}`}
           onClick={onBrowser}

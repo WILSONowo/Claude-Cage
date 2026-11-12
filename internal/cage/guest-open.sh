@@ -45,6 +45,19 @@ browser_request() {
 printf '%s' "${2:-}" | browser_request --input-type=module -e '
 import {readFileSync} from "node:fs";
 const {token}=JSON.parse(readFileSync("/etc/claude-cage/browser-control.json","utf8"));
-const response=await fetch("http://127.0.0.1:18500"+process.argv[1],{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({url:readFileSync(0,"utf8"),login:process.argv[2]})});
-if(!response.ok)process.exit(1);
+const endpoint = "http://127.0.0.1:18500" + process.argv[1];
+const body = JSON.stringify({url:readFileSync(0,"utf8"),login:process.argv[2],source:"guest"});
+for (let attempt = 0; attempt < 12; attempt++) {
+  try {
+    const response = await fetch(endpoint, {method:"POST", headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"}, body});
+    await response.body.cancel();
+    if (response.ok) process.exit(0);
+    if (response.status !== 503) break;
+  } catch (error) {
+    // A refused connection delivered nothing. An ambiguous EOF may have opened a tab.
+    if (error.cause?.code !== "ECONNREFUSED") break;
+  }
+  if (attempt < 11) await new Promise(resolve => setTimeout(resolve, 500));
+}
+process.exit(1);
 ' "$1" "${3:-}"

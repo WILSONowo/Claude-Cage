@@ -316,3 +316,33 @@ func TestJobManagerPreservesProjectRecovery(t *testing.T) {
 		t.Fatalf("stale recovery after retry: %+v", job)
 	}
 }
+
+func TestJobHistorySurvivesFollowupAndRestart(t *testing.T) {
+	var manager, restarted jobManager
+	var operation sync.Mutex
+	profile := t.TempDir()
+	manager.loadHistory(profile)
+	for _, kind := range []string{"claude-desktop-update", "claude-desktop-start"} {
+		_, err := manager.submit(&operation, kind, 0, nil, nil, func() error {
+			execution := manager.execution()
+			execution.message("阶段：" + kind)
+			_, err := fmt.Fprintln(execution, "output for", kind, "token=demo-private-value")
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.workers.Wait()
+	}
+	restarted.loadHistory(profile)
+	jobs := restarted.recent()
+	if len(jobs) != 2 {
+		t.Fatalf("loaded %d records", len(jobs))
+	}
+	for i, kind := range []string{"claude-desktop-start", "claude-desktop-update"} {
+		job := jobs[i]
+		if job.Kind != kind || job.Running || job.ID == "" || job.StartedAt.IsZero() || !strings.Contains(job.Log, "阶段："+kind) || !strings.Contains(job.Log, "output for "+kind) || strings.Contains(job.Log, "demo-private-value") {
+			t.Fatalf("unexpected history: %#v", job)
+		}
+	}
+}

@@ -113,8 +113,10 @@ try {
   await page.keyboard.press("Enter");
   await actions.getByRole("button", { name: "取消置顶", exact: true }).click();
   const renameButton = actions.getByRole("button", { name: "重命名", exact: true });
+  const beforeHover = (await terminalTab.boundingBox()).width;
   await renameButton.hover();
-  await actions.getByText("重命名", { exact: true }).waitFor();
+  assert.equal(await renameButton.getAttribute("title"), "重命名");
+  assert.equal((await terminalTab.boundingBox()).width, beforeHover, "action hover preserves terminal title width");
   await renameButton.click();
   await page.getByLabel("标签名称").fill("开发终端");
   await page.getByRole("button", { name: "保存名称" }).click();

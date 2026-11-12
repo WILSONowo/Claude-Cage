@@ -31,8 +31,7 @@ export function TabIcon({ kind, favicon, size = 16 }) {
 
 function TerminalAction({ label, icon: Icon, disabled, onClick }) {
   return (
-    <button className="icon-button" aria-label={label} disabled={disabled} onClick={onClick}>
-      <span className="terminal-action-label" aria-hidden="true">{label}</span>
+    <button className="icon-button" aria-label={label} title={label} disabled={disabled} onClick={onClick}>
       <Icon size={14} />
     </button>
   );

@@ -31,6 +31,8 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--log-ink) 34%, var(--log-bg)) transparent;
   overscroll-behavior: contain;
   font: max(.9rem, var(--code-font-size, 13px))/1.6 var(--log-font);
   overflow-wrap: anywhere;
@@ -61,3 +63,8 @@
 .operation-log-dialog .initialization-checks { padding-inline-start: 1.7em; }
 .operation-log-dialog .operation-log-empty, .operation-log-feedback { opacity: .8; }
 .operation-log-feedback:not(:empty) { padding: .25rem 1rem .5rem; font-size: .86rem; line-height: 1.45; }
+
+.operation-log-dialog .modal-head .inline-select { max-width: min(42%, 20rem); }
+.operation-log-dialog .inline-select-trigger > span {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

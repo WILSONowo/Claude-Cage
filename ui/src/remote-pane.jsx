@@ -10,6 +10,11 @@ import { installLocalCursorFallback } from "./remote-cursor.mjs";
 import { RefreshCw } from "lucide-react";
 import RFB from "../.generated/novnc/core/rfb.js";
 
+function canFocusCanvas(canvas) {
+  const active = document.activeElement;
+  return canvas && (!active || active === document.body || canvas.contains(active));
+}
+
 export default forwardRef(function RemoteView(
   { visible, focused = true, keyboard, guestPlatform = "linux", systemClipboard = true, tabId, copyScope = tabId, onStatus, onFallback, desktop = false, zoom = 1 },
   ref,
@@ -207,7 +212,7 @@ export default forwardRef(function RemoteView(
             onStatus: (t) => current.current.onStatus(t),
             onFallback: (...args) => current.current.onFallback(...args),
           });
-          if (current.current.visible && !document.activeElement?.closest(".chrome")) client.focus();
+          if (current.current.visible && canFocusCanvas(box.current)) client.focus();
         });
         client.addEventListener("disconnect", () => {
           if (disposed) return;
@@ -241,7 +246,7 @@ export default forwardRef(function RemoteView(
   }, [attempt, screenVisible, desktop]);
   useEffect(() => {
     if (focused && screenVisible && connection === "connected") {
-      const t = setTimeout(() => { if (!document.activeElement?.closest(".chrome")) rfb.current?.focus(); }, 80);
+      const t = setTimeout(() => { if (canFocusCanvas(box.current)) rfb.current?.focus(); }, 80);
       return () => clearTimeout(t);
     }
   }, [focused, screenVisible, connection]);

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/sylvinus/agent-vm/internal/diagnostics"
-	"github.com/sylvinus/agent-vm/internal/usererror"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
+
+	"github.com/sylvinus/agent-vm/internal/diagnostics"
+	"github.com/sylvinus/agent-vm/internal/usererror"
 )
 
 type Job struct {
@@ -17,6 +19,8 @@ type Job struct {
 	SettingsSaved bool           `json:"settings_saved,omitempty"`
 	SetupProgress *SetupProgress `json:"setup_progress,omitempty"`
 	ID            string         `json:"id"`
+	Label         string         `json:"label,omitempty"`
+	StartedAt     time.Time      `json:"started_at,omitzero"`
 	Kind          string         `json:"kind"`
 	Running       bool           `json:"running"`
 	Message       string         `json:"message"`
@@ -36,6 +40,8 @@ var (
 type jobManager struct {
 	mu           sync.Mutex
 	state        Job
+	history      []Job
+	historyFile  string
 	cancel       context.CancelFunc
 	active       *jobExecution
 	afterSuccess func() error
@@ -73,10 +79,15 @@ func (m *jobManager) submit(operation sync.Locker, kind string, pauseVersion uin
 	if m.cancel != nil {
 		m.cancel()
 	}
+	if m.state.Running {
+		interrupted := m.state
+		interrupted.Running, interrupted.Canceled, interrupted.Message = false, true, "已取消"
+		m.rememberLocked(interrupted)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	m.afterSuccess = afterSuccess
-	m.state = Job{ID: randomToken()[:12], Kind: kind, Running: true, Message: "正在准备…"}
+	m.state = Job{ID: randomToken()[:12], Kind: kind, Label: jobName(kind), StartedAt: time.Now(), Running: true, Message: "正在准备…"}
 	execution := &jobExecution{owner: m, id: m.state.ID, ctx: ctx, pauseVersion: pauseVersion}
 	execution.log = diagnostics.NewStream(diagnostics.Default(), "task/"+kind, "info", func(line string) {
 		if m.state.ID == execution.id {
@@ -99,7 +110,11 @@ func (m *jobManager) submit(operation sync.Locker, kind string, pauseVersion uin
 			}
 			m.state.Log += line
 			if len(m.state.Log) > 24000 {
-				m.state.Log = m.state.Log[len(m.state.Log)-24000:]
+				start := len(m.state.Log) - 24000
+				for start < len(m.state.Log) && !utf8.RuneStart(m.state.Log[start]) {
+					start++
+				}
+				m.state.Log = m.state.Log[start:]
 			}
 		}
 	})
@@ -186,11 +201,12 @@ func (m *jobManager) finishLocked(execution *jobExecution, err error) {
 		m.state.Message = "已完成"
 		diagnostics.Log("info", "task", m.state.Kind+" completed")
 	}
+	m.rememberLocked(m.state)
 }
 
 func jobName(kind string) string {
 	names := map[string]string{
-		"start": "启动环境", "stop": "停止环境", "setup": "准备环境", "settings": "应用设置", "project": "连接项目目录", "storage": "迁移环境目录", "restore": "恢复配置", "resources": "应用资源配置", "safety": "检查联网条件", "network-recovery": "恢复联网", "proxy": "应用代理节点", "proxy-network": "恢复代理连接", "environment-update": "更新环境组件", "environment-tools": "更新环境工具", "claude-desktop-install": "安装 Claude Desktop", "claude-desktop-start": "打开 Claude Desktop", "claude-desktop-stop": "关闭 Claude Desktop",
+		"start": "启动环境", "stop": "停止环境", "setup": "准备环境", "settings": "应用设置", "project": "连接项目目录", "storage": "迁移环境目录", "restore": "恢复配置", "resources": "应用资源配置", "safety": "检查联网条件", "network-recovery": "恢复联网", "proxy": "应用代理节点", "proxy-network": "恢复代理连接", "environment-update": "更新环境组件", "environment-tools": "更新环境工具", "guest-install": "安装客机系统", "claude-desktop-update": "更新 Claude Desktop", "claude-desktop-install": "安装 Claude Desktop", "claude-desktop-start": "打开 Claude Desktop", "claude-desktop-stop": "关闭 Claude Desktop",
 	}
 	if name := names[kind]; name != "" {
 		return name
@@ -254,6 +270,9 @@ func (e *jobExecution) message(message string) {
 	if e.id != "" && e.owner.state.ID == e.id && e.owner.state.Running {
 		if e.owner.state.SettingsSaved {
 			message = "设置已保存，" + message
+		}
+		if message != e.owner.state.Message && e.log != nil {
+			_, _ = e.log.Write([]byte(message + "\n"))
 		}
 		e.owner.state.Message = message
 	}
