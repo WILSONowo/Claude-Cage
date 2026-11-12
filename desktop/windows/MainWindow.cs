@@ -50,7 +50,8 @@ internal sealed class MainWindow : Form
         var trayMenu = new TrayMenu();
         trayMenu.AddCommand("打开 Cage", "\uE8A7", (_, _) => RestoreWindow());
         trayMenu.Items.Add(new ToolStripSeparator());
-        trayMenu.AddCommand("检查更新…", "\uE72C", (_, _) => HandleUpdate("check"));
+        var checkUpdate = trayMenu.AddCommand("检查更新…", "\uE72C", (_, _) => HandleUpdate("check"));
+        checkUpdate.Enabled = Program.SmokeOutput == null;
         trayMenu.AddCommand("关于 Cage", "\uE946", (_, _) => MessageBox.Show(this, $"Cage {AppUpdater.Version}\n本机隔离工作区", "关于 Cage"));
         trayMenu.Items.Add(new ToolStripSeparator());
         trayMenu.AddCommand("退出 Cage…", "\uE8BB", (_, _) => RequestQuit());

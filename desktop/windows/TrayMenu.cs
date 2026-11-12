@@ -27,9 +27,11 @@ internal sealed class TrayMenu : ContextMenuStrip
         base.Dispose(disposing);
     }
 
-    public void AddCommand(string label, string symbol, EventHandler click)
+    public ToolStripMenuItem AddCommand(string label, string symbol, EventHandler click)
     {
-        Items.Add(new ToolStripMenuItem(label, null, click) { Tag = symbol });
+        var command = new ToolStripMenuItem(label, null, click) { Tag = symbol };
+        Items.Add(command);
+        return command;
     }
 
     protected override void OnSizeChanged(EventArgs e)
