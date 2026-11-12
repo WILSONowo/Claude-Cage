@@ -117,6 +117,31 @@ func TestBidirectionalSSHAndPersistentIdentity(t *testing.T) {
 	if err != nil || string(out) != "cage-inbound-ok" {
 		t.Fatalf("incoming exec: %q %v", out, err)
 	}
+	if runtime.GOOS != "windows" {
+		openInput, err := client.NewSession()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer openInput.Close()
+		stdin, err := openInput.StdinPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stdin.Close()
+		if err := openInput.Start("printf open-input-ok"); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- openInput.Wait() }()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("exec with open stdin: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("exec did not exit while client stdin remained open")
+		}
+	}
 
 	interactive, err := client.NewSession()
 	if err != nil {

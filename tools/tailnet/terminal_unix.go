@@ -6,15 +6,25 @@ import (
 	"github.com/creack/pty"
 	ssh "github.com/gliderlabs/ssh"
 	"io"
+	"os"
 	"os/exec"
 )
 
 func runTerminal(s ssh.Session, cmd *exec.Cmd) int {
 	p, wins, ok := s.Pty()
 	if !ok {
-		cmd.Stdin = s
+		// Use an OS pipe so cmd.Wait does not wait for a client that keeps
+		// the SSH input stream open after the child has already exited.
+		input, writer, err := os.Pipe()
+		if err != nil {
+			return 1
+		}
+		defer input.Close()
+		defer writer.Close()
+		cmd.Stdin = input
 		cmd.Stdout = s
 		cmd.Stderr = s.Stderr()
+		go func() { _, _ = io.Copy(writer, s); _ = writer.Close() }()
 		if err := cmd.Run(); err != nil {
 			if x, ok := err.(*exec.ExitError); ok {
 				return x.ExitCode()
