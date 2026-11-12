@@ -16,7 +16,7 @@ page.on("console", (message) => {
 });
 try {
   await page.getByRole("button", { name: "启动 Cage 环境", exact: true }).click();
-  await page.getByRole("heading", { name: "Cage 环境已就绪", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "新建对话", exact: true }).waitFor();
   await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
   await page.waitForFunction(() => Boolean(document.querySelector(".remote-canvas canvas")));
   await page.getByText("正在连接画面", { exact: true }).waitFor({ state: "hidden" });
@@ -28,7 +28,7 @@ try {
   const originalTabs = structuredClone(state.tabs);
   const before = report.frames;
   await page.waitForFunction(() => document.querySelector(".remote-canvas canvas")?.width > 0);
-  await page.getByRole("button", { name: "工作台", exact: true }).click();
+  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
   // Bounded observation proves frames stop, rather than only inspecting CSS.
   await new Promise((resolve) => setTimeout(resolve, 500));
   const hiddenStart = report.frames;

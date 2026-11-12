@@ -3,7 +3,14 @@
   flex-direction: column;
   padding-bottom: clamp(12px, 3vh, 28px);
 }
-.settings-content--accounts > .settings-fields:empty { display: none; }
+.settings-content--accounts .settings-sheet {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+.settings-content--accounts .settings-fields:empty { display: none; }
 .claude-profiles {
   container-type: inline-size;
   --crab-coral: #cd745b;

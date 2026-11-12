@@ -12,7 +12,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { api, writeClipboard } from "./api";
-import { Modal } from "./views";
+import { Modal } from "./modal";
 import { networkState, reportForSharing } from "./safety-state.mjs";
 
 const diagnostics = [
@@ -100,27 +100,29 @@ export function SafetyPanel({
           <span className="save-note">
             {busy ? status.job.message : "外网关闭时，离线终端和文件仍可使用"}
           </span>
-          {(online || network.mode === "checking") && (
-            <button onClick={pause}>
-              {network.mode === "checking" ? "取消检测并关闭外网" : "暂停外网"}
-            </button>
-          )}
-          <button className="primary" disabled={busy} onClick={run}>
-            {busy ? (
-              <LoaderCircle size={15} className="spin" />
-            ) : (
-              <ShieldCheck size={15} />
+          <div className="safety-actions">
+            {(online || network.mode === "checking") && (
+              <button onClick={pause}>
+                {network.mode === "checking" ? "取消检测并关闭外网" : "暂停外网"}
+              </button>
             )}
-            {busy
-              ? "检查进行中"
-              : online
-                ? "暂停外网并重检"
-                : status.ready && safety.gate
-                  ? "重新检测"
-                  : status.vm_running
-                    ? "重启并检查"
-                    : "启动并检查"}
-          </button>
+            <button className="primary" disabled={busy} onClick={run}>
+              {busy ? (
+                <LoaderCircle size={15} className="spin" />
+              ) : (
+                <ShieldCheck size={15} />
+              )}
+              {busy
+                ? "检查进行中"
+                : online
+                  ? "暂停外网并重检"
+                  : status.ready && safety.gate
+                    ? "重新检测"
+                    : status.vm_running
+                      ? "重启并检查"
+                      : "启动并检查"}
+            </button>
+          </div>
         </>
       }
     >

@@ -8,8 +8,8 @@ internal sealed class MainWindow : Form
 {
     private WebView2 web = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly NativeInput nativeInput;
-    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 Cage 工作台…", Margin = new Padding(12) };
-    private readonly FlowLayoutPanel status = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(48), WrapContents = false };
+    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 Cage 工作台…", Margin = new Padding(0, 0, 0, 16) };
+    private readonly FlowLayoutPanel status = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(32), WrapContents = false };
     private readonly Button retry = new() { Text = "重试连接", AutoSize = true, Visible = false };
     private readonly Button existing = new() { Text = "打开现有环境保存文件", AutoSize = true, Visible = false };
     private readonly Button complete = new() { Text = "保存后停止环境并完成更新", AutoSize = true, Visible = false };
@@ -27,7 +27,14 @@ internal sealed class MainWindow : Form
         nativeInput = new NativeInput(value => Script("window.dispatchEvent(new CustomEvent('cage-native-input',{detail:" + JsonSerializer.Serialize(value) + "}));"));
         AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96, 96);
         Text = "Cage";
-        StartPosition = FormStartPosition.CenterScreen; BackColor = Color.FromArgb(247, 247, 247);
+        StartPosition = FormStartPosition.CenterScreen;
+        var lightApps = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1);
+        bool darkStartup = lightApps is int preference && preference == 0;
+        BackColor = SystemInformation.HighContrast ? SystemColors.Window :
+            darkStartup ? Color.FromArgb(38, 38, 36) : Color.FromArgb(250, 249, 245);
+        ForeColor = SystemInformation.HighContrast ? SystemColors.WindowText :
+            darkStartup ? Color.FromArgb(250, 249, 245) : Color.FromArgb(38, 38, 36);
+        web.DefaultBackgroundColor = BackColor;
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
         status.Controls.AddRange([message, retry, existing, complete]);
         Controls.Add(web); Controls.Add(status);
@@ -40,11 +47,12 @@ internal sealed class MainWindow : Form
             if (ConfirmStop()) await Bootstrap("--complete-update");
         };
         var trayMenu = new TrayMenu();
-        trayMenu.Items.Add("打开 Cage", null, (_, _) => RestoreWindow());
-        trayMenu.Items.Add("检查应用更新…", null, (_, _) => updater!.Handle("check"));
-        trayMenu.Items.Add("关于 Cage", null, (_, _) => MessageBox.Show(this, $"Cage {AppUpdater.Version}\n本机隔离编码工作区", "关于 Cage"));
+        trayMenu.AddCommand("打开 Cage", "\uE8A7", (_, _) => RestoreWindow());
         trayMenu.Items.Add(new ToolStripSeparator());
-        trayMenu.Items.Add("退出 Cage…", null, (_, _) => RequestQuit());
+        trayMenu.AddCommand("检查更新…", "\uE72C", (_, _) => updater!.Handle("check"));
+        trayMenu.AddCommand("关于 Cage", "\uE946", (_, _) => MessageBox.Show(this, $"Cage {AppUpdater.Version}\n本机隔离工作区", "关于 Cage"));
+        trayMenu.Items.Add(new ToolStripSeparator());
+        trayMenu.AddCommand("退出 Cage…", "\uE8BB", (_, _) => RequestQuit());
         trayMenu.Opening += (_, _) => (chrome ?? new WindowChrome(BackColor, ForeColor, false)).ApplyMenu(trayMenu);
         tray = new NotifyIcon { Icon = Icon, Text = "Cage", Visible = true, ContextMenuStrip = trayMenu };
         tray.DoubleClick += (_, _) => RestoreWindow();
@@ -125,8 +133,8 @@ internal sealed class MainWindow : Form
     }
 
     private bool ConfirmStop() => MessageBox.Show(this,
-        "请先保存编辑器中的文件并结束正在运行的工作。继续后 Cage 会停止环境、安装已验证的更新并重新启动。",
-        "保存并停止环境后安装重启", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
+        "请先保存编辑器中的文件并结束正在运行的工作。Cage 将停止环境、安装更新并重启。",
+        "停止环境并更新？", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
 
     public void RestoreWindow() { Show(); if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal; Activate(); PublishVisibility(); }
     private void RequestQuit()

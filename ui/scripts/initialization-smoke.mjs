@@ -197,12 +197,12 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     await page.getByText(/系统镜像通过主机网络下载.*系统代理或 TUN/).waitFor();
     if (system === "windows-11") await page.getByRole("checkbox").check();
     if (evidence) await page.screenshot({ path: `${evidence}/${platform}-system.png`, fullPage: true });
-    await page.getByRole("button", { name: "下一步：配置代理" }).click();
-    await page.getByRole("heading", { name: "连接你的网络代理" }).waitFor();
+    await page.getByRole("button", { name: "下一步" }).click();
+    await page.getByRole("heading", { name: "连接网络代理" }).waitFor();
     await page.getByText("根据本机系统版本匹配官方镜像，安装到独立客机中。").waitFor();
     await page.getByRole("button", { name: "上一步", exact: true }).click();
     await page.getByRole("combobox", { name: "客户机系统" }).getByText("自动匹配本机系统版本").waitFor();
-    await page.getByRole("button", { name: "下一步：配置代理" }).click();
+    await page.getByRole("button", { name: "下一步" }).click();
     await page.getByRole("button", { name: "开始安装", exact: true }).click();
     const progress = page.getByRole("region", { name: "环境安装进度" });
     await progress.getByText("25 MiB / 100 MiB", { exact: true }).waitFor();
@@ -249,7 +249,7 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     await page.evaluate(() => window.cageNativeAction("quit"));
     const quitDialog = page.getByRole("dialog", { name: "退出 Cage", exact: true });
     await quitDialog.getByRole("button", { name: "取消", exact: true }).click();
-    assert.equal(await page.getByRole("heading", { name: "为 Cage 准备独立环境" }).count(), 0);
+    assert.equal(await page.getByRole("heading", { name: "设置工作环境" }).count(), 0);
     assert.deepEqual(errors, []);
     console.log(`PASS ${platform}: independent initialization, inline keyboard selection, back navigation, progress, refresh, retry, completion gate and reopen`);
   } finally { await browser.close(); }
@@ -277,13 +277,13 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     assert.equal(await input.inputValue(), "/preview/default-state");
     await input.fill("/preview/chosen-state");
     assert.equal(writes, 0, "editing must not save before Next");
-    await f.page.getByRole("button", { name: "下一步：配置代理" }).click();
+    await f.page.getByRole("button", { name: "下一步" }).click();
     await f.page.getByRole("alert").filter({ hasText: "请选择专用空文件夹" }).waitFor();
     assert.equal(await input.inputValue(), "/preview/chosen-state");
-    assert.equal(await f.page.getByRole("heading", { name: "连接你的网络代理" }).count(), 0);
+    assert.equal(await f.page.getByRole("heading", { name: "连接网络代理" }).count(), 0);
     fail = false;
-    await f.page.getByRole("button", { name: "下一步：配置代理" }).click();
-    await f.page.getByRole("heading", { name: "连接你的网络代理" }).waitFor();
+    await f.page.getByRole("button", { name: "下一步" }).click();
+    await f.page.getByRole("heading", { name: "连接网络代理" }).waitFor();
     assert.equal(location.directory, "/preview/chosen-state");
     assert.equal(writes, 2);
     await f.page.getByRole("button", { name: "上一步", exact: true }).click();
@@ -309,7 +309,7 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
   } });
   try {
     const { page } = f;
-    await page.getByRole("button", { name: "下一步：配置代理" }).click();
+    await page.getByRole("button", { name: "下一步" }).click();
     const start = page.getByRole("button", { name: "开始安装", exact: true });
     assert.ok(await start.isDisabled());
     await page.getByRole("button", { name: "添加来源", exact: true }).click();

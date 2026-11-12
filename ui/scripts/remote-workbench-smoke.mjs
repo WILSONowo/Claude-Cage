@@ -32,9 +32,9 @@ try {
   state.settings.keyboard = "native";
   Object.assign(state.status, { keyboard: "native", projects: [state.settings.workspace], environment_directory: state.settings.workspace });
   await page.reload();
-  await page.getByRole("heading", { name: "先启动 Cage 环境" }).waitFor();
+  await page.getByRole("heading", { name: "开始使用 Cage" }).waitFor();
   await page.getByRole("button", { name: "启动 Cage 环境", exact: true }).click();
-  await page.getByRole("heading", { name: "Cage 环境已就绪", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "新建对话", exact: true }).waitFor();
   await page.getByRole("button", { name: "添加项目", exact: true }).click();
   await page.getByRole("button", { name: "添加云端项目…", exact: true }).click();
   const chooser = page.getByRole("region", { name: "云端文件夹" });

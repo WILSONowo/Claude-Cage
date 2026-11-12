@@ -57,7 +57,7 @@ function LocalExtensionImport({ existing, onUpdated, onClose }) {
   };
   return <section className="extension-import" aria-label="从本机导入扩展">
     <div className="browser-setting-heading"><h3>从本机浏览器导入</h3><button className="icon-button" aria-label="关闭本机导入" disabled={busy} onClick={onClose}><X size={16} /></button></div>
-    <p>一次复制所选扩展及启停状态。浏览器账户、Cookie 和扩展登录数据保留在本机浏览器中。</p>
+    <p>复制所选扩展及启停状态。账户、Cookie 和扩展登录数据留在原浏览器。</p>
     {error && <p className="browser-settings-error" role="alert">{error}</p>}
     {!profiles && !error && <p role="status">正在查找本机浏览器配置…</p>}
     {profiles?.length === 0 && <p>未找到 Edge、Chrome、Brave 或 Chromium 的扩展配置。</p>}
@@ -141,7 +141,7 @@ export function BrowserExtensions({ onOpenPage, onInternal, onConfirm }) {
     </section>}
     {importing && <LocalExtensionImport existing={items || []} onUpdated={setItems} onClose={() => setImporting(false)} />}
     <div className="browser-setting-heading"><h3>已安装的扩展{items ? `（${items.length}）` : ''}</h3></div>
-    {items === null && !error ? <p role="status">正在读取扩展…</p> : items?.length === 0 ? <div className="extension-empty"><Puzzle size={28} /><strong>让浏览器更合用</strong><p>添加扩展，或从本机浏览器导入已有扩展。</p></div> : items?.map(item => <article className="extension-item" key={item.id}>
+    {items === null && !error ? <p role="status">正在读取扩展…</p> : items?.length === 0 ? <div className="extension-empty"><Puzzle size={28} /><strong>尚无扩展</strong><p>可直接添加，或从本机浏览器导入。</p></div> : items?.map(item => <article className="extension-item" key={item.id}>
       <div className="browser-setting-heading"><div><strong>{item.name}</strong><span className="extension-version">{item.version}</span></div>
         <label className="extension-enable"><input type="checkbox" aria-label={`启用 ${item.name}`} checked={Boolean(item.enabled)} disabled={Boolean(busy) || item.mayDisable === false} onChange={() => act(item.enabled ? 'disable' : 'enable', item.id)} />{item.enabled ? '已启用' : '已停用'}</label></div>
       {item.description && <p>{item.description}</p>}{item.error && <p role="alert" className="browser-settings-error">{item.error}</p>}

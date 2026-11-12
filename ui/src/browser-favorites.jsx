@@ -1,3 +1,4 @@
+import { SearchField } from "./search-field";
 import { InlineSelect } from "./inline-select";
 import { shortcut } from "./platform.mjs";
 import React, { useEffect, useRef, useState } from "react";
@@ -6,13 +7,12 @@ import {
   Folder,
   FolderPlus,
   Pencil,
-  Search,
   Star,
   Trash2,
   X,
 } from "lucide-react";
 import { api } from "./api";
-import { Modal } from "./views";
+import { Modal } from "./modal";
 
 // The saved page is primary, folder context secondary, management actions quiet.
 // Reuse paper/strong/muted/line tokens, 8/12/16px spacing and existing modal forms.
@@ -234,16 +234,8 @@ export function BrowserFavorites({ current, ready, onOpen, shortcuts = true, men
                   <X size={17} />
                 </button>
               </header>
-              <label className="favorites-search">
-                <Search size={15} />
-                <input
-                  ref={search}
-                  aria-label="搜索收藏"
-                  placeholder="搜索收藏"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
+              <SearchField className="favorites-find" inputRef={search} label="搜索收藏" placeholder="名称或网址"
+                value={query} onValueChange={setQuery} />
               <div className="favorites-folder-select">
                 <InlineSelect
                   aria-label="筛选收藏夹"

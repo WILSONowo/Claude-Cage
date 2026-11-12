@@ -1,5 +1,6 @@
+import { SearchField } from "./search-field";
 import React, { useEffect, useRef, useState } from "react";
-import { Folder, ListFilter, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Folder, ListFilter, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "./api";
 import { InlineSelect } from "./inline-select";
 import "./cli-sessions.css";
@@ -139,9 +140,8 @@ export function ArchivedSessions({ request = desktopSessionRequest, ready, onRes
   return <section className="archived-sessions" aria-label="已归档会话">
     <h2 className="archive-page-title">已归档会话</h2>
     <div className="archive-toolbar">
-      <div className="archive-search"><Search size={18} aria-hidden="true" />
-        <input type="search" aria-label="搜索已归档的会话" placeholder="搜索已归档的会话" value={query} disabled={busy} onChange={event => resetSelection(setQuery, event.target.value)} />
-      </div>
+      <SearchField className="archive-find" type="search" label="搜索已归档的会话" placeholder="搜索归档会话" value={query}
+        disabled={busy} onValueChange={next => resetSelection(setQuery, next)} />
       <InlineSelect aria-label="会话筛选" value={filter} disabled={busy} onValueChange={value => resetSelection(setFilter, value)}
         displayLabel={<span className="archive-filter-label"><ListFilter size={17}/><span>{archiveFilters[filter]}</span></span>}>
         {Object.entries(archiveFilters).map(([value,label]) => <option key={value} value={value}>{label}</option>)}

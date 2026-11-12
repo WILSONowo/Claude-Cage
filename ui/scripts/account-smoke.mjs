@@ -19,7 +19,8 @@ async function checkMenuLayout() {
   const before = await Promise.all([trigger.boundingBox(), settings.boundingBox(), projects.boundingBox()]);
   await trigger.click();
   const menu = await list.boundingBox();
-  assert.ok(menu.y >= 0 && menu.y + menu.height <= before[0].y);
+  assert.ok(menu.y >= 0 && menu.y + menu.height <= before[0].y - 6);
+  assert.equal(await list.evaluate(el => getComputedStyle(el).boxShadow), 'none');
   assert.deepEqual(await trigger.boundingBox(), before[0]);
   assert.deepEqual(await settings.boundingBox(), before[1]);
   const projectBox = await projects.boundingBox();
@@ -36,7 +37,7 @@ try {
   Object.assign(state.account, {exists:false,unlocked:false,username:''});
   const previousAcks = launchAcks;
   await page.reload();
-  await page.getByRole('heading',{name:'注册 Cage 账户'}).waitFor();
+  await page.getByRole('heading',{name:'创建 Cage 账户'}).waitFor();
   await page.waitForFunction(async (previous) => await window.fixtureLaunchAcks() > previous, previousAcks);
   await page.screenshot({path:output+'create.png'});
   await page.getByLabel('用户名',{exact:true}).fill('林间工作室');

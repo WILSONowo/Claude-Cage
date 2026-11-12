@@ -1,5 +1,5 @@
 export const systemUIFont =
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
+  '-apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif';
 export const systemCodeFont = '"SF Mono", Menlo, Consolas, monospace';
 import { presets } from "./appearance-presets.mjs";
 export {
@@ -14,14 +14,14 @@ export const defaultAppearance = {
   customThemes: [],
   mode: "system",
   lightTheme: {
-    ...presets.light.codex,
-    preset: "codex",
+    ...presets.light["claude-desktop"],
+    preset: "claude-desktop",
     opaqueWindows: false,
     fonts: { ui: "", code: "" },
   },
   darkTheme: {
-    ...presets.dark.codex,
-    preset: "codex",
+    ...presets.dark["claude-desktop"],
+    preset: "claude-desktop",
     opaqueWindows: false,
     fonts: { ui: "", code: "" },
   },
@@ -110,6 +110,21 @@ export function themeVariables(theme, variant) {
     "--code-font-family": theme.fonts.code || systemCodeFont,
     "--accent-ink": luminance(accent) > 0.4 ? "#111111" : "#ffffff",
   };
+  if (theme.preset === "claude-desktop") {
+    variables["--chrome"] = mix(surface, ink, variant === "light" ? 0.031 : 0.035);
+    variables["--input"] = mix(surface, "#ffffff", variant === "light" ? 1 : 0.048);
+    variables["--muted"] = mix(ink, surface, 0.36);
+    variables["--line"] = mix(surface, ink, 0.09 + contrast * 0.0007);
+    variables["--selected"] = mix(surface, ink, 0.095);
+    variables["--hover"] = mix(surface, ink, 0.058);
+    variables["--link"] = ink;
+  }
+  if (theme.preset === "cage") {
+    variables["--chrome"] = mix(surface, ink, 0.045);
+    variables["--muted"] = mix(ink, surface, 0.30);
+    variables["--line"] = mix(surface, ink, 0.085 + contrast * 0.0007);
+    variables["--selected"] = mix(surface, accent, variant === "dark" ? 0.18 : 0.095);
+  }
   for (const [key, value] of Object.entries(theme.colors || {})) {
     if (colorTokens[key]) variables[colorTokens[key]] = value;
   }

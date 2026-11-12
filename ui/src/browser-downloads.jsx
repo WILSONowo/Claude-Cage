@@ -309,7 +309,6 @@ export function BrowserDownloads({
                 <div className="browser-download-empty">
                   <ArrowDownToLine size={28} />
                   <strong>暂无下载</strong>
-                  <p>下载的文件会显示在这里。</p>
                 </div>
               )}
               {items.map((item) => (

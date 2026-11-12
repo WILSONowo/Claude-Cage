@@ -3,7 +3,7 @@
 .workspace-address-slot { min-width: 0; flex: 1; }
 .workspace-address-slot + .top-actions { flex: none; }
 .remote-domain { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--muted); font-size: 13px; overflow: hidden; }
-.remote-address, .remote-keyboard input { border-radius: 10px; background: var(--soft); }
+.remote-address, .remote-keyboard input { border-radius: 6px; background: var(--soft); }
 .remote-address { height: 38px; flex: 1; min-width: 0; gap: 8px; padding-left: 11px; }
 .remote-address svg { flex: none; color: var(--muted); }
 .remote-address input, .remote-keyboard input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); }

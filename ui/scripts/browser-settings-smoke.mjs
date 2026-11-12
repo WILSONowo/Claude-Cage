@@ -41,7 +41,7 @@ try {
   await nav.getByRole('button', { name: '外观', exact: true }).click();
   const layout = settings.getByRole('combobox', { name: '标签栏布局', exact: true });
   await layout.click();
-  await settings.getByRole('option', { name: '竖排（左侧）', exact: true }).click();
+  await page.getByRole('listbox', { name: '标签栏布局选项' }).getByRole('option', { name: '竖排（左侧）', exact: true }).click();
   await page.getByRole('complementary', { name: '竖排标签栏' }).waitFor();
   await page.reload();
   await page.getByRole('button', { name: '打开浏览器', exact: true }).click();
@@ -58,7 +58,7 @@ try {
   assert.equal(await globalSettings.getByText('浏览器默认网站', { exact: true }).count(), 0);
   await globalSettings.getByRole('button', { name: '返回工作台', exact: true }).first().click();
   await nav.getByRole('button', { name: '扩展', exact: true }).click();
-  await settings.getByText('让浏览器更合用', { exact: true }).waitFor();
+  await settings.getByText('尚无扩展', { exact: true }).waitFor();
   await settings.getByRole('button', { name: '从本机导入', exact: true }).click();
   const importer = settings.getByRole('region', { name: '从本机导入扩展', exact: true });
   await importer.getByText('阅读助手', { exact: true }).waitFor();
@@ -82,7 +82,7 @@ try {
   await settings.getByRole('button', { name: '刷新扩展', exact: true }).click();
   await settings.getByRole('button', { name: '移除', exact: true }).click();
   await page.getByRole('dialog', { name: '移除此扩展？', exact: true }).getByRole('button', { name: '移除扩展', exact: true }).click();
-  await settings.getByText('让浏览器更合用', { exact: true }).waitFor();
+  await settings.getByText('尚无扩展', { exact: true }).waitFor();
   checks.push('global settings no longer own browser preferences; local import shows per-extension compatibility and permissions, skips legacy extensions, preserves disabled state; enable runs real content script and removal works');
 
   const file = settings.getByLabel('选择扩展 ZIP', { exact: true });

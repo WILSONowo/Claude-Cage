@@ -57,7 +57,7 @@ export class DiagnosticBoundary extends React.Component {
     if (!this.state.failed) return this.props.children;
     return <main style={{ padding: 32 }}>
       <h2>工作台显示遇到异常</h2>
-      <p>后台任务仍可继续运行。可以导出诊断包，再重新加载界面。</p>
+      <p>后台任务继续运行。可先导出诊断包，再重新加载界面。</p>
       <DiagnosticSettings />
       <button className="primary-button" onClick={() => location.reload()}>重新加载界面</button>
     </main>;

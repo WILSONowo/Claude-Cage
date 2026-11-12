@@ -1,5 +1,6 @@
+import { SearchField } from "./search-field";
 import React, { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Copy, ExternalLink, KeyRound, LoaderCircle, Monitor, Network, RefreshCw, Search, Smartphone, Terminal, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Copy, ExternalLink, KeyRound, LoaderCircle, Monitor, Network, RefreshCw, Smartphone, Terminal, Trash2 } from "lucide-react";
 import { api, writeClipboard } from "./api";
 import { Modal } from "./modal";
 import "./tailscale.css";
@@ -111,9 +112,9 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
       </section>}
       <section className="tailscale-section tailscale-devices" aria-labelledby="tailscale-devices-title">
         <div className="tailscale-section-heading"><h3 id="tailscale-devices-title">网络中的设备{connected && <span>{peers.length}</span>}</h3>{connected && peers.length > 0 && <span className="field-help">{peers.filter(peer => peer.online).length} 台在线</span>}</div>
-        {connected && peers.length > 0 && <label className="tailscale-search"><Search size={16} /><input aria-label="搜索设备" type="search" placeholder="搜索设备名称或地址" value={query} onChange={e => setQuery(e.target.value)} /></label>}
-        {!connected ? <div className="tailscale-empty"><Monitor size={26} /><strong>连接后查看你的设备</strong><p>在浏览器完成登录，设备清单会自动出现。</p></div>
-          : peers.length === 0 ? <div className="tailscale-empty"><Monitor size={26} /><strong>私网已连接，还没有发现其他设备</strong><p>在电脑或手机安装 Tailscale，并加入同一网络。这里只显示此网络允许 Cage 发现的设备。</p></div>
+        {connected && peers.length > 0 && <SearchField type="search" label="搜索设备" placeholder="设备名称或地址" value={query} onValueChange={setQuery} />}
+        {!connected ? <div className="tailscale-empty"><Monitor size={26} /><strong>连接后查看你的设备</strong><p>在浏览器登录后即可查看设备。</p></div>
+          : peers.length === 0 ? <div className="tailscale-empty"><Monitor size={26} /><strong>私网已连接，还没有发现其他设备</strong><p>让电脑或手机加入同一 Tailscale 网络。这里只列出 Cage 有权发现的设备。</p></div>
           : visible.length === 0 ? <p className="tailscale-empty">没有匹配的设备，请尝试其他名称或地址。</p>
           : <div className="tailscale-peers">{visible.map(peer => <article className="tailscale-peer" key={peer.id || peer.ip}>
             <div className="tailscale-peer-row"><DeviceIcon os={peer.os} /><div className="tailscale-peer-info"><strong>{deviceName(peer)}</strong><span>{peer.ip}{peer.os ? ` · ${peer.os}` : ""}</span></div>

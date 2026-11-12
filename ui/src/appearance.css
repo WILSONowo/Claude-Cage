@@ -549,3 +549,23 @@ button.primary:hover:not(:disabled) {
 .theme-status-preview svg {
   flex: none;
 }
+
+.appearance-fields > h4 { margin: 1.65rem 0 .2rem; }
+.appearance-fields .appearance-row { column-gap: 1.25rem; row-gap: .6rem; padding-block: .9rem; flex-wrap: wrap; }
+.appearance-row > div:first-child { flex: 1 1 9em; overflow-wrap: anywhere; }
+.appearance-row .appearance-control { max-width: 100%; min-width: 0; }
+.appearance-fields .appearance-mode { flex-wrap: wrap; }
+.appearance-fields .font-size-control input[type="number"] { width: 5.3em; min-height: 2.35em; }
+.theme-library { padding: 1rem; }
+.theme-library-heading { align-items: center; gap: .75rem 1rem; margin-bottom: .85rem; }
+.theme-library-heading p { margin: .3rem 0 0; }
+.theme-file-actions { flex-wrap: wrap; }
+@container settings (max-width: 34rem) {
+  .theme-card-grid { grid-template-columns: minmax(0,1fr); }
+  .theme-library-fields { grid-template-columns: minmax(0,1fr) auto; }
+  .theme-library-fields > .inline-select { grid-column: 1 / -1; }
+}
+@container settings (max-width: 24rem) {
+  .theme-library-fields { grid-template-columns: minmax(0,1fr); }
+  .theme-library-fields > button { justify-self: start; }
+}

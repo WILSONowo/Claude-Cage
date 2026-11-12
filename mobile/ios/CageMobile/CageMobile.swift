@@ -316,7 +316,7 @@ private struct Workspace: UIViewRepresentable {
 
 private enum CageStyle {
     static let paper = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(white: 0.075, alpha: 1) : UIColor(red: 0.982, green: 0.978, blue: 0.967, alpha: 1)
+        traits.userInterfaceStyle == .dark ? UIColor(white: 0.085, alpha: 1) : UIColor(white: 0.98, alpha: 1)
     })
     static let ink = Color(uiColor: .label)
     static let inverse = Color(uiColor: .systemBackground)
@@ -334,13 +334,13 @@ private struct ActionLabel: View {
     let title: String
     let symbol: String
     var primary = true
-    var height: CGFloat = 52
+    var height: CGFloat = 48
     var body: some View {
         Label(title, systemImage: symbol)
             .font(.headline).frame(maxWidth: .infinity, minHeight: height)
             .foregroundStyle(primary ? CageStyle.inverse : CageStyle.ink)
             .background(primary ? CageStyle.ink : Color(uiColor: .secondarySystemFill),
-                        in: RoundedRectangle(cornerRadius: 16))
+                        in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
     }
 }

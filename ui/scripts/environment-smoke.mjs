@@ -29,13 +29,9 @@ try {
   await page
     .getByRole("button", { name: "启动 Cage 环境", exact: true })
     .click();
-  await page.getByRole("heading", { name: "Cage 环境已就绪" }).waitFor();
-  await page.getByText("环境运行正常", { exact: true }).waitFor();
-  assert.ok(
-    (await page
-      .getByRole("img", { name: "环境运行正常，网络检查通过" })
-      .count()) >= 2,
-  );
+  await page.getByRole("heading", { name: "新建对话" }).waitFor();
+  assert.equal(await page.locator(".sidebar-status").count(), 0);
+  await page.locator('.status-bar button[title="网络与隔离检查"] .environment-shield.healthy').waitFor();
   assert.equal(state.saves.length, 0);
   const links = await page
     .getByRole("navigation", { name: "主导航" })
@@ -70,7 +66,7 @@ try {
     starts,
   );
   await page.reload();
-  await page.getByRole("heading", { name: "Cage 环境已就绪" }).waitFor();
+  await page.getByRole("heading", { name: "新建对话" }).waitFor();
   await page.getByRole("button", { name: /^打开浏览器/ }).click();
   await page.getByRole("button", { name: "新建网页", exact: true }).click();
   await page.waitForFunction(
@@ -81,11 +77,11 @@ try {
   state.status.safety.gate.until = new Date(Date.now() - 1000).toISOString();
   await page.getByText("离线可用", { exact: true }).waitFor();
   assert.equal(await page.locator(".environment-shield.healthy").count(), 0);
-  await page.getByRole("button", { name: "工作台", exact: true }).click();
+  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
   await shot("offline");
   state.status.ready = false;
   state.status.vm_running = false;
-  await page.getByRole("heading", { name: "先启动 Cage 环境" }).waitFor();
+  await page.getByRole("heading", { name: "开始使用 Cage" }).waitFor();
   assert.equal(await page.locator(".environment-shield.healthy").count(), 0);
   await page.setViewportSize({ width: 820, height: 558 });
   await shot("minimum");

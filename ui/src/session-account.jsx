@@ -63,7 +63,7 @@ export function SessionAccount({ id, request, onChanged, compact = false }) {
       </>}
       {switching && sw.phase!=="starting" && <button disabled={busy} onClick={()=>change({action:"switch",request_id:sw.id,source_id:view.source_id,target,confirm:true})}>重试账号交接</button>}
       {switching && sw.phase==="preparing" && <button disabled={busy} onClick={()=>change({action:"cancel",request_id:sw.id})}>取消交接，保留原账号</button>}
-      {switching && sw.phase==="starting" && <p>正在等待目标账号连接。请保留当前页面，或从会话列表重新打开。</p>}
+      {switching && sw.phase==="starting" && <p>等待目标账号连接。可稍后从会话列表重新打开。</p>}
       {error && <p role="alert">{error}</p>}
     </div>}
   </section>;

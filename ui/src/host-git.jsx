@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { LoaderCircle, ShieldCheck } from "lucide-react";
 import { api } from "./api";
 import { isRemoteClient } from "./client-context.mjs";
-import { Modal } from "./views";
+import { Modal } from "./modal";
 
 export function HostGitPreparation({ onClose, onReady }) {
   const machine = isRemoteClient() ? "云端主机" : "本机";
@@ -91,7 +91,7 @@ export function HostGitPreparation({ onClose, onReady }) {
               </>
             )}
             {!state?.can_enable && !error && (
-              <p>完成安装或修复后点击“重新检查”，无需重新配置代理。</p>
+              <p>安装或修复后请重新检查，代理配置会保留。</p>
             )}
           </>
         )}

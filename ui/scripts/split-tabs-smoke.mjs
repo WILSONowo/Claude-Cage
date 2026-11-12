@@ -5,7 +5,7 @@ import { createWorkbench } from "./workbench-fixture.mjs";
 const { page, state, browser, errors } = await createWorkbench();
 try {
   await page.getByRole("button", { name: "启动 Cage 环境", exact: true }).click();
-  await page.getByRole("heading", { name: "Cage 环境已就绪" }).waitFor();
+  await page.getByRole("heading", { name: "新建对话" }).waitFor();
   await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
   await page.getByRole("tablist", { name: "浏览器标签页" }).waitFor();
   await page.getByRole("button", { name: "新建网页", exact: true }).click();
@@ -69,6 +69,11 @@ try {
   state.terminals.push(term);
   const terminal = page.getByRole("tab", { name: term.title, exact: true });
   await terminal.waitFor();
+  // Tab metadata is visible before the lazily loaded terminal opens its first socket.
+  await page.locator(".terminal-host .xterm").waitFor({ state: "attached" });
+  for (let attempt = 0; !state.terminalConnections && attempt < 100; attempt++)
+    await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(state.terminalConnections, 1, "the first terminal socket must be connected");
   const connections = state.terminalConnections;
   await drag(terminal, 0.75);
   const terminalRight = workspace.locator(".terminal-lane.split-right:visible");

@@ -1161,9 +1161,9 @@ static void create_window(void) {
     g_object_unref(menu); g_object_unref(file); g_object_unref(settings); g_object_unref(help);
     app.stack = gtk_stack_new();
     gtk_box_pack_start(GTK_BOX(layout), app.stack, TRUE, TRUE, 0);
-    GtkWidget *status_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
-    gtk_widget_set_margin_start(status_box, 48); gtk_widget_set_margin_end(status_box, 48);
-    gtk_widget_set_margin_top(status_box, 48); gtk_widget_set_valign(status_box, GTK_ALIGN_START);
+    GtkWidget *status_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    gtk_widget_set_margin_start(status_box, 32); gtk_widget_set_margin_end(status_box, 32);
+    gtk_widget_set_margin_top(status_box, 32); gtk_widget_set_valign(status_box, GTK_ALIGN_START);
     app.status = gtk_label_new("正在启动 Cage 工作台…");
     gtk_label_set_line_wrap(GTK_LABEL(app.status), TRUE);
     gtk_label_set_xalign(GTK_LABEL(app.status), 0);

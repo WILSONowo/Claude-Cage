@@ -66,7 +66,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = CageProfile.macGuestTrial ? "Cage macOS" : "Cage"
         window.titlebarAppearsTransparent = false
-        window.backgroundColor = NSColor(srgbRed: 247.0/255, green: 247.0/255, blue: 247.0/255, alpha: 1)
+        window.backgroundColor = .windowBackgroundColor
         window.minSize = NSSize(width: 820, height: 580)
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -96,8 +96,8 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         content.addSubview(nativeInput)
         NSLayoutConstraint.activate([webView.leadingAnchor.constraint(equalTo: content.leadingAnchor), webView.trailingAnchor.constraint(equalTo: content.trailingAnchor), webView.topAnchor.constraint(equalTo: content.topAnchor), webView.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
         loading = NSTextField(labelWithString: "正在启动 Cage 工作台…")
-        loading.font = NSFont.systemFont(ofSize: 16, weight: .medium)
-        loading.textColor = NSColor(srgbRed: 54.0/255, green: 54.0/255, blue: 54.0/255, alpha: 1)
+        loading.font = NSFont.systemFont(ofSize: 15, weight: .medium)
+        loading.textColor = .labelColor
         loading.alignment = .center
         loading.maximumNumberOfLines = 4
         loading.translatesAutoresizingMaskIntoConstraints = false

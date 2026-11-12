@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import path from "node:path";
 import { createWorkbench } from "./workbench-fixture.mjs";
 const engine = process.env.CAGE_TEST_BROWSER || "chromium";
-const output = new URL(`../../docs/test-reports/2026-11-09-tailscale-redesign/${engine}/`, import.meta.url);
+const output = process.env.CAGE_TEST_CAPTURE
+  ? pathToFileURL(path.resolve(process.env.CAGE_TEST_CAPTURE, "tailscale") + path.sep)
+  : new URL(`../../docs/test-reports/2026-11-09-tailscale-redesign/${engine}/`, import.meta.url);
 await mkdir(output, { recursive: true });
 let copied = "", fail = false, delayed = false, failKey = false, failService = false, failBrowser = true;
 let tail = { installed: true, version: "1.104.5", enabled: false, backend: "Stopped", ips: [], peers: [], keys: [], forwards: [], user: "cage", ssh_port: 22 };
@@ -52,9 +55,9 @@ try {
   await panel.getByText("林间私网", { exact: true }).waitFor();
   await panel.getByText("登录账号 · owner@example.invalid", { exact: true }).waitFor();
   assert.equal(await panel.locator(".tailscale-peer").first().getByText("my-computer", { exact: true }).count(), 1);
-  await panel.getByLabel("搜索设备").fill("100.88.2.5"); assert.equal(await panel.locator(".tailscale-peer").count(), 1);
-  await panel.getByLabel("搜索设备").fill("missing"); await panel.getByText("没有匹配的设备，请尝试其他名称或地址。", { exact: true }).waitFor();
-  await panel.getByLabel("搜索设备").fill("");
+  await panel.getByRole("searchbox", { name: "搜索设备", exact: true }).fill("100.88.2.5"); assert.equal(await panel.locator(".tailscale-peer").count(), 1);
+  await panel.getByRole("searchbox", { name: "搜索设备", exact: true }).fill("missing"); await panel.getByText("没有匹配的设备，请尝试其他名称或地址。", { exact: true }).waitFor();
+  await panel.getByRole("searchbox", { name: "搜索设备", exact: true }).fill("");
   await page.screenshot({ animations: "disabled", path: fileURLToPath(new URL("connected.png", output)) });
   await panel.getByRole("button", { name: "复制地址", exact: true }).click(); assert.equal(copied, "100.88.2.3");
   await panel.getByRole("button", { name: "复制 my-computer 的地址", exact: true }).click(); assert.equal(copied, "100.88.2.4");

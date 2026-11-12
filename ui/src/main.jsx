@@ -1,6 +1,5 @@
 import { shortcut, primaryModifier } from "./platform.mjs";
-import logo from "./logo.png";
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Clock3,
   FileCode2,
@@ -18,9 +17,11 @@ import {
 import { api, normalizeURL, native, nativeAvailable } from "./api";
 import { clientKeyboard, clientStorageKey, getClientContext, isRemoteClient, runtimeURL, runtimeSocketURL } from "./client-context.mjs";
 import { shareClipboard } from "./shared-clipboard.mjs";
-import { RemoteView, TerminalView, Modal } from "./views";
+import { RemoteView, TerminalView } from "./views";
+import { HomeComposer, DesktopConversation } from "./desktop-conversation";
+import { Modal } from "./modal";
 import { usePasswordVault } from "./password-vault";
-import { SettingsPanel } from "./settings";
+
 import { SetupProgress } from "./setup-progress";
 import { GuestSystemPicker, validGuestChoice } from "./guest-system-picker";
 import { AppearanceProvider } from "./appearance";
@@ -43,6 +44,7 @@ import { BrowserSettingsPage } from "./browser-settings";
 import { AudioControls, useAudioOutput } from "./audio";
 import { ProjectDialog } from "./project-dialog";
 import {
+  sameSnapshot,
   readLocal,
   orderedTabs,
   focusTab,
@@ -61,6 +63,14 @@ import { AppUpdateButton, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
 
+const SettingsPanel = lazy(() => import("./settings").then(module => ({ default: module.SettingsPanel })));
+
+function greeting(name) {
+  const hour = new Date().getHours();
+  const phrase = hour < 6 || hour >= 18 ? "晚上好" : hour < 12 ? "早上好" : "下午好";
+  return name ? phrase + "，" + name : phrase;
+}
+
 function App() {
   const { account } = useAccount();
   const macGuest = account?.guest_system === "macos";
@@ -72,6 +82,8 @@ function App() {
     return () => window.removeEventListener("cage-client-preferences", refresh);
   }, []);
   const claudeProfiles = useClaudeAccounts();
+  const [conversation, setConversation] = useState("");
+  const [conversationDrafts] = useState(() => new Map());
   const [tailscaleOpen, setTailscaleOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [terminalChoice, setTerminalChoice] = useState(null);
@@ -103,7 +115,7 @@ function App() {
     [settingsSection, setSettingsSection] = useState("keyboard"),
     [home, setHome] = useState(true),
     [sidebarCollapsed, setSidebarCollapsed] = useState(
-      readLocal(clientStorageKey("cage-sidebar-collapsed"), false),
+      () => readLocal(clientStorageKey("cage-sidebar-collapsed"), window.matchMedia("(max-width: 680px)").matches),
     ),
     [browserTabLayout, setBrowserTabLayout] = useState(
       readLocal(clientStorageKey("cage-browser-tab-layout"), "horizontal"),
@@ -645,7 +657,7 @@ function App() {
         const next = await api("/status");
         if (!live) return;
         jobRunning = next.job.running;
-        setStatus(next);
+        setStatus(previous => sameSnapshot(previous, next) ? previous : next);
         setStartRequest(pending => pending?.id && pending.id === next.job.id ? null : pending);
         setConnectionError("");
         if (
@@ -688,7 +700,7 @@ function App() {
           }
           if (!live) return;
           browserSnapshot.current = b;
-          setBrowser(b);
+          setBrowser(previous => sameSnapshot(previous, b) ? previous : b);
           const all = [
             ...b.tabs,
             ...t.map((item) => ({
@@ -701,12 +713,14 @@ function App() {
           ];
           setTabs((previous) => {
             const map = new Map(all.map((item) => [item.id, item]));
-            return [
+            const previousIds = new Set(previous.map(tab => tab.id));
+            const ordered = [
               ...previous
                 .filter((item) => map.has(item.id))
                 .map((item) => map.get(item.id)),
-              ...all.filter((item) => !previous.some((p) => p.id === item.id)),
+              ...all.filter((item) => !previousIds.has(item.id)),
             ];
+            return sameSnapshot(previous, ordered) ? previous : ordered;
           });
           if (!browserDismissed.current && initialized.current && b.active && b.active !== activeRef.current && !browserIds.current.has(b.active)) {
             setDesktopOpen(false);
@@ -1352,8 +1366,8 @@ function App() {
         className="workbench-shell"
         inert={settingsOpen || hostGitOpen || undefined}
       >
-        {!sidebarCollapsed && (
-          <WorkspaceSidebar
+        {
+          <WorkspaceSidebar sidebarCollapsed={sidebarCollapsed}
             downloadAction={<BrowserDownloads sidebar downloads={downloads} ready={status.ready && !busy} onStatus={notify} />}
             updateAction={<AppUpdateButton updates={appUpdates} />}
             workspace={selectedProject || status.workspace}
@@ -1378,9 +1392,7 @@ function App() {
             busy={busy || storageRecovery}
             ready={status.ready}
             running={running}
-            runtimeLabel={runtimeLabel}
-            network={network}
-            onHome={() => { setDesktopOpen(false); setHome(true); }}
+            onHome={() => { setConversation(""); setDesktopOpen(false); setHome(true); }}
             onOpenProject={(path = "") => setProjectDialog({ path })}
             onSelect={select}
             onClose={closeTab}
@@ -1402,12 +1414,11 @@ function App() {
             onSettings={openSettings}
             onAccountConfirm={confirm}
             onAccountStatus={notify}
-            onSafety={() => setSafetyOpen(true)}
             onCollapse={() =>
               persist("cage-sidebar-collapsed", true, setSidebarCollapsed)
             }
           />
-        )}
+        }
         <div className="workbench-main">
           {showHome && terminalHeader(null)}
           {browserError && running && !connectionError && <div className="connection-banner" role="status">
@@ -1511,10 +1522,12 @@ function App() {
                 })}
               </>
             )}
-            {showHome && (
+            {showHome && conversation && !storageRecovery && !setupProgress && <DesktopConversation
+              key={conversation} id={conversation} drafts={conversationDrafts} ready={status.ready}
+              visible={windowVisible && !settingsOpen} onBack={() => setConversation("")} onOpenWeb={openBrowserPage} />}
+            {showHome && (!conversation || storageRecovery || setupProgress) && (
               <div className="welcome">
                 <div className="welcome-content">
-                  <img className="welcome-logo" src={logo} alt="Cage" />
                   {storageRecovery ? <>
                     <h1>环境存储需要恢复</h1>
                     <p className="welcome-subtitle"><SafetyMessage message={status.storage_recovery.error} /></p>
@@ -1525,7 +1538,7 @@ function App() {
                     <SetupProgress job={status.job} onDetails={() => setDetails(true)}
                       onStop={stop} onRetry={() => setStartOptions(status.job.kind === "guest-install" ? { guest_system: status.job.setup_progress.system } : {})} disconnected={Boolean(connectionError)} />
                   </> : <>
-                  <h1>
+                  <h1 className="welcome-heading" aria-label={running && status.ready && !busy ? "新建对话" : undefined}>
                     {busy
                       ? status.job.kind === "stop"
                         ? "正在停止 Cage 环境"
@@ -1537,24 +1550,22 @@ function App() {
                       : running
                         ? !status.ready
                           ? "Cage 环境正在连接"
-                          : "Cage 环境已就绪"
+                          : <><span className="greeting-mark" aria-hidden="true">✳︎</span>{greeting(account?.username)}</>
                         : setupProxy
-                          ? "为 Claude 准备独立工作区"
-                          : "先启动 Cage 环境"}
+                          ? "配置工作环境"
+                          : "开始使用 Cage"}
                   </h1>
-                  <p className="welcome-subtitle">
+                  {(!running || !status.ready || busy || network.mode !== "open") && <p className="welcome-subtitle">
                     <SafetyMessage message={busy
                       ? status.job.message
                       : running
                         ? !status.ready
                           ? status.environment_update_error || "浏览器连接尚未就绪，可以恢复连接或继续使用终端。"
-                          : network.mode === "open"
-                            ? "环境已连接，网络检查通过。可以浏览网页或打开本地项目。"
-                            : `${network.label}。终端与本地文件仍可使用。`
+                          : `${network.label}。终端与本地文件仍可使用。`
                         : setupProxy
-                          ? "先连接你的代理，再启动浏览器、终端和编辑器。无需安装额外的代理软件。"
-                          : "准备独立的浏览器和终端，完成网络检查后开始工作。"} />
-                  </p>
+                          ? "连接代理后，即可启动浏览器、终端和编辑器。"
+                          : "启动工作环境，继续使用你的项目和会话。"} />
+                  </p>}
                   {!running && !nativeGuestLabel && (
                     <ol className="onboarding-steps" aria-label="开始使用 Cage">
                       {["配置代理", "启动环境", "开始工作"].map(
@@ -1574,7 +1585,10 @@ function App() {
                       )}
                     </ol>
                   )}
-                  <div className="start-project-box">
+                  {running && status.ready && <HomeComposer key={contentWorkspace} workspace={contentWorkspace}
+                    project={project} disabled={busy || Boolean(connectionError)} drafts={conversationDrafts}
+                    onCreated={id => { sessionsChanged(); setConversation(id); }} />}
+                  {(!running || !status.ready || busy) && <div className="start-project-box">
                     <div className="environment-summary">
                       <EnvironmentShield
                         healthy={status.ready && network.mode === "open"}
@@ -1652,10 +1666,13 @@ function App() {
                       </button>
                     </div>
                     {terminalMenuAt("start")}
-                  </div>
+                  </div>}
                   {running && (
                     <div className="welcome-shortcuts">
                       {macGuest && <MacOSLogin disabled={!status.ready || busy} />}
+                      {status.ready && status.environment_workspace && <button onClick={() => setProjectDialog({ path: "" })} disabled={busy}>
+                        <FolderOpen size={16} />打开项目
+                      </button>}
                       <button onClick={newTerminalHere} data-terminal-location="shortcuts" aria-haspopup="menu" disabled={busy}>
                         <TerminalSquare size={16} />
                         新建终端
@@ -1673,16 +1690,8 @@ function App() {
                   {!running && !nativeGuestLabel && (
                     <p className="welcome-hint">
                       {setupProxy
-                        ? "Cage 不提供代理或 Claude 账户。连接后，在 Cage 内完成 Claude 登录。"
-                        : "首次安装时可在操作详情中查看下载和配置进度；中断后可以继续安装。"}
-                    </p>
-                  )}
-                  {running && status.ready && (
-                    <p className="welcome-hint">
-                      打开项目后，在终端输入 <code>claude</code>
-                      ，按提示登录你的账户。
-                      <br />
-                      {isRemoteClient() ? "默认工作区和打开的项目位于云端，编辑和删除会直接影响云端文件。" : "默认工作区和打开的项目与本机共享，编辑和删除文件会同步。"}
+                        ? "连接自己的代理后，在 Cage 内登录 Claude。"
+                        : "首次启动会准备开发环境，安装中断后可继续。"}
                     </p>
                   )}
                   </>}
@@ -1741,7 +1750,7 @@ function App() {
               <span>{running ? network.label : "网络检查"}</span>
             </button>
             <span className="status-divider" />
-            <button onClick={() => openSettings("network")}>
+            <button className="status-exit" onClick={() => openSettings("network")}>
               <MapPin size={12} />
               <span>
                 {status.network_error
@@ -1756,7 +1765,7 @@ function App() {
               </span>
             </button>
             <span className="status-divider" />
-            <button onClick={() => openSettings("region")}>
+            <button className="status-region" onClick={() => openSettings("region")}>
               <Clock3 size={12} />
               {settings.timezone}
               {settings.auto_timezone ? " · 自动" : ""}
@@ -1786,6 +1795,7 @@ function App() {
               </button>
             )}
             <button
+              className="environment-stop"
               onClick={stop}
               disabled={
                 Boolean(startRequest) || (!running && !busy) || (status?.job?.kind === "stop" && busy)
@@ -1800,6 +1810,7 @@ function App() {
       </div>
       <BrowserUploads requests={status.ready ? browser.uploads : []} onStatus={notify} />
       {settingsOpen && (
+        <Suspense fallback={<div className="settings-page client-loading" role="status">正在打开设置…</div>}>
         <SettingsPanel
           current={settings}
           status={status}
@@ -1811,6 +1822,7 @@ function App() {
           onSaved={refreshSettings}
           onConfirm={confirm}
         />
+        </Suspense>
       )}
       {tailscaleOpen && <TailscalePanel status={status} onClose={() => setTailscaleOpen(false)}
         onConfirm={confirm} onInstall={async () => {

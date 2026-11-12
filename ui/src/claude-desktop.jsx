@@ -252,21 +252,14 @@ export function ClaudeDesktop({
           />
         ) : (
           <div className="desktop-empty">
-            <Monitor size={36} />
-            <h2>
-              {desktop?.installed
-                ? "Claude Desktop"
-                : "在 Cage 中使用 Claude Desktop"}
-            </h2>
-            <p>
-              Chat 和 Code 共用一个官方应用。在 Cage
-              内安装、登录并使用，项目文件来自已打开的文件夹。
-            </p>
-            {!desktop?.installed && (
-              <p>
-                首次使用时从 Anthropic 官方源下载，不增加 Cage 默认安装包体积。
-              </p>
-            )}
+            <div className="desktop-empty-heading">
+              <Monitor size={26} aria-hidden="true" />
+              <h2>{desktop?.installed ? "Claude Desktop" : "在 Cage 中使用 Claude Desktop"}</h2>
+            </div>
+            <div className="desktop-intro">
+              <p>登录后，可在已打开的项目文件夹中使用 Chat 和 Code。</p>
+              {!desktop?.installed && <p>首次安装将从 Anthropic 官方下载应用。</p>}
+            </div>
             <div className="desktop-actions">
               {desktop && (
                 <button
@@ -301,10 +294,10 @@ export function ClaudeDesktop({
                 </button>
               )}
             </div>
-            <p className="desktop-note">
-              关闭应用后释放图形会话资源，登录状态保留在 Cage
-              环境中。需要额外虚拟机的 Cowork 功能暂未适配。
-            </p>
+            <div className="desktop-note">
+              <p>关闭应用会释放图形会话资源，登录状态保留在 Cage 中。</p>
+              <p>Cowork 需要额外的虚拟机，目前暂不支持。</p>
+            </div>
           </div>
         )}
       </div>

@@ -1,9 +1,10 @@
+import { SearchField } from "./search-field";
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "./api";
 import { InlineSelect } from "./inline-select";
 
-export function BrowserCookies({ tab, onClose }) {
+export function BrowserCookies({ tab, onClose, autoFocus = true }) {
   const [scope, setScope] = useState(/^https?:/.test(tab.url) ? "site" : "all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
@@ -15,7 +16,7 @@ export function BrowserCookies({ tab, onClose }) {
   const [busy, setBusy] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const generation = useRef(0), search = useRef(null), operation = useRef(false);
-  useEffect(() => { search.current?.focus(); }, []);
+  useEffect(() => { if (autoFocus) search.current?.focus(); }, [autoFocus]);
   useEffect(() => {
     const version = ++generation.current;
     setLoading(true); setData(null); setValue(null); setError(""); setConfirmClear(false);
@@ -51,8 +52,8 @@ export function BrowserCookies({ tab, onClose }) {
       <InlineSelect aria-label="Cookie 网站范围" value={scope} disabled={busy} onValueChange={next => { setScope(next); setPage(0); }}>
         <option value="site" disabled={!/^https?:/.test(tab.url)}>当前网站</option><option value="all">所有网站</option>
       </InlineSelect>
-      <input ref={search} aria-label="搜索 Cookie" placeholder="搜索网站或 Cookie 名称" maxLength={200}
-        value={query} disabled={busy} onChange={event => { setQuery(event.target.value); setPage(0); }} />
+      <SearchField inputRef={search} label="搜索 Cookie" placeholder="网站或 Cookie 名称" maxLength={200}
+        value={query} disabled={busy} onValueChange={next => { setQuery(next); setPage(0); }} />
       <button disabled={busy || loading || !data} onClick={() => setConfirmClear(!confirmClear)}>
         <Trash2 size={14} />清空{scope === "site" ? "当前网站" : "所有网站"}
       </button>

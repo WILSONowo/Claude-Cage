@@ -213,11 +213,11 @@ public final class MainActivity extends Activity {
         Button view = new Button(this);
         view.setText(name);
         view.setAllCaps(false);
-        view.setTextSize(16);
+        view.setTextSize(15);
         view.setTextColor(primary ? palette.onAction : palette.ink);
         view.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         view.setStateListAnimator(null);
-        view.setBackground(pressable(primary ? palette.action : palette.soft, 14, false));
+        view.setBackground(pressable(primary ? palette.action : palette.panel, 6, !primary));
         view.setOnClickListener(action);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(52));
         lp.topMargin = dp(8);
@@ -358,7 +358,7 @@ public final class MainActivity extends Activity {
         layer.addView(shade, -1, -1);
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(false);
-        scroll.setBackground(surface(palette.panel, 26, false));
+        scroll.setBackground(surface(palette.panel, 12, true));
         scroll.setClickable(true);
         FrameLayout.LayoutParams sheet = new FrameLayout.LayoutParams(Math.min(getResources().getDisplayMetrics().widthPixels, dp(500)), -2,
             Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);

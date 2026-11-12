@@ -1,6 +1,7 @@
 import React, { Children, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSelectPopup } from "./select-popup";
+import { SearchField } from "./search-field";
 import { Check, ChevronDown } from "lucide-react";
 import "./inline-select.css";
 
@@ -11,6 +12,7 @@ export function InlineSelect({
   onValueChange,
   disabled,
   editable = false,
+  filterable = true,
   displayLabel,
   ...props
 }) {
@@ -19,6 +21,8 @@ export function InlineSelect({
   const control = useRef(null);
   const list = useRef(null);
   const [open, setOpen] = useState(false);
+  const filterInput = useRef(null);
+  const [filter, setFilter] = useState("");
   const [cursor, setCursor] = useState(null);
   const options = Children.toArray(children).flatMap((child) => {
     const group = child.type === "optgroup" ? child.props.label : null;
@@ -27,21 +31,17 @@ export function InlineSelect({
         value: String(option.value),
         label:
           Children.toArray(option.children).join("") || String(option.value),
-        disabled: option.disabled,
+        disabled: option.disabled || (group && child.props.disabled),
         group,
       }),
     );
   });
   const selected = options.find((option) => option.value === String(value));
-  const filtered =
-    editable && !selected && value
-      ? options.filter((option) =>
-          (option.label + " " + option.value)
-            .toLowerCase()
-            .includes(value.toLowerCase()),
-        )
-      : options;
-  const visible = open && !disabled && filtered.length > 0;
+  const searchable = filterable && !editable && options.length >= 10;
+  const needle = (editable && !selected ? String(value || "") : searchable && open ? filter : "").trim().toLocaleLowerCase();
+  const filtered = needle ? options.filter(item =>
+    [item.label, item.value, item.group].some(text => text?.toLocaleLowerCase().includes(needle))) : options;
+  const visible = open && !disabled;
   const active = filtered.findIndex(
     (item) => item.value === cursor && !item.disabled,
   );
@@ -49,14 +49,7 @@ export function InlineSelect({
   useEffect(() => {
     if (visible && active >= 0) {
       const row = list.current.querySelector(`[data-index="${active}"]`);
-      if (row.offsetTop < list.current.scrollTop)
-        list.current.scrollTop = row.offsetTop;
-      else if (
-        row.offsetTop + row.offsetHeight >
-        list.current.scrollTop + list.current.clientHeight
-      )
-        list.current.scrollTop =
-          row.offsetTop + row.offsetHeight - list.current.clientHeight;
+      row?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   }, [visible, active]);
   useEffect(() => {
@@ -65,11 +58,17 @@ export function InlineSelect({
       if (!root.current.contains(event.target) && !list.current?.contains(event.target)) setOpen(false);
     };
     document.addEventListener("click", outside, true);
-    return () => document.removeEventListener("click", outside, true);
+    document.addEventListener("focusin", outside, true);
+    return () => {
+      document.removeEventListener("click", outside, true);
+      document.removeEventListener("focusin", outside, true);
+    };
   }, [open]);
   const show = () => {
+    setFilter("");
     setCursor(selected?.value ?? null);
     setOpen(true);
+    if (searchable) requestAnimationFrame(() => filterInput.current?.focus({ preventScroll: true }));
   };
   const choose = (item) => {
     if (item.disabled) return;
@@ -79,18 +78,23 @@ export function InlineSelect({
   };
   const keydown = (event) => {
     const key = event.key;
-    if (event.nativeEvent.isComposing) return;
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    const typing = event.currentTarget === filterInput.current;
+    if (typing && ["Home", "End", " "].includes(key)) return;
     if (key === "Tab") {
+      if (typing && !event.defaultPrevented) control.current.focus({ preventScroll: true });
       setOpen(false);
     } else if (key === "Escape" && open) {
       event.preventDefault();
       event.stopPropagation();
+      control.current.focus({ preventScroll: true });
       setOpen(false);
     } else if (key === "Enter" || (!editable && key === " ")) {
       if (editable && (!visible || active < 0)) return;
       event.preventDefault();
       if (!visible) show();
       else if (active >= 0) choose(filtered[active]);
+      else if (typing && filtered.some(item => !item.disabled)) choose(filtered.find(item => !item.disabled));
       else setOpen(false);
     } else if (
       ["ArrowUp", "ArrowDown"].includes(key) ||
@@ -111,7 +115,14 @@ export function InlineSelect({
       if (!visible && selected && key.startsWith("Arrow"))
         next = enabled.indexOf(selected);
       setCursor(enabled[next]?.value ?? null);
+      if (!visible) setFilter("");
       setOpen(true);
+    } else if (searchable && !typing && key.length === 1 && !event.altKey && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      setFilter(key);
+      setCursor(null);
+      setOpen(true);
+      requestAnimationFrame(() => filterInput.current?.focus());
     }
   };
   const common = {
@@ -119,6 +130,7 @@ export function InlineSelect({
     ref: control,
     disabled,
     role: "combobox",
+    "aria-haspopup": "listbox",
     "aria-expanded": visible,
     "aria-controls": visible ? id : undefined,
     "aria-activedescendant":
@@ -156,16 +168,15 @@ export function InlineSelect({
         </button>
       )}
       {visible && createPortal(
-        <span
-          ref={list}
-          id={id}
-          role="listbox"
-          aria-label={(props["aria-label"] || "") + "选项"}
-          className="inline-select-list"
-          style={position}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={(event) => event.preventDefault()}
-        >
+        <span ref={list} className="select-surface" style={position}>
+          {searchable && <SearchField inputRef={filterInput} label="搜索选项" placeholder="搜索选项"
+            value={filter} onValueChange={next => { setFilter(next); setCursor(null); }}
+            role="combobox" aria-expanded={visible} aria-controls={id} aria-autocomplete="list"
+            aria-activedescendant={active >= 0 ? id + "-" + active : undefined}
+            onKeyDown={keydown} />}
+          <span id={id} role="listbox" aria-label={(props["aria-label"] || "") + "选项"}
+            className="inline-select-list" onMouseDown={event => event.preventDefault()}
+            onClick={event => event.preventDefault()}>
           {filtered.map((item, index) => (
             <React.Fragment key={item.value}>
               {item.group && item.group !== filtered[index - 1]?.group && (
@@ -193,6 +204,8 @@ export function InlineSelect({
               </span>
             </React.Fragment>
           ))}
+          </span>
+          {!filtered.length && <span className="select-empty" role="status">{needle ? "没有匹配的选项" : "暂无选项"}</span>}
         </span>, document.body
       )}
     </span>

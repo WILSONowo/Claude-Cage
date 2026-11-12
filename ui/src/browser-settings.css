@@ -1,14 +1,13 @@
 .browser-settings-menu-row { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line); }
-.browser-settings-page { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: auto; background: var(--paper); color: var(--strong); font-size: 1rem; }
+.browser-settings-page { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: auto; background: var(--canvas); color: var(--strong); font-size: 1rem; }
 .browser-settings-top { display: flex; flex: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 24px 28px 20px; border-bottom: 1px solid var(--line); }
 .browser-settings-top h1 { font-size: 1.7rem; margin: 0; letter-spacing: -.025em; }
-.browser-settings-search { display: flex; align-items: center; gap: 8px; width: min(330px, 100%); border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; color: var(--muted); background: var(--paper); }
-.browser-settings-search input { width: 100%; min-width: 0; border: 0; background: transparent; padding: 9px 0; color: var(--strong); font: inherit; outline-offset: 3px; }
+.browser-settings-find { width: min(330px, 100%); }
 .browser-settings-layout { display: flex; align-items: flex-start; min-height: 0; flex: 1; }
 .browser-settings-nav { width: 190px; flex: none; display: grid; gap: 3px; padding: 18px 10px; position: sticky; top: 0; }
 .browser-settings-nav button { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 0; background: transparent; text-align: left; color: var(--muted); border-radius: 6px; font: inherit; transition: background 120ms, color 120ms; }
 .browser-settings-nav button svg { flex: none; }
-.browser-settings-nav button[aria-current="page"] { background: var(--selected); color: var(--strong); font-weight: 600; }
+.browser-settings-nav button[aria-current="page"] { background: var(--selected); color: var(--strong); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }
 .browser-settings-nav button:hover { background: var(--hover); color: var(--strong); }
 .settings-unsaved-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--focus); margin-left: auto; }
 .browser-settings-content { min-width: 0; width: min(100%, 820px); padding: 28px 32px 48px; }
@@ -75,7 +74,7 @@
  .browser-settings-nav button { padding: 8px 10px; max-width: 100%; }
  .browser-settings-content { width: 100%; padding: 22px 20px 36px; }
  .browser-settings-top { padding: 18px 20px; }
- .browser-settings-search { min-width: 0; }
+ .browser-settings-find { min-width: 0; }
 }
 .browser-settings-compact-nav { display: none; }
 @container cage-browser (max-width: 450px) {
@@ -86,3 +85,5 @@
  .browser-settings-top h1 { font-size: 1.35rem; }
  .browser-settings-content { padding-top: 18px; }
 }
+
+.browser-settings-top { background: var(--paper); }

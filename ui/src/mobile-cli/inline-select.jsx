@@ -17,6 +17,10 @@ export function InlineSelect({ label, value, options, onChange, onLongPress, foo
   const selected = options.find(item => item.value === value);
   const visible = open && !disabled;
   const position = useSelectPopup(visible, trigger, list, options.length);
+  const activeIndex = options.findIndex(item => item.value === cursor);
+  useEffect(() => {
+    if (visible && activeIndex >= 0) list.current?.querySelector('[data-active]')?.scrollIntoView({ block: "nearest" });
+  }, [visible, activeIndex]);
   const cancelHold = () => { clearTimeout(hold.current); hold.current = null; };
   useEffect(() => {
     if (!visible) return;
@@ -45,7 +49,7 @@ export function InlineSelect({ label, value, options, onChange, onLongPress, foo
   const keys = event => {
     if (event.nativeEvent.isComposing) return;
     const index = Math.max(0, options.findIndex(item => item.value === cursor));
-    if (event.key === "Escape") {event.preventDefault(); setOpen(false);}
+    if (event.key === "Escape" && open) {event.preventDefault(); event.stopPropagation(); setOpen(false);}
     else if (event.key === "Tab") setOpen(false);
     else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
@@ -77,7 +81,7 @@ export function InlineSelect({ label, value, options, onChange, onLongPress, foo
   return <div className="inline-select" ref={root}>
     <button type="button" className="inline-select-trigger" ref={trigger} role="combobox" aria-label={label}
       aria-haspopup="listbox" aria-expanded={visible} aria-controls={visible ? id : undefined}
-      aria-activedescendant={visible ? id + "-" + options.findIndex(item => item.value === cursor) : undefined}
+      aria-activedescendant={visible && activeIndex >= 0 ? id + "-" + activeIndex : undefined}
       aria-describedby={footer ? id + "-hint" : undefined} disabled={disabled} onKeyDown={keys}
       {...(selected ? pointerHandlers(selected) : {})}
       onClick={() => {if (held.current) {held.current = false; return;} setCursor(value); setOpen(!visible);}}>
@@ -85,6 +89,7 @@ export function InlineSelect({ label, value, options, onChange, onLongPress, foo
     </button>
     {visible && createPortal(<div className="inline-select-popover" ref={list} style={position}>
       <div className="inline-select-options" role="listbox" id={id} aria-label={label + "选项"}>
+        {!options.length && <span className="inline-select-hint">暂无选项</span>}
         {options.map((item, index) => <div key={item.value} role="option" id={id + "-" + index}
           aria-selected={item.value === value} data-active={item.value === cursor || undefined}
           {...pointerHandlers(item)} onMouseDown={event => event.preventDefault()}

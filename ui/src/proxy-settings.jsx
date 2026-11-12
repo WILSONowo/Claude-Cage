@@ -1,9 +1,9 @@
+import { SearchField } from "./search-field";
 import { InlineSelect } from "./inline-select";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Download,
   Plus,
-  Search,
   RefreshCw,
   Check,
   Activity,
@@ -301,7 +301,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <CircleHelp size={17} aria-hidden="true" />
           </button>
         </div>
-        <p>选择最终出口，按需添加中转，供 Cage 内所有程序共用。</p>
+        <p>Cage 内的程序共用此出口，可按需添加中转。</p>
       </div>
       {helpOpen && (
         <section
@@ -317,7 +317,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <ol className="proxy-help-steps">
             <li>
               <strong>导入你的代理</strong>
-              <p>打开「订阅」→「添加来源」，填写来源名称，再选择一种方式：</p>
+              <p>在「订阅」中添加来源并命名，然后选择导入方式。</p>
               <ul>
                 <li>
                   <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
@@ -614,15 +614,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </div>
           )}
           <div className="proxy-toolbar">
-            <label className="proxy-search">
-              <Search size={15} />
-              <input
-                aria-label="搜索节点"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索节点、来源或协议"
-              />
-            </label>
+            <SearchField label="搜索节点" placeholder="节点、来源或协议" value={search} onValueChange={setSearch} />
             <InlineSelect
               aria-label="节点来源"
               value={source}

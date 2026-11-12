@@ -54,7 +54,7 @@ try {
   } }));
   await page.route("**/api/environment/update", (route) => { componentUpdates++; return route.fulfill({ json: { id: "qa-components" } }); });
   await page.getByRole("button", { name: "启动 Cage 环境", exact: true }).click();
-  await page.getByRole("heading", { name: "Cage 环境已就绪", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "新建对话", exact: true }).waitFor();
   await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
   await page.getByRole("button", { name: "浏览器下载", exact: true }).click();
   await page.getByRole("dialog", { name: "下载文件" }).getByText("目标目录暂时无法写入", { exact: true }).waitFor();

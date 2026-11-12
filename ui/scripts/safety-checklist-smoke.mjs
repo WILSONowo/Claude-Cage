@@ -25,6 +25,11 @@ for (const platform of platforms) {
     if (keyboard) { await button.focus(); await button.press("Enter"); }
     else await button.click();
     await checklist.waitFor();
+    const footerInset = await checklist.locator("footer").evaluate(footer => {
+      const right = footer.querySelector("button.primary").getBoundingClientRect().right;
+      return footer.getBoundingClientRect().right - right - parseFloat(getComputedStyle(footer).paddingRight);
+    });
+    assert.ok(Math.abs(footerInset) <= 1, "primary action aligns with the footer padding");
     assert.equal(await page.getByRole("dialog").evaluateAll(nodes => nodes.at(-1).getAttribute("aria-label")), "网络与隔离检查");
     await checklist.getByRole("heading", { name: "关键检查", exact: true }).waitFor();
     await checklist.getByText("1 / 2 通过", { exact: true }).waitFor();

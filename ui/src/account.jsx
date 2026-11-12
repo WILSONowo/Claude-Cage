@@ -157,7 +157,7 @@ export function MacOSAccountGate({ children }) {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
-  return <main className="account-gate"><div className="account-brand"><img src={logo} alt="" />Cage</div><section className="account-entry">
+  return <main className="account-gate"><AccountBrand /><section className="account-entry">
     <h1>设置 Cage 与 macOS 共用账密</h1>
     <p className="account-entry-intro">{account.trusted_local ? "先设置 Cage 用户名和密码，再继续客机安装。已有账户、文件和登录状态会保留。" : "输入当前 Cage 密码，确认用于 macOS 客机。已有客机保留用户名和用户目录。"}</p>
     <form onSubmit={submit}><fieldset disabled={busy}>
@@ -203,6 +203,14 @@ function PasswordField({
       </span>
     </div>
   );
+}
+
+function AccountBrand() {
+  return <header className="account-brand">
+    <img src={logo} alt="" />
+    <strong>Claude Cage</strong>
+    <span>{isRemoteClient() ? "远程工作台" : "本机工作台"}</span>
+  </header>;
 }
 
 export function AccountGate({ children }) {
@@ -284,31 +292,24 @@ export function AccountGate({ children }) {
   };
   return (
     <main className="account-gate">
-      <div className="account-brand">
-        <img src={logo} alt="" />
-        Cage
-      </div>
+      <AccountBrand />
       <section
         className="account-entry"
         aria-label={creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 Cage"}
       >
-        {creating ? (
-          <img className="account-welcome-logo" src={logo} alt="" />
-        ) : (
-          account && <AccountAvatar account={account} large />
-        )}
+        {!creating && account?.avatar && <AccountAvatar account={account} large />}
         <h1>
           {creating
-            ? "注册 Cage 账户"
+            ? "创建 Cage 账户"
             : account
               ? `欢迎回来，${account.username}`
               : "正在连接 Cage"}
         </h1>
         <p className="account-entry-intro">
           {creating
-            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "先注册用户名和密码，再选择客机系统并安装环境。macOS 客机会使用同一套账密。"
+            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "用本地账户保护你的项目和登录信息。选择 macOS 时，客机将共用这组凭据。"
             : account
-              ? account.trusted_local ? "本机工作区" : "输入密码，继续你的工作。"
+              ? account.trusted_local ? "本机工作区" : "输入密码解锁工作台。"
               : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…"}
         </p>
         {account?.background_running && (
@@ -318,7 +319,7 @@ export function AccountGate({ children }) {
           </div>
         )}
         {account?.trusted_local && <div className="account-trust-choice">
-          <p>{localDesktop() ? "使用当前系统用户的本机信任凭据进入工作区。" : "请回到受信任的桌面设置账户密码，再从此处登录。"}</p>
+          <p>{localDesktop() ? "使用本机系统账户凭据进入工作区。" : "请先在受信任的桌面设置密码，再登录。"}</p>
           {localDesktop() && <button className="quiet-button" disabled={busy} onClick={() => enterTrusted("resume")}>{busy ? "正在进入…" : "重新进入本机工作区"}</button>}
         </div>}
         {account?.trusted_local && error && <p className="account-error" role="alert">{error}</p>}
@@ -336,7 +337,7 @@ export function AccountGate({ children }) {
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder={account.macos_account_host ? "例如：shihao" : "你希望怎样被称呼"}
+                    placeholder={account.macos_account_host ? "例如：shihao" : "输入用户名"}
                   />
                 </label>
                 {account.macos_account_host && <p className="field-help">与 macOS 客机共用：小写字母开头，1–31 个小写字母、数字或下划线。</p>}</>
@@ -411,7 +412,7 @@ export function AccountGate({ children }) {
         {!account?.trusted_local && <p className="account-recovery-note">
           {creating
             ? "密码至少 8 个字符，用于保护应用登录凭据。请妥善保存，当前不支持在线找回。"
-            : isRemoteClient() ? "请输入云端 Cage 账户密码；当前不支持在线找回。" : "请输入本地账户密码；当前不支持在线找回。"}
+            : "账户密码暂不支持在线找回。"}
         </p>}
       </section>
       {nativeAvailable() && (
@@ -495,7 +496,6 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
             items[(items.indexOf(event.target) + step + items.length) % items.length].focus();
           }}
         >
-          <div className="account-menu-label">你的 Cage</div>
           <button
             role="menuitem"
             onClick={() => {
@@ -512,7 +512,7 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
           <div className="account-menu-divider" />
           <button role="menuitem" onClick={() => perform("lock")}>
             <LockKeyhole size={16} />
-            锁定 Cage<small>任务继续运行</small>
+            <span>锁定 Cage<small>任务继续运行</small></span>
           </button>
           <button
             role="menuitem"
@@ -631,7 +631,6 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
     <div className="account-settings">
       <div className="section-title">
         <h3>账户</h3>
-        <p>给工作空间一点你的样子。</p>
       </div>
       <form onSubmit={(event) => save(event)}>
         <fieldset disabled={busy || environmentBusy}>

@@ -29,7 +29,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(entry.url);
-  await page.getByRole("heading", { name: "注册 Cage 账户", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "创建 Cage 账户", exact: true }).waitFor();
   await page.getByLabel("用户名",{exact:true}).waitFor();
   const initial = await page.evaluate(async () => (await fetch("/api/client/local-status")).json());
   assert.ok(initial.known && initial.service_running && !initial.running, "opening the local home must not boot the VM");
@@ -43,7 +43,7 @@ try {
   await page.getByRole("button",{name:"创建本地账户",exact:true}).click();
   const status = await (await statusResponse).json();
   assert.equal(status.vm_running, false);
-  await page.getByRole("heading", { name: "为 Cage 准备独立环境", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "设置工作环境", exact: true }).waitFor();
   const nav = page.getByRole("navigation", {name:"主导航"});
   assert.equal(await nav.count(), 0, "fresh profile must not mount workbench navigation");
   await page.getByRole("button",{name:"只连接 SSH 主机",exact:true}).click();
@@ -51,8 +51,8 @@ try {
   if (evidence) await page.screenshot({ path:path.join(evidence,"local-ssh-sidebar.png") });
   await page.getByRole("button",{name:"返回工作台侧栏"}).click();
   assert.equal(new URL(page.url()).hash, "", "launch ticket was not removed");
-  await page.getByRole("button", { name: "下一步：配置代理", exact: true }).click();
-  await page.getByRole("heading",{name:"连接你的网络代理",exact:true}).waitFor();
+  await page.getByRole("button", { name: "下一步", exact: true }).click();
+  await page.getByRole("heading",{name:"连接网络代理",exact:true}).waitFor();
   assert.ok(await page.getByRole("button",{name:"开始安装",exact:true}).isDisabled(), "proxy must be applied before installation");
   await page.getByText("添加来源", { exact: true }).first().waitFor();
   if(evidence) await page.screenshot({ path:path.join(evidence,"initialization-proxy.png") });

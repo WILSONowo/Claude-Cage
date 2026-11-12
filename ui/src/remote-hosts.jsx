@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
 import { setClientContext } from "./client-context.mjs";
+import { sameSnapshot } from "./workspace-state.mjs";
 import { Modal } from "./modal";
 import { HostForm } from "./remote-host-form";
 import logo from "./logo.png";
@@ -58,6 +59,7 @@ export function ClientRoot({ children }) {
   const [error, setError] = useState("");
   const currentIdentity = useRef(null);
   const mounted = useRef(false);
+  const lastContext = useRef(null);
   const serial = useRef(0);
   const refresh = useCallback(async () => {
     const query = ++serial.current;
@@ -72,8 +74,11 @@ export function ClientRoot({ children }) {
       return value;
     }
     currentIdentity.current = next;
-    setClientContext(value);
-    setContext(value);
+    if (!sameSnapshot(value, lastContext.current)) {
+      lastContext.current = value;
+      setClientContext(value);
+      setContext(value);
+    }
     setError("");
     return value;
   }, []);

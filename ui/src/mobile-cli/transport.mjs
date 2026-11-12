@@ -1,3 +1,4 @@
+import { assertConnection, getClientContext } from "../client-context.mjs";
 import { httpErrorMessage, connectionErrorMessage } from "../error-message.mjs";
 
 // A desktop tab is bound to the workload selected when it was opened. The
@@ -6,6 +7,8 @@ const desktopConnection = location.pathname === "/mobile.html"
   ? sessionStorage.getItem("cage-cli-local-connection") : null;
 
 async function requestAPI(path, { body, signal, keepalive } = {}) {
+  const workspaceConnection = getClientContext().connection_id;
+  const connection = workspaceConnection || desktopConnection;
   let response;
   try {
     response = await fetch(path, {
@@ -13,7 +16,7 @@ async function requestAPI(path, { body, signal, keepalive } = {}) {
       method: body === undefined ? "GET" : "POST",
       credentials: "same-origin",
       cache: "no-store",
-      headers: { ...(desktopConnection ? { "X-Cage-Connection": desktopConnection } : {}),
+      headers: { ...(connection ? { "X-Cage-Connection": connection } : {}),
         ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
@@ -22,6 +25,7 @@ async function requestAPI(path, { body, signal, keepalive } = {}) {
     if (signal?.aborted) throw error;
     throw new Error(connectionErrorMessage(path), { cause: error });
   }
+  if (workspaceConnection) assertConnection(workspaceConnection);
   if (!response.ok) {
     let message;
     if (response.status === 401) message = "连接授权已失效，请从 Cage 重新打开此页面。";
