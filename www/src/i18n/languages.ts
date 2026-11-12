@@ -104,6 +104,13 @@ export const languages = [
     checksLabel: 'Contrôles du réseau et de l’isolation', communityCheckLabel: 'Contrôle communautaire du navigateur',
     firstLookLabel: 'Écran du premier démarrage', releaseNotesLabel: 'Notes de version et fichiers de sommes de contrôle', issuesLabel: 'Signaler un problème',
   },
+  {
+    code: 'ja', name: '日本語', lang: 'ja', dir: 'ltr',
+    localBuildLabel: 'ローカルでビルド', buildGuideLabel: 'ビルド手順',
+    languageLabel: '言語', downloadLabel: 'アプリをダウンロード', platformLabel: 'プラットフォームを選択', closeLabel: '閉じる', installGuideLabel: 'インストール手順', unavailableLabel: '公開パッケージはまだありません', unsignedLabel: 'プレビュー版・署名なし',
+    checksLabel: 'ネットワークと隔離の確認', communityCheckLabel: 'コミュニティのブラウザチェック',
+    firstLookLabel: '初回起動時の画面', releaseNotesLabel: 'リリースノートとチェックサム', issuesLabel: '問題を報告',
+  },
 ] as const;
 
 export type CageLocale = typeof languages[number]['code'];
