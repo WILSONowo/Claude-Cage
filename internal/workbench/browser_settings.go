@@ -1,6 +1,7 @@
 package workbench
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func (s *Server) browserPreferences(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +66,11 @@ func (s *Server) saveBrowserHome(w http.ResponseWriter, r *http.Request, value s
 	next.BrowserHomeURL = home
 	if err = writePrivate(filepath.Join(s.profile, "workbench.json"), next); err != nil {
 		if ready {
-			_ = s.setBrowserHome(r.Context(), token, browserHomeURL(previous))
+			// The guest already accepted the change. Compensate even if the
+			// initiating client disconnected while the host was saving it.
+			rollback, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+			_ = s.setBrowserHome(rollback, token, browserHomeURL(previous))
+			cancel()
 		}
 		requestError(w, errors.New("保存浏览器设置失败，请重试"))
 		return

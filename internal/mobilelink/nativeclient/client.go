@@ -116,14 +116,17 @@ func OpenSaved(relayOrigin, lookupToken, trustedHostPin string, device DeviceSig
 	if err != nil {
 		return nil, err
 	}
-	identity, err := remotelink.IdentityFromSigner(adapter)
-	if err != nil {
-		return nil, err
-	}
 	lifetime, cancel := context.WithCancel(context.Background())
 	dial := func(parent context.Context) (*mobilelink.Client, error) {
 		ctx, stop := context.WithTimeout(parent, 25*time.Second)
 		defer stop()
+		// A saved client can outlive a temporary certificate's 24-hour validity.
+		// Renew from the same platform key for each connection; its paired pin
+		// remains unchanged and the peer still checks certificate validity.
+		identity, err := remotelink.IdentityFromSigner(adapter)
+		if err != nil {
+			return nil, err
+		}
 		room, err := lookupSaved(ctx, relayOrigin, lookupToken)
 		if err != nil {
 			return nil, err

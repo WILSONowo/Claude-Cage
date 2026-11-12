@@ -1,6 +1,7 @@
+import { X } from "lucide-react";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-export function Modal({ title, children, onClose, wide = false, footer, anchor }) {
+export function Modal({ title, children, onClose, wide = false, footer, anchor, className = "", style, headerActions, initialFocusRef }) {
   const panel = useRef(),
     closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -37,7 +38,7 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor }
   }, [anchor]);
   useEffect(() => {
     const previous = anchor || document.activeElement;
-    const first = panel.current.querySelector(
+    const first = initialFocusRef?.current || panel.current.querySelector(
       "input:not([disabled]),button:not([disabled]),select:not([disabled])",
     );
     first?.focus();
@@ -48,6 +49,7 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor }
       )
         return;
       if (e.key === "Escape") {
+        if (e.isComposing || e.keyCode === 229 || (e.target.closest(".search-field") && e.target.value)) return;
         if (e.target.closest('[role="combobox"][aria-expanded="true"]')) return;
         e.preventDefault();
         e.stopPropagation();
@@ -56,10 +58,21 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor }
       if (e.key === "Tab") {
         const nodes = [
           ...panel.current.querySelectorAll(
-            "input:not([disabled]),button:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]",
+            "input:not([disabled]),button:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex='0']:not([disabled])",
           ),
         ].filter((n) => n.offsetParent !== null);
         if (!nodes.length) return;
+        const popup = e.target.closest(".select-surface");
+        if (popup) {
+          // A floating select lives under body. Tab follows its trigger in the dialog.
+          const listId = popup.querySelector('[role="listbox"]')?.id;
+          const trigger = nodes.findIndex(node => node.getAttribute("aria-controls") === listId);
+          if (trigger >= 0) {
+            e.preventDefault();
+            nodes[(trigger + (e.shiftKey ? -1 : 1) + nodes.length) % nodes.length].focus();
+            return;
+          }
+        }
         const index = nodes.indexOf(document.activeElement);
         if (e.shiftKey && index <= 0) {
           e.preventDefault();
@@ -94,20 +107,22 @@ export function Modal({ title, children, onClose, wide = false, footer, anchor }
     >
       <section
         ref={panel}
-        className={`modal ${wide ? "wide" : ""}`}
+        className={`modal ${wide ? "wide" : ""} ${className}`}
+        style={style}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
         <header className="modal-head">
           <h2>{title}</h2>
+          {headerActions}
           {onClose && (
             <button
               className="icon-button close-modal"
               aria-label="关闭面板"
               onClick={onClose}
             >
-              ×
+              <X size={18} aria-hidden="true" />
             </button>
           )}
         </header>

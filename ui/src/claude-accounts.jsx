@@ -108,12 +108,12 @@ function resetCountdown(seconds) {
 }
 
 const usageLabels = {
-  checking: "正在查询额度…", reported: "已获取额度", partial: "本次只返回了部分额度",
-  cached: "本次只有缓存读数", unavailable: "本次未返回额度", error: "额度查询失败",
+  checking: "正在查询额度…", reported: "已获取额度", partial: "仅获取到部分额度",
+  cached: "显示上次查询的额度", unavailable: "暂未获取到额度", error: "额度查询失败",
   not_applicable: "当前登录不提供订阅额度",
-  identity_changed: "登录身份已改变，本次读数已丢弃", offline: "环境离线，无法查询",
+  identity_changed: "登录账号已变更，请重新查询额度", offline: "环境离线，无法查询",
   update_required: "需同步环境组件后才能查询", blocked: "暂时无法查询额度",
-  signed_out: "登录后可查询额度", local: "已有会话读数", unknown: "尚未查询额度",
+  signed_out: "登录后可查询额度", local: "显示会话中的额度", unknown: "尚未查询额度",
 };
 
 function useUsageCheck(profile, environment, perform, change) {
@@ -259,14 +259,14 @@ function ProfileCard({ profile, environment, usageEnvironment, busy, active, def
     </form>
     {active > 0 && <p className="claude-profile-note">{active} 个终端仍在运行{!fromTerminal && "，关闭后可重新登录"}</p>}
     {!fromTerminal && defaultActive > 0 && <p className="field-help">
-      其中 {defaultActive} 个工作终端仍使用普通终端的登录。若普通终端已换号，请重新打开这些会话确认身份。
+      其中 {defaultActive} 个终端沿用普通终端的登录。换号后，请重新打开这些会话确认账号。
     </p>}
     {fromTerminal && ["changed", "signed_out"].includes(profile.status) && <p className="field-help">
       {profile.status === "changed" ? "普通终端已换号，此账号暂不参与分配。新身份需单独加入。" : "普通终端已退出。要继续使用此账号，请先重新登录原身份。"}
-      {active > 0 && " 原工作终端仍保留首次分配的标签。请重新打开工作会话确认身份。"}
+      {active > 0 && " 已打开的终端仍显示原账号。请重新打开会话确认账号。"}
     </p>}
-    {!fromTerminal && profile.status === "changed" && <p className="field-help">请用原账号重新登录。若要使用新的身份，请点击「登录新账号」。</p>}
-    {profile.status === "duplicate" && <p className="field-help">同一订阅只参与一次分配。请在此位置登录另一个账号。</p>}
+    {!fromTerminal && profile.status === "changed" && <p className="field-help">请重新登录原账号，或选择「登录新账号」。</p>}
+    {profile.status === "duplicate" && <p className="field-help">此订阅已加入分配。请登录其他账号。</p>}
     <div className="claude-profile-actions">
       {fromTerminal ? <span className="claude-profile-source">普通终端账号</span> :
         <button className="quiet-button" disabled={busy || !!environment || active > 0} onClick={() => perform(() => login(profile.id))}>
@@ -349,7 +349,7 @@ export function ClaudeAccountsPanel({ store, running, environmentBusy, tabs, log
   return <section className="claude-profiles" aria-label="Claude 账号管理">
     <div className="section-title">
       <h3>Claude 账号</h3>
-      <p>将普通终端已登录的订阅加入调度，或单独登录一个新账号。新建 Claude 终端时自动分配。</p>
+      <p>新建 Claude 终端时会自动分配账号。你可以加入普通终端的账号，也可以登录新账号。</p>
     </div>
     <details className="claude-scheduling">
       <summary>调度设置 · {store.scheduling.mode === "sequential" ? "顺序优先" : "均衡分配"}</summary>
@@ -361,7 +361,7 @@ export function ClaudeAccountsPanel({ store, running, environmentBusy, tabs, log
         onValueChange={switch_policy => perform(() => load({action:"scheduling",scheduling:{...store.scheduling,switch_policy}}))}>
         <option value="ask">每次询问</option><option value="allow">额度耗尽后自动接续</option><option value="wait">始终等待原账号</option>
       </InlineSelect></label>
-      <p className="field-help">已有会话保持原账号和授权。自动接续只在限额已确认、原任务可安全停止且目标账号属于同一接续分组时进行；跨账号可能重建缓存。</p>
+      <p className="field-help">已有会话沿用原账号和授权。达到限额且任务可安全停止时，可由同组账号自动接续。切换账号可能需要重建缓存。</p>
       {store.scheduling.mode === "sequential" && accounts?.length > 1 && <div className="claude-account-order" aria-label="账号优先顺序">
         {accounts.map((profile,index) => <div key={profile.id}><span>{index+1}. {profile.label || profile.email}</span>
           <button disabled={busy || index===0} aria-label={`提高 ${profile.label} 的优先级`} onClick={() => {
@@ -389,7 +389,7 @@ export function ClaudeAccountsPanel({ store, running, environmentBusy, tabs, log
     <div className="claude-profile-list" role="region" aria-label="账号列表" tabIndex={0}>
       {accounts === null && !error && <p role="status">正在读取账号…</p>}
       {accounts?.length === 0 && !detected && <div className="claude-profile-empty">
-        <img src={crabIcon} alt="" /><p>尚无已加入调度的账号。</p><small>加入第一个账号前，新终端沿用环境原有的登录。</small>
+        <img src={crabIcon} alt="" /><p>还没有参与分配的账号。</p><small>加入第一个账号前，新终端沿用环境原有的登录。</small>
       </div>}
       <QuotaClock accounts={visibleProfiles}>
         {detected && <DetectedProfile key={detected.identity} profile={detected} usageEnvironment={usageEnvironment} busy={busy || environmentBusy || !!environment}

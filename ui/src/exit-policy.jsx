@@ -36,7 +36,7 @@ export function ExitPolicyFields({
     <>
       <div className="section-title">
         <h3>IP 变化规则</h3>
-        <p>中国大陆出口禁止放行；静态 IP 和不限地区也必须确认出口国家。</p>
+        <p>禁止中国大陆出口。静态 IP 和不限地区也须验证出口国家。</p>
       </div>
       <label className="toggle-row">
         <span>
@@ -167,8 +167,7 @@ export function ExitPolicyFields({
         出口规则按最终出口节点保存，切换节点时自动恢复；首次使用的节点检测后绑定。仅更换中转、重检或重启会保留该节点的基准。命中大陆网段、定位为中国大陆、无法确认出口地区或超出保存范围时暂停外网，离线终端和文件仍可使用。
       </p>
       <p className="field-help">
-        范围依据 IP 数据库的近似定位。后台约每 30
-        秒采样，不能代替代理自身的分流约束。
+        IP 数据库提供近似位置，约每 30 秒采样一次。代理分流仍需在代理端配置。
       </p>
     </>
   );

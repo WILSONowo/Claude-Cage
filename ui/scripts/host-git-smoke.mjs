@@ -44,7 +44,7 @@ try {
     .getByRole("button", { name: "启用保护并继续", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Cage 环境已就绪", exact: true })
+    .getByRole("heading", { name: "新建对话", exact: true })
     .waitFor();
   assert.equal(starts(), 1);
   assert.equal(writes(), 2);
@@ -55,7 +55,7 @@ try {
     .getByRole("button", { name: "启动 Cage 环境", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Cage 环境已就绪", exact: true })
+    .getByRole("heading", { name: "新建对话", exact: true })
     .waitFor();
   assert.equal(starts(), 2);
   assert.equal(writes(), 2);

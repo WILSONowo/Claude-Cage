@@ -2,6 +2,7 @@ import importlib.util
 import os
 from pathlib import Path
 import shutil
+import socket
 import struct
 import subprocess
 import sys
@@ -60,6 +61,29 @@ class PolicyTests(unittest.TestCase):
         # The owner removed its mode while the display was passive.
         self.assertEqual(governor.choose_mode(60, ('fps30-800x600', 800, 600), stale, set())[0], 'fps60-800x600')
 
+    def test_activity_without_a_path_listens_nowhere(self):
+        activity = governor.Activity()
+        self.assertEqual(activity.files(), [])
+        self.assertFalse(activity.acted())
+
+    def test_activity_replaces_a_stale_socket_and_drops_closed_clients(self):
+        with tempfile.TemporaryDirectory(dir='/tmp') as temp:
+            path = temp + '/run/a.sock'
+            os.makedirs(os.path.dirname(path))
+            open(path, 'w').close()
+            activity = governor.Activity(path)
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.connect(path)
+            self.assertFalse(activity.acted())
+            self.assertEqual(len(activity.files()), 2)
+            client.send(b'\n')
+            self.assertTrue(activity.acted())
+            self.assertFalse(activity.acted())
+            client.close()
+            self.assertFalse(activity.acted())
+            self.assertEqual(len(activity.files()), 1)
+            activity.listener.close()
+
     def test_raw_key_reads_the_keycode(self):
         self.assertEqual(governor.raw_key(struct.pack('=HIIHHII', 3, 1234, 250, 3, 0, 0, 0)), 250)
         self.assertIsNone(governor.raw_key(b'short'))
@@ -74,7 +98,8 @@ class DisplayTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(dir='/tmp')
         self.addCleanup(self.temp.cleanup)
         number = next(n for n in range(120, 200) if not os.path.exists(f'/tmp/.X11-unix/X{n}'))
-        self.env = dict(os.environ, DISPLAY=f':{number}')
+        self.activity = self.temp.name + '/activity/a.sock'
+        self.env = dict(os.environ, DISPLAY=f':{number}', CAGE_DISPLAY_ACTIVITY=self.activity)
         self.env.pop('XAUTHORITY', None)
         server = subprocess.Popen(['Xtigervnc', f':{number}', '-geometry', '800x600', '-depth', '24', '-rfbport', '-1',
                                    '-rfbunixpath', self.temp.name + '/d.sock', '-nolisten', 'tcp', '-SecurityTypes', 'None'],
@@ -147,6 +172,34 @@ class DisplayTests(unittest.TestCase):
         xtest.fake_input(self.conn, X.KeyRelease, code)
         self.conn.sync()
         self.assertEqual(self.wait(60), original)
+
+    def test_a_write_to_the_activity_socket_is_viewer_input(self):
+        original = self.current()[0]
+        self.wait(20)
+        self.assertEqual(os.stat(self.activity).st_mode & 0o777, 0o600)
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(client.close)
+        client.connect(self.activity)
+        # Connecting alone is not input.
+        time.sleep(.2)
+        self.assertEqual(self.current()[1], 20)
+        started = time.monotonic()
+        client.send(b'\n')
+        self.assertEqual(self.wait(60), original)
+        self.assertLess(time.monotonic() - started, .5)
+        # Scrolling keeps the full rate; the display slows once it ends.
+        for _ in range(6):
+            time.sleep(.2)
+            client.send(b'\n')
+            self.assertEqual(self.current()[1], 60)
+        self.wait(30)
+        client.close()
+        other = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(other.close)
+        other.connect(self.activity)
+        other.send(b'\n')
+        self.assertEqual(self.wait(60), original)
+        self.assertIsNone(self.process.poll())
 
     def test_caret_probe_key_is_not_viewer_input(self):
         subprocess.check_call(['xmodmap', '-e', 'keycode 250 = F24'], env=self.env)

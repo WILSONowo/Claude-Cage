@@ -38,6 +38,20 @@ test("element overrides stay independent, reset returns to derived colors, and t
   assert.notEqual(themeVariables(theme, "light")["--chrome"], "#123456");
 });
 
+test("old Claude defaults adopt the desktop palette while user overrides survive", () => {
+  const old = { ...defaultAppearance.darkTheme, accent: "#d97757", surface: "#262624", ink: "#faf9f5",
+    fonts: { code: "Consolas" }, colors: { line: "#ab1234", focus: "#007755", input: "#102030" } };
+  const migrated = normalizeAppearance({ darkTheme: old }).darkTheme;
+  assert.equal(migrated.surface, "#191919");
+  assert.equal(migrated.fonts.code, "Consolas");
+  const vars = themeVariables(migrated, "dark");
+  assert.match(vars["--field-shadow"], /#ab1234/);
+  assert.match(vars["--field-ring"], /#007755/);
+  assert.equal(vars["--composer-bg"], "#102030");
+  const edited = { ...old, surface: "#363432" };
+  assert.equal(normalizeAppearance({ darkTheme: edited }).darkTheme.surface, edited.surface);
+});
+
 test("theme document round trips both variants and all editable colors, without device preferences or library", () => {
   const appearance = normalizeAppearance(structuredClone(defaultAppearance));
   appearance.lightTheme.colors = Object.fromEntries(
@@ -116,7 +130,7 @@ test("invalid theme files are rejected before any mutation", () => {
   reject((data) => {
     data.mode = "dark";
   });
-  assert.equal(defaultAppearance.lightTheme.accent, "#339cff");
+  assert.equal(defaultAppearance.lightTheme.accent, "#257de0");
 });
 
 test("all built-in palettes produce valid, independently editable theme documents", async () => {

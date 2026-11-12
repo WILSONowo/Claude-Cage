@@ -50,8 +50,8 @@ internal sealed class WindowChrome(Color background, Color foreground, bool dark
 
     private sealed class MenuRenderer(Color fill, Color ink) : ToolStripProfessionalRenderer
     {
-        private readonly Color highlight = Color.FromArgb((fill.R * 4 + ink.R) / 5,
-            (fill.G * 4 + ink.G) / 5, (fill.B * 4 + ink.B) / 5);
+        private readonly Color highlight = Color.FromArgb((fill.R * 9 + ink.R) / 10,
+            (fill.G * 9 + ink.G) / 10, (fill.B * 9 + ink.B) / 10);
 
         protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e) =>
             e.Graphics.Clear(fill);
@@ -65,24 +65,60 @@ internal sealed class WindowChrome(Color background, Color foreground, bool dark
             var bounds = new Rectangle(Point.Empty, e.Item.Size);
             if (e.ToolStrip is ToolStripDropDown)
             {
-                bounds.Inflate(-2, -1);
-                e.Graphics.FillRoundedRectangle(brush, bounds, new Size(5, 5));
+                int inset = e.ToolStrip.LogicalToDeviceUnits(3);
+                bounds.Inflate(-inset, -e.ToolStrip.LogicalToDeviceUnits(1));
+                int radius = (int)Math.Round(5 * e.ToolStrip.DeviceDpi / 96d);
+                var saved = e.Graphics.Save();
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                e.Graphics.FillRoundedRectangle(brush, bounds, new Size(radius, radius));
+                e.Graphics.Restore(saved);
             }
             else e.Graphics.FillRectangle(brush, bounds);
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            if (e.ToolStrip is TrayMenu tray && e.Item is ToolStripMenuItem)
+            {
+                int inset = e.Item.Padding.Left;
+                var bounds = new Rectangle(inset, 0, Math.Max(0, e.Item.Width - e.Item.Padding.Horizontal), e.Item.Height);
+                if (e.Item.Tag is string symbol)
+                {
+                    int column = e.ToolStrip.LogicalToDeviceUnits(20);
+                    var icon = new Rectangle(e.ToolStrip.LogicalToDeviceUnits(10), 0, column, bounds.Height);
+                    TextRenderer.DrawText(e.Graphics, symbol, tray.SymbolFont, icon, e.TextColor,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                }
+                TextRenderer.DrawText(e.Graphics, e.Text, e.TextFont, bounds, e.TextColor,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine |
+                    TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                return;
+            }
+            base.OnRenderItemText(e);
         }
 
         protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
         {
             using var pen = new Pen(highlight);
             int y = e.Item.Height / 2;
-            e.Graphics.DrawLine(pen, 10, y, e.Item.Width - 10, y);
+            int inset = (int)Math.Round(10 * e.Graphics.DpiX / 96d);
+            e.Graphics.DrawLine(pen, inset, y, e.Item.Width - inset, y);
         }
 
         protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
         {
             if (e.ToolStrip is not ToolStripDropDown) return;
             using var pen = new Pen(highlight);
-            e.Graphics.DrawRectangle(pen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+            var bounds = new Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+            if (e.ToolStrip is TrayMenu)
+            {
+                int radius = e.ToolStrip.LogicalToDeviceUnits(8);
+                var state = e.Graphics.Save();
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                e.Graphics.DrawRoundedRectangle(pen, bounds, new Size(radius, radius));
+                e.Graphics.Restore(state);
+            }
+            else e.Graphics.DrawRectangle(pen, bounds);
         }
 
         protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)

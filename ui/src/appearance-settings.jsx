@@ -485,10 +485,7 @@ function ThemeLibrary({ appearance, update, saving, onError }) {
   return (
     <section className="theme-library" aria-label="我的主题">
       <div className="theme-library-heading">
-        <div>
-          <h4>我的主题</h4>
-          <p>保存浅色、深色两套配色与字体，随时切换或分享。</p>
-        </div>
+        <h4>我的主题</h4>
         <div className="theme-file-actions">
           <button disabled={busy || saving} onClick={importFile}>
             <Upload size={14} />
@@ -631,12 +628,10 @@ export function AppearanceSettings() {
     <div className="appearance-settings">
       <div className="section-title">
         <h3>外观</h3>
-        <p>更改自动保存并即时生效，无需重启项目。</p>
       </div>
       <fieldset disabled={loading || syncing} className="appearance-fields">
         <SettingRow
-          label="主题"
-          description="跟随系统，或固定使用浅色、深色外观。"
+          label="颜色模式"
         >
           <div className="appearance-mode" role="group" aria-label="主题模式">
             {[
@@ -655,33 +650,10 @@ export function AppearanceSettings() {
             ))}
           </div>
         </SettingRow>
-        <ThemeLibrary
-          key={String(loading)}
-          appearance={appearance}
-          update={update}
-          saving={saving}
-          onError={setThemeError}
-        />
-        {themeError && (
-          <div className="error-message" role="alert">
-            {themeError}
-          </div>
-        )}
-        <div className="theme-card-grid">
-          {["light", "dark"].map((key) => (
-            <ThemeCard
-              key={key}
-              variant={key}
-              value={appearance[key + "Theme"]}
-              active={variant === key}
-              onChange={(value) => patch({ [key + "Theme"]: value })}
-            />
-          ))}
-        </div>
         <h4>字体</h4>
         <SettingRow
           label="界面字号"
-          description="调整导航、标签和设置中的文字大小。"
+          description="用于导航、标签和设置。"
         >
           <FontSizeInput
             label="界面字号"
@@ -692,7 +664,7 @@ export function AppearanceSettings() {
         </SettingRow>
         <SettingRow
           label="代码字号"
-          description="调整内置终端与代码预览的文字大小。"
+          description="用于终端和代码预览。"
         >
           <FontSizeInput
             label="代码字号"
@@ -705,7 +677,7 @@ export function AppearanceSettings() {
           className="appearance-sample"
           style={{ fontFamily: theme.fonts.ui || systemUIFont }}
         >
-          <span>在熟悉的工作区，专注下一步。</span>
+          <span>正文预览 · Claude Cage</span>
           <code
             style={{
               fontFamily: theme.fonts.code || systemCodeFont,
@@ -718,7 +690,7 @@ export function AppearanceSettings() {
         <h4>显示与交互</h4>
         <SettingRow
           label="使用指针光标"
-          description="悬停在按钮等可交互元素上时显示手形。"
+          description="悬停时显示手形指针。"
         >
           <label className="appearance-switch">
             <input
@@ -752,10 +724,34 @@ export function AppearanceSettings() {
             <option value="off">关闭</option>
           </InlineSelect>
         </SettingRow>
+        <h4>主题与配色</h4>
+        <ThemeLibrary
+          key={String(loading)}
+          appearance={appearance}
+          update={update}
+          saving={saving}
+          onError={setThemeError}
+        />
+        {themeError && (
+          <div className="error-message" role="alert">
+            {themeError}
+          </div>
+        )}
+        <div className="theme-card-grid">
+          {["light", "dark"].map((key) => (
+            <ThemeCard
+              key={key}
+              variant={key}
+              value={appearance[key + "Theme"]}
+              active={variant === key}
+              onChange={(value) => patch({ [key + "Theme"]: value })}
+            />
+          ))}
+        </div>
         <div className="appearance-import">
           <div>
             <strong>沿用 Codex 的外观</strong>
-            <p>导入本机 Codex 当前的主题、配色与字体偏好。</p>
+            <p>导入本机 Codex 的配色与字体。</p>
           </div>
           <button onClick={sync}>
             {syncing ? (

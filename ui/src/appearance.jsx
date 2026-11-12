@@ -14,7 +14,7 @@ import {
 
 const AppearanceContext = createContext(null);
 export const useAppearance = () => useContext(AppearanceContext);
-export function AppearanceProvider({ children }) {
+export function AppearanceProvider({ children, connected = true }) {
   const [appearance, setAppearance] = useState(() => {
     try {
       return normalizeAppearance(
@@ -47,6 +47,11 @@ export function AppearanceProvider({ children }) {
   current.current = appearance;
   useEffect(() => {
     let live = true;
+    if (!connected) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const load = () =>
       api("/appearance")
         .then((value) => {
@@ -64,6 +69,12 @@ export function AppearanceProvider({ children }) {
     if (location.hash)
       window.addEventListener("cage-session-ready", load, { once: true });
     else load();
+    return () => {
+      live = false;
+      window.removeEventListener("cage-session-ready", load);
+    };
+  }, [connected]);
+  useEffect(() => {
     const dark = matchMedia("(prefers-color-scheme: dark)"),
       reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const onDark = () => setSystemDark(dark.matches),
@@ -71,8 +82,6 @@ export function AppearanceProvider({ children }) {
     dark.addEventListener("change", onDark);
     reduced.addEventListener("change", onReduced);
     return () => {
-      live = false;
-      window.removeEventListener("cage-session-ready", load);
       dark.removeEventListener("change", onDark);
       reduced.removeEventListener("change", onReduced);
     };

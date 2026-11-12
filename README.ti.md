@@ -12,7 +12,7 @@
 
 **[መርበብ ሓበሬታ ፕሮጀክት](https://claude-cage.com/) · [ነቲ መተግበሪ ኣውርድ](https://claude-cage.com/ti/#download) · [ምጅማር](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [መምርሒ ኣጠቓቕማ (ብቻይንኛ)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ macOS እና ዝተፈረሙ Windows ስሪቶች ብዝተመርጸ ፕሮክ�
 | ናይ ምውራድ፣ ምጅማር፣ ምትእስሳርን ምእታውን ጸገማት ምፍታሕ | [FAQን ምሕዋይን](docs/troubleshooting.md) |
 | ቁጽጽር ቁልፊ ሰሌዳ፡ መልክዕ፡ ጽንዓት ዳታን ናይ ምውጻእ ባህሪን ተማሃር | [መዓልታዊ ኣጠቓቕማ](docs/getting-started.md#日常使用) |
 | ክባዛሕ ዝኽእል ጉዳይ ሪፖርት ግበሩ | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| ምእራም፣ ባህሪ ወይ ሰነድ ንምብርካት፦ Issue ግምገማ → ዕድመ ተሓባባሪ → PR | [መምርሒ ኣበርክቶ (ቻይንኛ)](.github/CONTRIBUTING.md) |
 
 እቲ ፕሮጀክት ብቕልጡፍ ይምዕብል ኣሎ። ርእይቶ ንምክፋል ኣብቲ ናይ ማሕበረሰብ ጉጅለ ​​ተጸንበሩ፤ ሕብረተሰብ ዝሕልዉ ሰባት ድሉዋት እዮም።
 

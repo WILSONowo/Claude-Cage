@@ -1,6 +1,6 @@
+import { OperationLogDialog } from "./operation-log";
 import { shortcut, primaryModifier } from "./platform.mjs";
-import logo from "./logo.png";
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Clock3,
   FileCode2,
@@ -18,12 +18,14 @@ import {
 import { api, normalizeURL, native, nativeAvailable } from "./api";
 import { clientKeyboard, clientStorageKey, getClientContext, isRemoteClient, runtimeURL, runtimeSocketURL } from "./client-context.mjs";
 import { shareClipboard } from "./shared-clipboard.mjs";
-import { RemoteView, TerminalView, Modal } from "./views";
+import { RemoteView, TerminalView } from "./views";
+import { HomeComposer, DesktopConversation } from "./desktop-conversation";
+import { Modal } from "./modal";
 import { usePasswordVault } from "./password-vault";
-import { SettingsPanel } from "./settings";
+
 import { SetupProgress } from "./setup-progress";
 import { GuestSystemPicker, validGuestChoice } from "./guest-system-picker";
-import { AppearanceProvider } from "./appearance";
+import claudeMark from "./claude-mark.svg";
 import { EnvironmentShield } from "./environment-shield";
 import { TailscalePanel } from "./tailscale";
 import { WorkspaceSidebar } from "./workspace-sidebar";
@@ -44,6 +46,7 @@ import { AudioControls, useAudioOutput } from "./audio";
 import { EnvironmentClock } from "./environment-clock";
 import { ProjectDialog } from "./project-dialog";
 import {
+  sameSnapshot,
   readLocal,
   orderedTabs,
   focusTab,
@@ -62,6 +65,14 @@ import { AppUpdateButton, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
 
+const SettingsPanel = lazy(() => import("./settings").then(module => ({ default: module.SettingsPanel })));
+
+function greeting(name) {
+  const hour = new Date().getHours();
+  const phrase = hour < 6 || hour >= 18 ? "晚上好" : hour < 12 ? "早上好" : "下午好";
+  return name ? phrase + "，" + name : phrase;
+}
+
 function App() {
   const { account } = useAccount();
   const macGuest = account?.guest_system === "macos";
@@ -73,6 +84,8 @@ function App() {
     return () => window.removeEventListener("cage-client-preferences", refresh);
   }, []);
   const claudeProfiles = useClaudeAccounts();
+  const [conversation, setConversation] = useState("");
+  const [conversationDrafts] = useState(() => new Map());
   const [tailscaleOpen, setTailscaleOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [terminalChoice, setTerminalChoice] = useState(null);
@@ -104,7 +117,7 @@ function App() {
     [settingsSection, setSettingsSection] = useState("keyboard"),
     [home, setHome] = useState(true),
     [sidebarCollapsed, setSidebarCollapsed] = useState(
-      readLocal(clientStorageKey("cage-sidebar-collapsed"), false),
+      () => readLocal(clientStorageKey("cage-sidebar-collapsed"), window.matchMedia("(max-width: 680px)").matches),
     ),
     [browserTabLayout, setBrowserTabLayout] = useState(
       readLocal(clientStorageKey("cage-browser-tab-layout"), "horizontal"),
@@ -225,7 +238,7 @@ function App() {
       } catch {
         if (!cancelled) {
           setToast(tabs.some(tab => [leftId, rightId].includes(tab.id) && tab.incognito)
-            ? "无痕标签可与终端分屏；两个网页分屏目前仅支持普通标签。"
+            ? "无痕标签只能与终端分屏。要并排打开两个网页，请使用普通标签。"
             : "无法调整浏览器分屏。请确认环境组件已更新，两个网页属于同一浏览器配置，且客机 Chromium 为 155 或更高版本。");
           setLayout(previous => ({ active: previous.active }));
         }
@@ -486,7 +499,7 @@ function App() {
     }
   };
   const archiveSession = async (session, anchor) => {
-    await confirm({title:"归档这段会话？", body:"归档会关闭关联终端。历史将保留，可从设置中的已归档会话恢复。", confirm:"归档会话", pendingLabel:"正在归档…", anchor,
+    await confirm({title:"归档这段会话？", body:"归档会关闭关联终端。你可以在设置的「已归档会话」中恢复历史。", confirm:"归档会话", pendingLabel:"正在归档…", anchor,
       submit: async () => {
         await api("/cli/sessions/" + session.id + "/archive", {});
         setTabs(list => list.filter(tab => tab.cli_session_id !== session.id));
@@ -540,7 +553,7 @@ function App() {
         !tab.closed &&
         !(await confirm({
           title: "关闭这个终端会话？",
-          body: "该终端中的交互命令可能被中断。网页和其他终端不受影响。",
+          body: "此终端里运行的命令可能中断。其他终端和网页会继续运行。",
           confirm: "关闭终端",
         }))
       )
@@ -607,7 +620,7 @@ function App() {
     if (
       await confirm({
         title: setupProgress ? "停止安装环境？" : "停止当前环境？",
-        body: setupProgress ? "当前安装任务会停止。下次启动环境时可以继续安装。" : "请先保存文件。当前终端会话会结束，浏览器登录和项目文件会保留。",
+        body: setupProgress ? "安装会暂停，下次启动环境时可继续。" : "请先保存文件。当前终端会话会结束，浏览器登录和项目文件会保留。",
         confirm: setupProgress ? "停止安装" : "停止环境",
       })
     )
@@ -649,7 +662,7 @@ function App() {
         const next = await api("/status");
         if (!live) return;
         jobRunning = next.job.running;
-        setStatus(next);
+        setStatus(previous => sameSnapshot(previous, next) ? previous : next);
         setStartRequest(pending => pending?.id && pending.id === next.job.id ? null : pending);
         setConnectionError("");
         if (
@@ -692,7 +705,7 @@ function App() {
           }
           if (!live) return;
           browserSnapshot.current = b;
-          setBrowser(b);
+          setBrowser(previous => sameSnapshot(previous, b) ? previous : b);
           const all = [
             ...b.tabs,
             ...t.map((item) => ({
@@ -705,12 +718,14 @@ function App() {
           ];
           setTabs((previous) => {
             const map = new Map(all.map((item) => [item.id, item]));
-            return [
+            const previousIds = new Set(previous.map(tab => tab.id));
+            const ordered = [
               ...previous
                 .filter((item) => map.has(item.id))
                 .map((item) => map.get(item.id)),
-              ...all.filter((item) => !previous.some((p) => p.id === item.id)),
+              ...all.filter((item) => !previousIds.has(item.id)),
             ];
+            return sameSnapshot(previous, ordered) ? previous : ordered;
           });
           if (!browserDismissed.current && initialized.current && b.active && b.active !== activeRef.current && !browserIds.current.has(b.active)) {
             setDesktopOpen(false);
@@ -1035,7 +1050,7 @@ function App() {
         if (connectionError || fatal) {
           setDialog({
             title: "退出 Cage",
-            body: "工作台连接已中断，暂时无法确认环境状态。仍在运行的后台任务会继续。",
+            body: "连接已断开，后台任务仍会继续。重新连接后可查看环境状态。",
             confirm: "仅退出桌面应用",
             resolve: (confirmed) => confirmed && native("quitNow"),
           });
@@ -1297,7 +1312,7 @@ function App() {
             <p>
               {quitting.error ||
                 (connectionError
-                  ? "正在恢复工作台连接，恢复后会继续确认停止结果。"
+                  ? "正在重新连接，随后会确认环境是否已停止。"
                   : "停止完成后 Cage 会自动退出。取消自动退出只保留窗口，环境仍会停止。")}
             </p>
             {!quitting.error && (
@@ -1356,8 +1371,8 @@ function App() {
         className="workbench-shell"
         inert={settingsOpen || hostGitOpen || undefined}
       >
-        {!sidebarCollapsed && (
-          <WorkspaceSidebar
+        {
+          <WorkspaceSidebar sidebarCollapsed={sidebarCollapsed}
             downloadAction={<BrowserDownloads sidebar downloads={downloads} ready={status.ready && !busy} onStatus={notify} />}
             updateAction={<AppUpdateButton updates={appUpdates} />}
             workspace={selectedProject || status.workspace}
@@ -1381,9 +1396,7 @@ function App() {
             busy={busy || storageRecovery}
             ready={status.ready}
             running={running}
-            runtimeLabel={runtimeLabel}
-            network={network}
-            onHome={() => { setDesktopOpen(false); setHome(true); }}
+            onHome={() => { setConversation(""); setDesktopOpen(false); setHome(true); }}
             onOpenProject={(path = "") => setProjectDialog({ path })}
             onSelect={select}
             onClose={closeTab}
@@ -1405,12 +1418,11 @@ function App() {
             onSettings={openSettings}
             onAccountConfirm={confirm}
             onAccountStatus={notify}
-            onSafety={() => setSafetyOpen(true)}
             onCollapse={() =>
               persist("cage-sidebar-collapsed", true, setSidebarCollapsed)
             }
           />
-        )}
+        }
         <div className="workbench-main">
           {showHome && terminalHeader(null)}
           {browserError && running && !connectionError && <div className="connection-banner" role="status">
@@ -1482,7 +1494,7 @@ function App() {
                         onFallback={(text, message) => setTransfer({ text, message })} />}
                       {!status.ready && <div className="view-overlay">
                         <RefreshCw /><h3>浏览器连接暂时不可用</h3>
-                        <p>环境和终端仍可运行；恢复浏览器不会停止现有终端。</p>
+                        <p>恢复浏览器时，现有终端会继续运行。</p>
                         <button className="primary" disabled={busy} onClick={() => setStartOptions({})}>恢复浏览器</button>
                       </div>}
                       {status.ready && !splitReady && <div className="view-overlay">正在调整浏览器布局…</div>}
@@ -1514,21 +1526,23 @@ function App() {
                 })}
               </>
             )}
-            {showHome && (
+            {showHome && conversation && !storageRecovery && !setupProgress && <DesktopConversation
+              key={conversation} id={conversation} drafts={conversationDrafts} ready={status.ready}
+              visible={windowVisible && !settingsOpen} onBack={() => setConversation("")} onOpenWeb={openBrowserPage} />}
+            {showHome && (!conversation || storageRecovery || setupProgress) && (
               <div className="welcome">
                 <div className="welcome-content">
-                  <img className="welcome-logo" src={logo} alt="Cage" />
                   {storageRecovery ? <>
                     <h1>环境存储需要恢复</h1>
                     <p className="welcome-subtitle"><SafetyMessage message={status.storage_recovery.error} /></p>
-                    <p className="field-help">在设置中恢复环境存储后，再启动浏览器和终端。诊断包可以从同一页面导出。</p>
+                    <p className="field-help">请到设置中恢复环境存储，然后启动浏览器和终端。也可在该页导出诊断包。</p>
                     <button className="primary" onClick={() => openSettings("project")}>恢复环境存储</button>
                   </> : setupProgress ? <>
                     <h1>{status.job.error ? "环境安装未完成" : "正在安装 Cage 环境"}</h1>
                     <SetupProgress job={status.job} onDetails={() => setDetails(true)}
                       onStop={stop} onRetry={() => setStartOptions(status.job.kind === "guest-install" ? { guest_system: status.job.setup_progress.system } : {})} disconnected={Boolean(connectionError)} />
                   </> : <>
-                  <h1>
+                  <h1 className="welcome-heading" aria-label={running && status.ready && !busy ? "新建对话" : undefined}>
                     {busy
                       ? status.job.kind === "stop"
                         ? "正在停止 Cage 环境"
@@ -1540,24 +1554,22 @@ function App() {
                       : running
                         ? !status.ready
                           ? "Cage 环境正在连接"
-                          : "Cage 环境已就绪"
+                          : <><img className="greeting-mark" src={claudeMark} alt="" draggable={false} />{greeting(account?.username)}</>
                         : setupProxy
-                          ? "为 Claude 准备独立工作区"
-                          : "先启动 Cage 环境"}
+                          ? "配置工作环境"
+                          : "开始使用 Cage"}
                   </h1>
-                  <p className="welcome-subtitle">
+                  {(!running || !status.ready || busy || network.mode !== "open") && <p className="welcome-subtitle">
                     <SafetyMessage message={busy
                       ? status.job.message
                       : running
                         ? !status.ready
-                          ? status.environment_update_error || "浏览器连接尚未就绪，可以恢复连接或继续使用终端。"
-                          : network.mode === "open"
-                            ? "环境已连接，网络检查通过。可以浏览网页或打开本地项目。"
-                            : `${network.label}。终端与本地文件仍可使用。`
+                          ? status.environment_update_error || "浏览器尚未连接。你可以恢复连接，或继续使用终端。"
+                          : `${network.label}。终端与本地文件仍可使用。`
                         : setupProxy
-                          ? "先连接你的代理，再启动浏览器、终端和编辑器。无需安装额外的代理软件。"
-                          : "准备独立的浏览器和终端，完成网络检查后开始工作。"} />
-                  </p>
+                          ? "先连接代理，再启动工作环境。"
+                          : "启动环境后可打开项目和会话。"} />
+                  </p>}
                   {!running && !nativeGuestLabel && (
                     <ol className="onboarding-steps" aria-label="开始使用 Cage">
                       {["配置代理", "启动环境", "开始工作"].map(
@@ -1577,7 +1589,10 @@ function App() {
                       )}
                     </ol>
                   )}
-                  <div className="start-project-box">
+                  {running && status.ready && contentWorkspace && <HomeComposer key={contentWorkspace} workspace={contentWorkspace}
+                    project={project} disabled={busy || Boolean(connectionError)} drafts={conversationDrafts}
+                    onCreated={id => { sessionsChanged(); setConversation(id); }} />}
+                  {(!running || !status.ready || busy) && <div className="start-project-box">
                     <div className="environment-summary">
                       <EnvironmentShield
                         healthy={status.ready && network.mode === "open"}
@@ -1655,10 +1670,13 @@ function App() {
                       </button>
                     </div>
                     {terminalMenuAt("start")}
-                  </div>
+                  </div>}
                   {running && (
                     <div className="welcome-shortcuts">
                       {macGuest && <MacOSLogin disabled={!status.ready || busy} />}
+                      {status.ready && <button onClick={() => setProjectDialog({ path: "" })} disabled={busy}>
+                        <FolderOpen size={16} />打开项目
+                      </button>}
                       <button onClick={newTerminalHere} data-terminal-location="shortcuts" aria-haspopup="menu" disabled={busy}>
                         <TerminalSquare size={16} />
                         新建终端
@@ -1676,16 +1694,8 @@ function App() {
                   {!running && !nativeGuestLabel && (
                     <p className="welcome-hint">
                       {setupProxy
-                        ? "Cage 不提供代理或 Claude 账户。连接后，在 Cage 内完成 Claude 登录。"
-                        : "首次安装时可在操作详情中查看下载和配置进度；中断后可以继续安装。"}
-                    </p>
-                  )}
-                  {running && status.ready && (
-                    <p className="welcome-hint">
-                      打开项目后，在终端输入 <code>claude</code>
-                      ，按提示登录你的账户。
-                      <br />
-                      {isRemoteClient() ? "打开的项目位于云端，编辑和删除会直接影响云端文件。" : "打开的项目与本机共享，编辑和删除文件会同步。"}
+                        ? "连接后可在 Cage 中登录 Claude。"
+                        : "如果安装中断，下次启动时可继续。"}
                     </p>
                   )}
                   </>}
@@ -1722,7 +1732,7 @@ function App() {
                       )}
                     </div>
                   )}
-                  {!setupProgress && status.job?.log && (
+                  {!setupProgress && (status.job?.error || status.job?.log) && (
                     <button
                       className="text-button details-link"
                       onClick={() => setDetails(true)}
@@ -1736,7 +1746,7 @@ function App() {
           </main>
           <footer className="status-bar">
             {sidebarCollapsed && <AppUpdateButton updates={appUpdates} />}
-            <button onClick={() => setSafetyOpen(true)} title="网络与隔离检查">
+            <button className="status-safety" onClick={() => setSafetyOpen(true)} title="网络与隔离检查">
               <EnvironmentShield
                 size={14}
                 healthy={status.ready && network.mode === "open"}
@@ -1744,7 +1754,7 @@ function App() {
               <span>{running ? network.label : "网络检查"}</span>
             </button>
             <span className="status-divider" />
-            <button onClick={() => openSettings("network")}>
+            <button className="status-exit" onClick={() => openSettings("network")}>
               <MapPin size={12} />
               <span>
                 {status.network_error
@@ -1759,7 +1769,7 @@ function App() {
               </span>
             </button>
             <span className="status-divider" />
-            <button onClick={() => openSettings("region")}>
+            <button className="status-region" onClick={() => openSettings("region")}>
               <Clock3 size={12} />
               {settings.timezone}
               {settings.auto_timezone ? " · 自动" : ""}
@@ -1784,12 +1794,13 @@ function App() {
                       : "环境运行中 · 浏览器待恢复"
                     : "")} />
             </span>
-            {status.job?.log && (
+            {(status.job?.id || status.job?.log || status.job?.error) && (
               <button title="操作详情" onClick={() => setDetails(true)}>
                 <MoreHorizontal size={15} />
               </button>
             )}
             <button
+              className="environment-stop"
               onClick={stop}
               disabled={
                 Boolean(startRequest) || (!running && !busy) || (status?.job?.kind === "stop" && busy)
@@ -1804,6 +1815,7 @@ function App() {
       </div>
       <BrowserUploads requests={status.ready ? browser.uploads : []} onStatus={notify} />
       {settingsOpen && (
+        <Suspense fallback={<div className="settings-page client-loading" role="status">正在打开设置…</div>}>
         <SettingsPanel
           current={settings}
           status={status}
@@ -1815,11 +1827,12 @@ function App() {
           onSaved={refreshSettings}
           onConfirm={confirm}
         />
+        </Suspense>
       )}
       {tailscaleOpen && <TailscalePanel status={status} onClose={() => setTailscaleOpen(false)}
         onConfirm={confirm} onInstall={async () => {
           const nativeGuest = ["macos", "windows-11"].includes(status.guest_system);
-          if (nativeGuest && !await confirm({ title: "更新环境组件？", body: "更新会重新连接浏览器和显示组件，请先保存工作。设备身份、公钥和个人数据保留。", confirm: "更新组件" })) return;
+          if (nativeGuest && !await confirm({ title: "更新环境组件？", body: "请先保存工作。更新会重新连接浏览器和显示组件，保留设备身份、公钥和个人数据。", confirm: "更新组件" })) return;
           await action(nativeGuest ? "/environment/update" : "/tailscale/install", {});
         }}
         onOpenBrowser={async url => { const result = await openBrowserPage(url, false); if (result) setTailscaleOpen(false); return Boolean(result); }} />}
@@ -1844,7 +1857,7 @@ function App() {
           onClose={() => setRename(null)}
           footer={
             <>
-              <span className="save-note">仅修改工作台中显示的名称</span>
+              <span className="save-note">仅在工作台中生效</span>
               <button onClick={() => setRename(null)}>取消</button>
               <button
                 className="primary"
@@ -1907,7 +1920,7 @@ function App() {
           onClose={() => setTransfer(null)}
           footer={
             <>
-              <span className="save-note">仅在你的操作下传递文本</span>
+              <span className="save-note">点击「粘贴到 Cage」后发送</span>
               <button onClick={() => setTransfer(null)}>关闭</button>
               <button
                 className="primary"
@@ -1935,15 +1948,10 @@ function App() {
         </Modal>
       )}
       {details && (
-        <Modal title="操作详情" wide onClose={() => setDetails(false)}>
-          <div className="modal-body">
-            <p><SafetyMessage message={status.job.message} /></p>
-            {status.job.error && (
-              <div className="error-message"><SafetyMessage message={status.job.error} /></div>
-            )}
-            <pre className="job-log">{status.job.log || "暂无日志"}</pre>
-          </div>
-        </Modal>
+        <OperationLogDialog title="操作详情" job={status.job} onClose={() => setDetails(false)}
+          message={status.job?.message && <SafetyMessage message={status.job.message} />}>
+          {status.job?.error && <p role="alert"><SafetyMessage message={status.job.error} /></p>}
+        </OperationLogDialog>
       )}
       {safetyOpen && (
         <SafetyPanel
@@ -1971,5 +1979,5 @@ function App() {
   );
 }
 export default function Workbench() {
-  return <AccountProvider><AppearanceProvider><AccountGate><InitializationGate><App /></InitializationGate></AccountGate></AppearanceProvider></AccountProvider>;
+  return <AccountProvider><AccountGate><InitializationGate><App /></InitializationGate></AccountGate></AccountProvider>;
 }

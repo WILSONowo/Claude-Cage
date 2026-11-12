@@ -31,7 +31,7 @@ export function useDesktopZoom(automatic = false) {
   return [zoom, setZoom];
 }
 
-export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, onStop, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
+export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, onStop, onActivate, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem("cage-desktop-toolbar-hidden") === "true"; }
     catch { return false; }
@@ -79,6 +79,17 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
               {desktopZooms.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%{value === 1 ? "（默认）" : ""}</option>)}
             </InlineSelect>
           </label>
+        )}
+        {desktop?.running && desktop.native_user_session && platform === "Windows" && (
+          <button
+            className="quiet-button"
+            disabled={busy}
+            onClick={onActivate}
+            title="重新激活 Claude 窗口，保留当前会话"
+          >
+            <Monitor size={15} />
+            恢复操作
+          </button>
         )}
         {desktop?.running && (
           <button
@@ -172,7 +183,11 @@ export function ClaudeDesktop({
     }
   };
   useEffect(() => {
-    if (!screenVisible || !status.vm_running || status.job?.running) return;
+    if (!screenVisible) {
+      opened.current = false;
+      return;
+    }
+    if (!status.vm_running || status.job?.running) return;
     let disposed = false;
     let timer;
     const poll = async () => {
@@ -180,7 +195,10 @@ export function ClaudeDesktop({
       if (disposed) return;
       if (value && !opened.current) {
         opened.current = true;
-        if (value.installed && !value.running && !value.failed && !jobID)
+        // Explicitly opening the native Windows view also activates its app.
+        // Status polling while the view stays visible must not steal focus.
+        const activateNative = value.native_user_session && automatic;
+        if (value.installed && (!value.running || activateNative) && !value.failed && !jobID)
           await run("start");
       }
       if (!disposed) timer = setTimeout(poll, 5000);
@@ -219,15 +237,15 @@ export function ClaudeDesktop({
         }}
       />}
       <DesktopToolbar desktop={desktop} platform={status.guest_system === "windows-11" ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
-        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
+        onConfirm={onConfirm} onStop={() => run("stop")} onActivate={() => run("start")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
         {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
-          if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存应用内的工作。更新会关闭 Claude Desktop，从官方软件源安装可用版本，再重新打开；登录资料继续保留。", confirm: "更新应用" })) run("update");
+          if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存工作。Claude Desktop 会关闭，从官方软件源更新后重新打开。登录资料会保留。", confirm: "更新应用" })) run("update");
         }}>更新应用</button>}
       </DesktopToolbar>
       {(error || statusError || desktop?.failed) && (
         <div className="connection-banner" role="alert">
           <SafetyMessage message={error || statusError || (desktop?.failure_reason === "oom-kill"
-            ? "环境内存不足，Claude Desktop 已被系统关闭。请在设置中检查计算资源后重新打开。"
+            ? "内存不足，系统已关闭 Claude Desktop。请在设置中检查计算资源，再打开应用。"
             : "Claude Desktop 未能启动，可重试打开或修复安装。")} />
           <button onClick={onDetails}>操作详情</button>
         </div>
@@ -256,21 +274,14 @@ export function ClaudeDesktop({
           />
         ) : (
           <div className="desktop-empty">
-            <Monitor size={36} />
-            <h2>
-              {desktop?.installed
-                ? "Claude Desktop"
-                : "在 Cage 中使用 Claude Desktop"}
-            </h2>
-            <p>
-              Chat 和 Code 共用一个官方应用。在 Cage
-              内安装、登录并使用，项目文件来自已打开的文件夹。
-            </p>
-            {!desktop?.installed && (
-              <p>
-                首次使用时从 Anthropic 官方源下载，不增加 Cage 默认安装包体积。
-              </p>
-            )}
+            <div className="desktop-empty-heading">
+              <Monitor size={26} aria-hidden="true" />
+              <h2>{desktop?.installed ? "Claude Desktop" : "在 Cage 中使用 Claude Desktop"}</h2>
+            </div>
+            <div className="desktop-intro">
+              <p>登录后可在当前项目中使用 Chat 和 Code。</p>
+              {!desktop?.installed && <p>应用将从 Anthropic 官方下载。</p>}
+            </div>
             <div className="desktop-actions">
               {desktop && (
                 <button
@@ -301,17 +312,17 @@ export function ClaudeDesktop({
                   disabled={busy}
                   onClick={refresh}
                 >
-                  重新读取状态
+                  刷新状态
                 </button>
               )}
             </div>
             {desktop?.installed && <p>{status.guest_system?.startsWith("windows")
               ? "在 Claude Desktop 应用内检查并安装更新。"
               : "Linux 版通过系统软件源更新。可点击上方“更新应用”，或在 Cage 终端运行 sudo apt update && sudo apt install --only-upgrade claude-desktop。"}</p>}
-            <p className="desktop-note">
-              关闭应用后释放图形会话资源，登录状态保留在 Cage
-              环境中。需要额外虚拟机的 Cowork 功能暂未适配。
-            </p>
+            <div className="desktop-note">
+              <p>关闭应用后仍保留登录状态。</p>
+              <p>当前环境暂不支持 Cowork。</p>
+            </div>
           </div>
         )}
       </div>

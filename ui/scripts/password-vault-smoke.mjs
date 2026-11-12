@@ -39,7 +39,7 @@ await page.route("**/api/vault**", async route => {
     else entries.push({ ...entry, id: `saved-${++sequence}` });
   }
   if (input.action === "reveal") {
-    if (input.account_password !== state.accountPassword) return route.fulfill({ status: 400, body: "密码不正确" });
+    if (input.account_password !== state.accountPassword) return route.fulfill({ status: 400, contentType: "text/plain; charset=utf-8", body: "密码不正确" });
     return route.fulfill({ json: { password: entries.find(e => e.id === input.id).password } });
   }
   if (input.action === "delete") entries = entries.filter(e => e.id !== input.id);
@@ -82,9 +82,9 @@ try {
   await page.getByRole("button", { name: "保存记录", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "密码记录已保存" }).waitFor();
   assert.equal(entries[0].password, "fixture-mail-secret");
-  await page.getByLabel("搜索网站或账号").fill("missing");
+  await page.getByRole("searchbox", { name: "搜索网站或账号", exact: true }).fill("missing");
   await page.getByText("没有找到匹配的账号").waitFor();
-  await page.getByLabel("搜索网站或账号").fill("");
+  await page.getByRole("searchbox", { name: "搜索网站或账号", exact: true }).fill("");
   await page.screenshot({ path: output + "vault-settings.png" });
   await page.setViewportSize({ width: 820, height: 558 });
   await page.screenshot({ path: output + "vault-settings-small.png" });
@@ -102,17 +102,18 @@ try {
   const picker = page.getByRole("region", { name: "当前网站的密码" });
   await picker.waitFor();
   const after = await page.locator(".browser-chrome").boundingBox();
-  assert.ok(after.height > before.height + 60, "password picker did not occupy layout space");
+  const menu = page.getByRole("menu", { name: "浏览器菜单", exact: true });
+  assert.ok(await menu.getByRole("region", { name: "当前网站的密码" }).isVisible());
+  assert.ok(Math.abs(after.height - before.height) < 1, "floating password menu preserves toolbar height");
   await picker.getByRole("button", { name: /work@example.test/ }).focus();
   await page.keyboard.press("Enter");
   await page.getByRole("status").filter({ hasText: "已填写" }).waitFor();
   assert.equal(filled, entries[0].id);
   const filledHeight = (await page.locator(".browser-chrome").boundingBox()).height;
-  const pickerHeight = (await picker.boundingBox()).height;
   await trigger.press("Escape");
   await picker.waitFor({ state: "hidden" });
-  assert.equal(Math.round((await page.locator(".browser-chrome").boundingBox()).height), Math.round(filledHeight - pickerHeight),
-    "closing the password picker releases its space while preserving the fill confirmation");
+  assert.equal(Math.round((await page.locator(".browser-chrome").boundingBox()).height), Math.round(filledHeight),
+    "closing the floating password picker preserves toolbar height");
   candidate = { id: "pending", tab: "web-vault", origin: "https://mail.example.test", username: "work@example.test", password: "new-fixture-secret" };
   await page.getByText("更新此账号的密码？", { exact: true }).waitFor();
   await page.screenshot({ path: output + "vault-save-prompt.png" });

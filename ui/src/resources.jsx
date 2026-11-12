@@ -81,12 +81,12 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
     <div className="setting-summary-row"><span>容器内存上限</span><strong>{data.running ? resourcesVerified ? gib(data.configured_memory_bytes) : "未核验" : gib(data.recommended_memory_bytes)}</strong></div>
     <div className="setting-summary-row"><span>容器 CPU 上限</span><strong>{data.running ? resourcesVerified ? `${data.configured_cpus} 个逻辑核心` : "未核验" : `${data.recommended_cpus} 个逻辑核心`}</strong></div>
     <div className="setting-summary-row"><span>进程与线程总数上限</span><strong>{data.running ? resourcesVerified ? data.pids_limit : "未核验" : "运行后核验"}</strong></div>
-    <p className="field-help">{data.running ? resourcesVerified ? "已从服务器核验容器所属资源组的实际限制。实时内存与 CPU 用量尚未提供。" : "无法确认运行中容器的实际资源限制，请查看下方错误或等待重新核验。" : "环境尚未运行，当前显示部署配置中的资源上限。"}</p>
+    <p className="field-help">{data.running ? resourcesVerified ? "容器资源上限已经服务器核验。暂无实时内存与 CPU 用量。" : "无法确认运行中容器的实际资源限制，请查看下方错误或等待重新核验。" : "环境尚未运行，当前显示部署配置中的资源上限。"}</p>
     {resourceError && <p role="alert" className="error-message"><SafetyMessage message={resourceError} /></p>}
   </section>;
   return <section className="environment-versions resource-settings" aria-label="计算资源">
     <h4>计算资源</h4>
-    <p className="field-help resource-intro">默认使用主机一半的资源，可在下方调整。{macOS ? "macOS 客机使用固定的启动内存容量。" : "内存按需使用，持续空闲后逐步归还主机。"}CPU 按实际任务使用。</p>
+    <p className="field-help resource-intro">默认分配主机一半的资源。{macOS ? "macOS 客机使用固定的启动内存容量。" : "内存按需使用，持续空闲后逐步归还主机。"}CPU 按实际任务使用。</p>
     {draft ? <form className="resource-allocation" onSubmit={save}>
       <fieldset disabled={busy} className="resource-fields">
         <legend className="sr-only">资源配置</legend>

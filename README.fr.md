@@ -12,7 +12,7 @@
 
 **[Site Web du projet](https://claude-cage.com/) · [Télécharger l’application](https://claude-cage.com/fr/#download) · [Commencer](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [Guide d’utilisation (chinois)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ Pour l'index complet, voir [Index des documents](docs/README.md).
 | Dépanner les téléchargements, le démarrage, la connectivité et la connexion | [FAQ et récupération](docs/troubleshooting.md) |
 | Apprenez les commandes du clavier, l'apparence, la persistance des données et le comportement de sortie | [Utilisation quotidienne](docs/getting-started.md#日常使用) |
 | Signaler un problème reproductible | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| Contribuer un correctif, une fonction ou de la documentation : examen de l’Issue → invitation comme collaborateur → PR | [Guide de contribution (chinois)](.github/CONTRIBUTING.md) |
 
 Le projet évolue rapidement. Rejoignez le groupe communautaire pour partager vos commentaires ; les responsables de la communauté sont les bienvenus.
 

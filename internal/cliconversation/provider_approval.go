@@ -105,8 +105,21 @@ func (p *approvalStream) control(kind string, line []byte) error {
 			return errors.New("客机 Claude Code 无法初始化逐次审批，请检查 CLI 版本")
 		}
 		p.ready = true
-		return p.sendLocked(map[string]any{"type": "user", "session_id": p.turn.SessionID, "parent_tool_use_id": nil,
-			"message": map[string]string{"role": "user", "content": p.turn.Prompt}})
+		// A complete prompt can fill stdin while the CLI is still writing its
+		// initialization event to stdout. Keep the event reader draining that
+		// output instead of waiting for this write on the same goroutine.
+		p.workers.Add(1)
+		go func() {
+			defer p.workers.Done()
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			if p.ended || p.ctx.Err() != nil {
+				return
+			}
+			_ = p.sendLocked(map[string]any{"type": "user", "session_id": p.turn.SessionID, "parent_tool_use_id": nil,
+				"message": map[string]string{"role": "user", "content": p.turn.Prompt}})
+		}()
+		return nil
 	}
 	id := frame.RequestID
 	if id == "" || len(id) > 256 {

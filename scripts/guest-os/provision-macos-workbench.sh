@@ -55,7 +55,7 @@ if dscl . -read /Groups/com.apple.access_ssh >/dev/null 2>&1; then
     /usr/sbin/dseditgroup -o edit -a $ordinary -t user com.apple.access_ssh
 fi
 cd "$kit"
-bash install-macos-project-tools.sh "$kit/project"
+bash install-macos-project-tools.sh "$kit/project" --defer-macfuse
 bash install-macos-node.sh "$kit/node.tgz"
 bash install-macos-browser.sh "$kit"
 bash cli/install-macos-cli.sh "$kit/cli"

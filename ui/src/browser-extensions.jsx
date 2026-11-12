@@ -57,7 +57,7 @@ function LocalExtensionImport({ existing, onUpdated, onClose }) {
   };
   return <section className="extension-import" aria-label="从本机导入扩展">
     <div className="browser-setting-heading"><h3>从本机浏览器导入</h3><button className="icon-button" aria-label="关闭本机导入" disabled={busy} onClick={onClose}><X size={16} /></button></div>
-    <p>一次复制所选扩展及启停状态。浏览器账户、Cookie 和扩展登录数据保留在本机浏览器中。</p>
+    <p>导入所选扩展及启停状态。账户、Cookie 和登录数据留在原浏览器。</p>
     {error && <p className="browser-settings-error" role="alert">{error}</p>}
     {!profiles && !error && <p role="status">正在查找本机浏览器配置…</p>}
     {profiles?.length === 0 && <p>未找到 Edge、Chrome、Brave 或 Chromium 的扩展配置。</p>}
@@ -72,7 +72,7 @@ function LocalExtensionImport({ existing, onUpdated, onClose }) {
         <label><input type="checkbox" disabled={busy || !eligible(item)} checked={selected.has(item.id)} onChange={event => setSelected(previous => { const next = new Set(previous); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} />
           <strong>{item.name}</strong><span>{item.version}</span></label>
         <p className="extension-import-state" role={results[item.id] ? 'status' : undefined}>{results[item.id] || (!item.compatible ? '不支持此扩展版本，仅支持 Manifest V3' : installed.has(`${profileID}:${item.id}`) ? '已导入' : !item.state_known ? '未能读取启停状态，导入后停用' : item.enabled ? '本机已启用' : '本机已停用')}</p>
-        {item.compatible && !item.identity_preserved && <p>此扩展的标识可能变化，依赖浏览器身份或授权的功能可能需要重新配置。</p>}
+        {item.compatible && !item.identity_preserved && <p>扩展标识可能改变。依赖浏览器身份或授权的功能可能需要重新配置。</p>}
         <Permissions item={item} />
       </article>)}
     </>}
@@ -131,7 +131,7 @@ export function BrowserExtensions({ onOpenPage, onInternal, onConfirm }) {
       <button aria-label="刷新扩展" disabled={Boolean(busy)} onClick={load}><RefreshCw size={15} /></button>
     </div>
     <input ref={file} type="file" accept=".zip,application/zip" hidden onChange={select} aria-label="选择扩展 ZIP" />
-    <p>支持 Chromium Manifest V3 扩展。扩展运行在 Cage 环境中，并按声明的权限访问网站。</p>
+    <p>支持 Chromium Manifest V3。扩展在 Cage 中运行，按声明的权限访问网站。</p>
     {error && <p className="browser-settings-error" role="alert">{error}</p>}
     {busy === 'upload' && <p role="status">正在读取扩展包…</p>}
     {preview && <section className="extension-install-preview" aria-label="确认扩展安装">
@@ -141,7 +141,7 @@ export function BrowserExtensions({ onOpenPage, onInternal, onConfirm }) {
     </section>}
     {importing && <LocalExtensionImport existing={items || []} onUpdated={setItems} onClose={() => setImporting(false)} />}
     <div className="browser-setting-heading"><h3>已安装的扩展{items ? `（${items.length}）` : ''}</h3></div>
-    {items === null && !error ? <p role="status">正在读取扩展…</p> : items?.length === 0 ? <div className="extension-empty"><Puzzle size={28} /><strong>让浏览器更合用</strong><p>添加扩展，或从本机浏览器导入已有扩展。</p></div> : items?.map(item => <article className="extension-item" key={item.id}>
+    {items === null && !error ? <p role="status">正在读取扩展…</p> : items?.length === 0 ? <div className="extension-empty"><Puzzle size={28} /><strong>尚无扩展</strong><p>可直接添加，或从本机浏览器导入。</p></div> : items?.map(item => <article className="extension-item" key={item.id}>
       <div className="browser-setting-heading"><div><strong>{item.name}</strong><span className="extension-version">{item.version}</span></div>
         <label className="extension-enable"><input type="checkbox" aria-label={`启用 ${item.name}`} checked={Boolean(item.enabled)} disabled={Boolean(busy) || item.mayDisable === false} onChange={() => act(item.enabled ? 'disable' : 'enable', item.id)} />{item.enabled ? '已启用' : '已停用'}</label></div>
       {item.description && <p>{item.description}</p>}{item.error && <p role="alert" className="browser-settings-error">{item.error}</p>}

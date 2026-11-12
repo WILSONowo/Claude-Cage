@@ -90,7 +90,7 @@ try {
   assert.equal(await retry.count(), 0);
   await page.getByRole("button", { name: "返回工作台", exact: true }).first().click();
   await page.getByRole("button", { name: "启动 Cage 环境", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".welcome h1")?.textContent === "Cage 环境已就绪");
+  await page.waitForFunction(() => document.querySelector(".welcome h1")?.getAttribute("aria-label") === "新建对话");
   assert.equal(state.requests.filter(request => request.path === "/start").length, 1);
   assert.deepEqual(errors, []);
   console.log(`Storage recovery login, settings, failure cause, duplicate rejection, diagnostics, repair, preparation and normal start passed (${page.viewportSize().width}px)`);

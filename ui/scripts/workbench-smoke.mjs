@@ -7,6 +7,7 @@ import { createWorkbench } from "./workbench-fixture.mjs";
 const output = await smokeCaptureDirectory("workbench");
 const { browser, page, state, errors } = await createWorkbench();
 const checks = [];
+const modifier = await page.evaluate(() => /Mac/i.test(navigator.platform) ? "Meta" : "Control");
 const shot = (name) =>
   page.screenshot({ path: join(output, name + ".png"), animations: "disabled" });
 const settings = async () => {
@@ -22,7 +23,7 @@ try {
     .getByRole("button", { name: "启动 Cage 环境", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Cage 环境已就绪", exact: true })
+    .getByRole("heading", { name: "新建对话", exact: true })
     .waitFor();
   await page
     .getByRole("button", { name: "添加项目", exact: true })
@@ -62,7 +63,7 @@ try {
   assert.equal(state.settings.workspace, state.chosenFolder);
   await page.reload();
   await page
-    .getByRole("heading", { name: "Cage 环境已就绪", exact: true })
+    .getByRole("heading", { name: "新建对话", exact: true })
     .waitFor();
   await page
     .getByRole("region", { name: "项目 design-lab", exact: true })
@@ -86,7 +87,7 @@ try {
   assert.equal(await page.getByText("最近项目", { exact: true }).count(), 0);
   checks.push("真实目录列表刷新读回、不使用本地历史、项目打开失败保留路径");
   await page
-    .getByRole("heading", { name: "Cage 环境已就绪", exact: true })
+    .getByRole("heading", { name: "新建对话", exact: true })
     .waitFor();
   await page
     .getByRole("button", { name: "在 design-lab 新建终端", exact: true })
@@ -102,7 +103,7 @@ try {
   const actions = page.getByRole("group", { name: "终端 1 的操作", exact: true });
   await terminalTab.hover();
   await actions.waitFor();
-  await page.getByRole("button", { name: "工作台", exact: true }).hover();
+  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).hover();
   await actions.waitFor({ state: "hidden" });
   await terminalTab.focus();
   // WebKit's default keyboard mode skips buttons when tabbing. The tab's
@@ -163,7 +164,7 @@ try {
     "新标签页",
     "文件 · design-lab",
   ]);
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press(`${modifier}+2`);
   await page.waitForFunction(
     () =>
       document.querySelector('.browser-tabs [aria-selected="true"]')
@@ -182,7 +183,7 @@ try {
     state.tabs.find((tab) => tab.kind === "editor").id,
   );
   await page.getByRole("tab", { name: "开发终端", exact: true }).click();
-  await page.keyboard.press("Meta+1");
+  await page.keyboard.press(`${modifier}+1`);
   await page.waitForFunction(
     () =>
       document.querySelector('.sidebar-tabs [aria-selected="true"]')
@@ -207,7 +208,7 @@ try {
   await settings();
   await page.getByRole("heading", { name: "通用", exact: true }).waitFor();
   await shot("settings");
-  await page.getByRole("radio", { name: /^原生 Linux/ }).check();
+  await page.getByRole("radio", { name: /^客机原生快捷键/ }).check();
   await page
     .getByRole("button", { name: "返回工作台", exact: true })
     .first()
@@ -219,14 +220,14 @@ try {
     .getByRole("button", { name: "取消", exact: true })
     .click();
   assert.equal(
-    await page.getByRole("radio", { name: /^原生 Linux/ }).isChecked(),
+    await page.getByRole("radio", { name: /^客机原生快捷键/ }).isChecked(),
     true,
   );
   state.failSave = true;
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: "保存失败" }).waitFor();
   assert.equal(
-    await page.getByRole("radio", { name: /^原生 Linux/ }).isChecked(),
+    await page.getByRole("radio", { name: /^客机原生快捷键/ }).isChecked(),
     true,
   );
   state.failSave = false;
@@ -238,7 +239,7 @@ try {
   assert.equal(state.terminalConnections, connections);
   await settings();
   assert.equal(
-    await page.getByRole("radio", { name: /^原生 Linux/ }).isChecked(),
+    await page.getByRole("radio", { name: /^客机原生快捷键/ }).isChecked(),
     true,
   );
   await page.getByRole("button", { name: "时区与语言", exact: true }).click();
@@ -345,13 +346,13 @@ try {
   await deleteTab.waitFor({ state: "detached" });
   assert.equal(state.terminals.length, 2);
   checks.push("终端行悬停展开、键盘置顶、重命名、取消和确认关闭指定普通终端");
-  await page.getByRole("button", { name: "工作台", exact: true }).click();
+  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
   await shot("main-minimum");
   await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
   await page.reload();
   await page.getByRole("button", { name: "展开侧栏", exact: true }).waitFor();
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.keyboard.press("Meta+t");
+  await page.keyboard.press(`${modifier}+t`);
   await tabs().waitFor();
   await shot("compact-workspace");
   assert.equal(

@@ -93,11 +93,15 @@ async function checkLocalCountdown() {
   await page.clock.install({ time: new Date(+frozen - 60_000) });
   await page.reload();
   await page.getByRole("tab", { name: "终端 4 · 工作", exact: true }).waitFor();
-  await page.clock.pauseAt(frozen);
   const seconds = +frozen / 1000;
   profiles[0].quota = { observed_at: seconds, five_hour: { used_percentage: 28, observed_at: seconds - 900, resets_at: seconds + 5 },
     seven_day: { used_percentage: 64, observed_at: seconds, resets_at: seconds + 7200 } };
-  await openAccounts();
+  // Let the lazy settings page mount before freezing the quota countdown.
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  const accounts = page.getByRole("button", { name: "Claude 账号", exact: true });
+  await accounts.waitFor();
+  await page.clock.pauseAt(frozen);
+  await accounts.click();
   const row = page.getByRole("article", { name: "工作", exact: true });
   await row.getByText("5秒后", { exact: true }).waitFor();
   await row.getByText("最近更新 刚刚", { exact: true }).waitFor();
@@ -142,7 +146,7 @@ async function checkUsagePanel() {
   assert.equal(await row.getByRole("button", { name: "检查状态" }).isEnabled(), false);
   panelWorker = false;
   Object.assign(profile, { usage_checking: false, usage_status: "cached", usage_checked_at: now });
-  await row.getByText("本次只有缓存读数").waitFor();
+  await row.getByText("显示上次查询的额度").waitFor();
   await row.getByText("23%", { exact: true }).waitFor();
   await row.getByText("历史读数", { exact: true }).waitFor();
   await page.setViewportSize({ width: 375, height: 700 });
@@ -257,7 +261,7 @@ try {
   assert.equal(profiles.length, 1);
   await draft.getByRole("button", { name: "撤销添加" }).click();
   await confirmation.getByRole("button", { name: "撤销添加", exact: true }).click();
-  await page.getByText("尚无已加入调度的账号。").waitFor();
+  await page.getByText("还没有参与分配的账号。").waitFor();
   await page.getByText(/普通终端尚未登录 Claude 订阅/).waitFor();
   await back();
   await launchClaude();
@@ -304,7 +308,7 @@ try {
     quota: { five_hour: { used_percentage: 23, observed_at: now - 3600, resets_at: 0 },
       seven_day: { used_percentage: 100, observed_at: now - 7200, resets_at: now - 80 }, observed_at: now - 3600 } });
   heldRefresh.resolve();
-  await card.getByText("本次只返回了部分额度").waitFor();
+  await card.getByText("仅获取到部分额度").waitFor();
   await card.getByText("23%", { exact: true }).waitFor();
   await card.getByText(/^读取于 /).waitFor();
   await card.getByText("重置时间未知", { exact: true }).waitFor();
@@ -353,7 +357,7 @@ try {
   await page.setViewportSize({ width: 1280, height: 850 });
   assert.equal(profiles.length, 1, "detected identity is not in the pool");
   await detectedA.getByRole("button", { name: "检查状态" }).click();
-  await detectedA.getByText("本次未返回额度").waitFor();
+  await detectedA.getByText("暂未获取到额度").waitFor();
   assert.equal(await detectedA.getByText(/^最近更新 /).locator("time").getAttribute("datetime"), new Date(now * 1000).toISOString(),
     "accounts without readings fall back to the latest query time");
   assert.equal(await detectedA.getByText("暂无读数", { exact: true }).count(), 2);
@@ -377,7 +381,7 @@ try {
   await openAccounts();
   const nextIdentity = profileCard(defaultLogin.email);
   await nextIdentity.getByText(/未加入/).waitFor();
-  await profileCard("个人").getByText(/请重新打开工作会话确认身份/).waitFor();
+  await profileCard("个人").getByText(/请重新打开会话确认账号/).waitFor();
   assert.equal(await nextIdentity.getByRole("checkbox").count(), 0);
   assert.equal(profiles[1].email, identityA.email);
   // Identity changes again while this stale B card remains visible.
@@ -391,7 +395,7 @@ try {
   // Re-authenticating A independently updates its registry entry, not the source of an existing terminal.
   Object.assign(profiles[1], { source: "managed", status: "ready" });
   await openAccounts();
-  await profileCard("个人").getByText(/仍使用普通终端的登录/).waitFor();
+  await profileCard("个人").getByText(/沿用普通终端的登录/).waitFor();
   await back();
   await page.getByRole("tab", { name: "终端 5 · 个人", exact: true }).click();
   await page.getByText("Claude · 个人（启动时账号）", { exact: true }).waitFor();

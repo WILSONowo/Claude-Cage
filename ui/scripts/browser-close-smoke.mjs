@@ -11,7 +11,7 @@ page.setDefaultTimeout(10000);
 const checks = [];
 const close = page.getByRole('button', { name: '关闭浏览器', exact: true });
 const open = page.getByRole('button', { name: '打开浏览器', exact: true });
-const home = page.getByRole('heading', { name: 'Cage 环境已就绪', exact: true });
+const home = page.getByRole('heading', { name: '新建对话', exact: true });
 const shot = name => page.screenshot({ path: fileURLToPath(new URL(name + '.png', output)) });
 try {
   await page.addInitScript(() => {

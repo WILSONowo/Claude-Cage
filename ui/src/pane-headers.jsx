@@ -189,9 +189,15 @@ export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           onFocus={(e) => e.target.select()}
+          onKeyDown={event => {
+            if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+              event.preventDefault(); event.stopPropagation();
+              setAddress(tab.url || ""); event.currentTarget.select();
+            }
+          }}
           placeholder={
             ready
-              ? "输入网址或搜索，在 Cage 内打开"
+              ? "搜索或输入网址"
               : "启动环境后浏览网页"
           }
           disabled={!ready}

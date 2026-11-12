@@ -23,6 +23,8 @@ var instancePattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var hostnamePattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$`)
 var storeLocks sync.Map
 
+const maxHostsFileSize = 1 << 20
+
 type Store struct {
 	profile string
 	mu      *sync.Mutex
@@ -118,11 +120,11 @@ func (s *Store) read() ([]HostProfile, error) {
 	}
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || info.Size() > 1<<20 {
+	if err != nil || info.Size() > maxHostsFileSize {
 		return nil, failure("profile_invalid", "远程主机配置过大或无法读取")
 	}
 	var data storedHosts
-	decoder := json.NewDecoder(io.LimitReader(f, 1<<20))
+	decoder := json.NewDecoder(io.LimitReader(f, maxHostsFileSize))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&data) != nil || data.Version != 1 || len(data.Hosts) > 100 {
 		return nil, failure("profile_invalid", "远程主机配置损坏，现有文件未修改")
@@ -147,6 +149,16 @@ func (s *Store) read() ([]HostProfile, error) {
 }
 
 func (s *Store) write(profiles []HostProfile) error {
+	data, err := json.Marshal(storedHosts{1, profiles})
+	if err != nil {
+		return failure("profile_write", "无法保存远程主机配置")
+	}
+	data = append(data, '\n')
+	// Enforce the reader's byte limit before replacing the previous file.
+	// Field lengths alone do not account for JSON escaping or many profiles.
+	if len(data) > maxHostsFileSize {
+		return failure("profile_limit", "远程主机配置超过 1 MiB，请减少主机或缩短路径；原配置已保留")
+	}
 	if err := host.EnsurePrivateDir(s.profile); err != nil {
 		return failure("profile_permissions", "无法创建私有远程主机配置目录")
 	}
@@ -157,7 +169,7 @@ func (s *Store) write(profiles []HostProfile) error {
 	tmp := file.Name()
 	defer os.Remove(tmp)
 	if err = host.ProtectFile(tmp); err == nil {
-		err = json.NewEncoder(file).Encode(storedHosts{1, profiles})
+		_, err = file.Write(data)
 	}
 	if err == nil {
 		err = file.Sync()

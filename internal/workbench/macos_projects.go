@@ -26,7 +26,7 @@ func macOSProjectPath(user, hostDirectory string) string {
 // A mount which is ready in FSKit can still be unreadable by the guest app.
 // Keep the live restricted connection while macOS waits for the user's folder
 // approval; do not accept an APFS directory or a stale mount as this project.
-var errMacOSProjectApproval = &projectShareError{Recovery: "project-approval", Message: "请在 Cage 显示的客机授权窗口中允许此项目，然后验证授权。"}
+var errMacOSProjectApproval = &projectShareError{Recovery: "project-approval", Message: "在客机授权窗口允许访问项目，再验证授权。"}
 
 const macProjectAgent = "/Applications/CageProjectAccess.app/Contents/MacOS/CageProjectAccess"
 const macProjectLoginCheck = `test "$(/usr/bin/stat -f %u /dev/console)" = "$(/usr/bin/id -u)" && /bin/launchctl print "gui/$(/usr/bin/id -u)" >/dev/null 2>&1`
@@ -36,16 +36,16 @@ func macOSProjectPrepareError(err error) error {
 	if errors.As(err, &exit) {
 		switch exit.ExitCode() {
 		case 73:
-			return &projectShareError{Recovery: "guest-login", Message: "请先登录虚拟 Mac 的客机账户。登录完成后，Cage 会自动连接项目。"}
+			return &projectShareError{Recovery: "guest-login", Message: "请登录虚拟 Mac，Cage 会自动连接项目。"}
 		case 74, 79:
-			return &projectShareError{Recovery: "environment-update", Message: "客机项目共享组件尚未就绪。请同步环境组件，完成后重新连接项目。"}
+			return &projectShareError{Recovery: "environment-update", Message: "请同步客机共享组件，再重新连接项目。"}
 		case 76:
-			return &projectShareError{Recovery: "environment-restart", Message: "此项目还保留着旧的客机挂载。请保存工作，在环境设置中停止并重新启动虚拟 Mac，再连接项目。"}
+			return &projectShareError{Recovery: "environment-restart", Message: "项目仍使用旧挂载。请保存工作，在环境设置中停止并重启虚拟 Mac，再连接项目。"}
 		case 77, 78:
-			return &projectShareError{Recovery: "project-directory", Message: "客机的项目挂载位置包含文件、链接或权限异常。请先保留其中的文件，再通过诊断记录检查该位置。"}
+			return &projectShareError{Recovery: "project-directory", Message: "客机挂载位置存在文件、链接或权限异常。请先保留文件，再查看诊断记录。"}
 		}
 	}
-	return &projectShareError{Recovery: "project-retry", Message: "工作台暂时无法连接客机项目服务。连接恢复后会自动重试，也可以重新连接项目。"}
+	return &projectShareError{Recovery: "project-retry", Message: "客机项目服务不可用。恢复后会自动重试，也可手动重连。"}
 }
 
 func (s *Server) ensureMacOSProjectShare(hostDir string) error {
@@ -145,9 +145,9 @@ func (s *Server) macOSMountCleanup(ctx context.Context, guestDir string) (func()
 		!strings.Contains(options, "fskit") || !strings.Contains(options, "mounted by "+s.macosGuest.User+")") {
 		return nil, errors.New("无法核对本次挂载的 macOS 卷标识")
 	}
-	detach := "if test \"$(" + query + ")\" = " + shellescape.Quote(line) + "; then /sbin/umount -f " + shellescape.Quote(guestDir) + "; fi"
+	detach := "if test \"$(" + query + ")\" = " + shellescape.Quote(line) + "; then /usr/sbin/diskutil unmount force " + shellescape.Quote(guestDir) + "; fi"
 	return func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_, _ = s.guest(cleanup, detach)
 	}, nil
@@ -176,16 +176,16 @@ func (s *Server) probeMacOSProject(ctx context.Context, hostDir, guestDir string
 		}
 		select {
 		case <-ctx.Done():
-			return &projectShareError{Recovery: "project-retry", Message: "客机项目助手尚未确认此文件夹可用。请重新连接项目，持续失败时可查看诊断记录。"}
+			return &projectShareError{Recovery: "project-retry", Message: "客机尚未确认文件夹可用。请重连项目，若仍失败请查看诊断记录。"}
 		case <-share.done:
 			if share.stderr != nil && len(share.stderr.data) > 0 {
 				message := string(share.stderr.data)
 				_ = diagnostics.New(s.profile).Record("warn", "macos-project-mount", message)
 				if strings.Contains(strings.ToLower(message), "not enabled") {
-					return &projectShareError{Recovery: "filesystem-permission", Message: "虚拟 Mac 的文件系统扩展尚未启用。请打开客机授权设置，按提示打开 macFUSE 和 macFUSE (local) 两个开关，Cage 会自动检查并重新连接项目。"}
+					return &projectShareError{Recovery: "filesystem-permission", Message: "请在虚拟 Mac 的授权设置中启用 macFUSE 和 macFUSE (local)。Cage 会自动检查并重连项目。"}
 				}
 			}
-			return &projectShareError{Recovery: "project-retry", Message: "客机文件共享连接已中断。Cage 会自动重试，持续失败时可查看诊断记录。"}
+			return &projectShareError{Recovery: "project-retry", Message: "客机文件共享已断开，Cage 会自动重试。若仍失败，请查看诊断记录。"}
 		case <-time.After(200 * time.Millisecond):
 		}
 	}

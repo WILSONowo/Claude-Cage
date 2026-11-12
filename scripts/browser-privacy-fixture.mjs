@@ -58,7 +58,10 @@ export async function createPrivacyController({ preferences, headless = true } =
   };
   const stop = async () => {
     if (agent?.exitCode === null) {
-      const done = once(agent, 'exit'); agent.kill('SIGTERM');
+      const done = once(agent, 'exit');
+      if (process.platform === 'win32' && control) {
+        await cdp(null, 'Browser.close', {}).catch(() => {});
+      } else agent.kill('SIGTERM');
       const kill = setTimeout(() => agent.kill('SIGKILL'), 5000);
       await done; clearTimeout(kill);
     }
@@ -67,20 +70,29 @@ export async function createPrivacyController({ preferences, headless = true } =
     await stop();
     site.closeAllConnections();
     await new Promise(resolve => site.close(resolve));
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   };
   try {
     const sourceDirectory = new URL('../internal/cage/', import.meta.url);
     for (const name of await readdir(sourceDirectory))
-      if ((name.startsWith('browser-') && name.endsWith('.mjs')) || name === 'native-input.mjs' || name === 'tailnet-client.mjs' || name === 'browser-extension-archive.py')
+      if ((name.startsWith('browser-') && name.endsWith('.mjs')) || name === 'display-density.mjs' || name === 'native-input.mjs' || name === 'tailnet-client.mjs' || name === 'browser-extension-archive.py')
         await cp(new URL(name, sourceDirectory), join(directory, name));
     await cp(new URL('split-extension', sourceDirectory), join(directory, 'extension'), { recursive: true });
+    const windows = process.platform === 'win32';
+    if (windows) {
+      const modulePath = join(directory, 'browser-extensions.mjs');
+      const source = (await readFile(modulePath, 'utf8')).replace("run('/usr/bin/python3', [", "run('python', ['-X', 'utf8', ")
+        .replace(".update(value).digest(", ".update(value, 'utf16le').digest(");
+      await writeFile(modulePath, source);
+    }
     const source = await readFile(new URL('browser-agent.mjs', sourceDirectory), 'utf8');
     const marker = 'const input = JSON.parse(text || "{}");';
     assert.ok(source.includes(marker));
-    const adapted = source.replaceAll('/home/cage-browser', directory)
-      .replace('/etc/claude-cage/browser-control.json', join(directory, 'control.json'))
-      .replace('/usr/local/lib/cage-split', join(directory, 'extension'))
+    const literalPath = path => JSON.stringify(path).slice(1, -1);
+    const adapted = source.replace('.update(splitDirectory)', windows ? ".update(splitDirectory, 'utf16le')" : '.update(splitDirectory)')
+      .replaceAll('/home/cage-browser', () => literalPath(directory))
+      .replace('/etc/claude-cage/browser-control.json', () => literalPath(join(directory, 'control.json')))
+      .replace('/usr/local/lib/cage-split', () => literalPath(join(directory, 'extension')))
       .replace('spawn("/usr/bin/chromium", flags', `spawn(${JSON.stringify(browserPath)}, flags`)
       .replace('"--start-fullscreen",', headless ? '"--headless=new", "--disable-background-networking",' : '"--start-fullscreen", "--disable-background-networking",')
       .replace('server.listen(18500, "127.0.0.1");', 'server.listen(0,"127.0.0.1",()=>console.log("PORT="+server.address().port));')

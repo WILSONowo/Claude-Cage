@@ -86,10 +86,11 @@ try {
   await downloads.getByRole("button", { name: "关闭面板", exact: true }).click();
   await downloads.waitFor({ state: "hidden" });
   assert.equal(await trigger.evaluate(el => el === document.activeElement), true);
-  await page.keyboard.press("Meta+d");
+  const modifier = await page.evaluate(() => /Mac/i.test(navigator.platform) ? "Meta" : "Control");
+  await page.keyboard.press(modifier + "+d");
   await editor.waitFor();
   await editor.getByRole("button", { name: "取消", exact: true }).click();
-  await page.keyboard.press("Meta+Shift+o");
+  await page.keyboard.press(modifier + "+Shift+o");
   await favorites.waitFor();
   await page.keyboard.press("Escape");
   await favorites.waitFor({ state: "hidden" });

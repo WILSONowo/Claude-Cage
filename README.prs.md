@@ -12,7 +12,7 @@
 
 **[وب سایت پروژه](https://claude-cage.com/) · [دانلود برنامه](https://claude-cage.com/prs/#download) · [شروع کردن](docs/getting-started.md) · [سوالات متداول](docs/troubleshooting.md) · [رهنمای استفاده (چینی)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ macOS و نسخه‌های امضاشدهٔ Windows از پراکسی انتخا
 | عیب‌یابی دانلود، راه‌اندازی، اتصال و ورود به سیستم | [سوالات متداول و بازیابی](docs/troubleshooting.md) |
 | کنترل های صفحه کلید، ظاهر، ماندگاری داده ها و رفتار خروج را بیاموزید | [استفاده روزانه](docs/getting-started.md#日常使用) |
 | یک مشکل قابل تکرار را گزارش کنید | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| مشارکت در اصلاح، قابلیت یا مستندات: بررسی Issue ← دعوت همکار ← PR | [راهنمای مشارکت (چینی)](.github/CONTRIBUTING.md) |
 
 این پروژه به سرعت در حال پیشرفت است. برای به اشتراک گذاشتن بازخورد به گروه جامعه بپیوندید. از نگهبانان جامعه استقبال می شود.
 

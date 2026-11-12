@@ -1,3 +1,12 @@
+export function sameSnapshot(left, right) {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length &&
+    keys.every(key => Object.hasOwn(right, key) && sameSnapshot(left[key], right[key]));
+}
+
 export function readLocal(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key)) ?? fallback;
@@ -8,14 +17,16 @@ export function readLocal(key, fallback) {
 
 export function orderedTabs(tabs, saved) {
   const order = saved.order || [];
+  const rank = new Map();
+  order.forEach((id, index) => {
+    if (!rank.has(id)) rank.set(id, index);
+  });
   return [...tabs].sort((a, b) => {
     const pinned =
       Number(Boolean(saved[b.id]?.pinned)) -
       Number(Boolean(saved[a.id]?.pinned));
     if (pinned) return pinned;
-    const index = (id) =>
-      order.includes(id) ? order.indexOf(id) : order.length;
-    return index(a.id) - index(b.id);
+    return (rank.get(a.id) ?? order.length) - (rank.get(b.id) ?? order.length);
   });
 }
 

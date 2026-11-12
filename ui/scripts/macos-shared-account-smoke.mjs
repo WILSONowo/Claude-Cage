@@ -32,7 +32,7 @@ for (const platform of ["darwin", "windows", "linux"]) {
   const {page,state,browser,errors} = fixture;
   try {
     page.setDefaultTimeout(10000);
-    await page.getByRole("heading",{name:"注册 Cage 账户",exact:true}).waitFor();
+    await page.getByRole("heading",{name:"创建 Cage 账户",exact:true}).waitFor();
     assert.equal(await page.getByRole("combobox",{name:"客户机系统"}).count(),0);
     assert.equal(await page.getByRole("button",{name:"信任此电脑并进入",exact:true}).count(),0);
     await page.getByLabel("用户名",{exact:true}).fill("shared_qa");
@@ -44,10 +44,10 @@ for (const platform of ["darwin", "windows", "linux"]) {
     await page.getByLabel("确认密码",{exact:true}).fill("Shared test-'\"\\$! 2026");
     if (evidence) await page.screenshot({path:`${evidence}/${platform}-register.png`});
     await page.getByRole("button",{name:"创建本地账户",exact:true}).click();
-    await page.getByRole("heading",{name:"为 Cage 准备独立环境",exact:true}).waitFor();
+    await page.getByRole("heading",{name:"设置工作环境",exact:true}).waitFor();
     assert.equal(creates,1); assert.equal(installs,0);
     await page.reload();
-    await page.getByRole("heading",{name:"为 Cage 准备独立环境",exact:true}).waitFor();
+    await page.getByRole("heading",{name:"设置工作环境",exact:true}).waitFor();
     assert.equal(state.account.username,"shared_qa"); assert.equal(creates,1);
     assert.deepEqual(errors,[]);
     console.log(`${platform}: registration precedes initialization; confirmation and reload passed`);

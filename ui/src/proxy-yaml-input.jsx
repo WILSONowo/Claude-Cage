@@ -203,7 +203,7 @@ export function ProxyYAMLInput({
         />
       </label>
       <p className="field-help">
-        只导入节点和明确的代理链，Cage 自行管理 DNS、监听端口及出站规则。
+        仅导入节点和明确的代理链。DNS、端口和出站规则由 Cage 管理。
       </p>
     </div>
   );

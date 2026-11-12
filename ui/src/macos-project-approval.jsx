@@ -7,7 +7,7 @@ import "./macos-project-approval.css";
 const permissionMessages = {
   project_screen_permission: "无法显示文件夹授权窗口。请在虚拟 Mac 的“系统设置 → 隐私与安全性 → 屏幕与系统音频录制”中允许 Cage Guest Window，并按系统提示重新打开助手。",
   accessibility_permission: "无法点击文件夹授权窗口。请在虚拟 Mac 的“系统设置 → 隐私与安全性 → 辅助功能”中允许 Cage Guest Window，然后重试。",
-  requires_gui_login: "请先登录并解锁虚拟 Mac 的普通账户，然后重新打开项目。",
+  requires_gui_login: "登录并解锁虚拟 Mac 的普通账户，再打开项目。",
 };
 
 export function InitializationProjectApproval({ workspace, jobRunning, onClose, onApproved = onClose }) {
@@ -49,7 +49,7 @@ export function InitializationProjectApproval({ workspace, jobRunning, onClose, 
     {error && <button onClick={() => setError("")}>重新请求授权</button>}
   </>}>
     <p className="macos-approval-path">{workspace}</p>
-    {error ? <p role="alert">{error}</p> : <p role="status">{jobRunning ? "当前客机操作结束后，会显示项目授权窗口。" : "正在连接客机的项目授权窗口…"}</p>}
+    {error ? <p role="alert">{error}</p> : <p role="status">{jobRunning ? "当前操作结束后会显示授权窗口。" : "正在连接客机的项目授权窗口…"}</p>}
   </Modal>;
 }
 
@@ -93,7 +93,7 @@ export function MacOSProjectApproval({ pending, onCheck, onClose, onSettings }) 
             setNotice(
               valid
                 ? ""
-                : permissionMessages[result.error] || "等待虚拟 Mac 的项目授权窗口。已允许此文件夹时，可以直接验证授权。",
+                : permissionMessages[result.error] || "正在等待授权窗口。若已允许访问此文件夹，可直接验证。",
             );
           }
         } catch (e) {
@@ -165,7 +165,7 @@ export function MacOSProjectApproval({ pending, onCheck, onClose, onSettings }) 
       });
       setFrame(null);
       if (result.error === "accessibility_permission") setMaintenance("input");
-      if (result.error) throw new Error(permissionMessages[result.error] || "客机授权窗口已变化，请等待新画面。");
+      if (result.error) throw new Error(permissionMessages[result.error] || "授权窗口已变化，请等待画面刷新。");
       await onCheck();
     });
   };
@@ -184,7 +184,7 @@ export function MacOSProjectApproval({ pending, onCheck, onClose, onSettings }) 
         </>
       }
     >
-      <p>在下方的 macOS 授权窗口中确认所选项目。</p>
+      <p>在 macOS 授权窗口中确认项目。</p>
       <p className="macos-approval-path">{pending.workspace}</p>
       {frame && (
         <img

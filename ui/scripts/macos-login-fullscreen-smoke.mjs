@@ -41,7 +41,8 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1920, height: 108
     assert.equal(inputs.length, count);
   }
   try {
-    if (viewport.width < 600) await page.getByRole("button",{name:"收起侧栏",exact:true}).click();
+    const collapse = page.getByRole("button", { name: "收起侧栏", exact: true });
+    if (viewport.width < 600 && await collapse.isVisible()) await collapse.click();
     const trigger=page.getByRole("button",{name:"登录客机账户"});
     await trigger.click({timeout:7000});
     const screen=page.getByRole("dialog",{name:"登录虚拟 Mac"});
@@ -188,7 +189,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1920, height: 108
     await screen.getByRole("alert").filter({hasText:operationError}).waitFor();
     await screen.getByRole("button", {name:"返回设置指引"}).click();
     await screen.waitFor({state:"detached"});
-    await page.getByRole("button", {name:"打开客机系统设置", exact:true}).click();
+    await page.getByRole("button", {name:"打开客机画面", exact:true}).click();
     await screen.getByRole("img").waitFor();
     assert.equal(await screen.getByRole("alert").count(), 0, "reopening retained an old operation error");
     assert.deepEqual(errors, []);

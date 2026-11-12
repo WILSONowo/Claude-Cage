@@ -59,7 +59,7 @@ try {
   if (recovering) {
     assert.equal(sentRequests,1,"a lost receipt replayed an accepted message");
     assert.ok(interruptedReads >= 2);
-    assert.equal(await page.getByText(/尚未收到主机确认|同一编号|已自动重连5次/).count(),0);
+    assert.equal(await page.getByText(/尚未收到主机确认|同一编号|已重连 5 次/).count(),0);
     assert.equal(await page.getByRole("alert").count(),0,"a recovered interruption left a failure card");
   }
   assert.equal(await page.getByRole("button",{name:"在电脑打开会话",exact:true}).count(),0);
@@ -125,7 +125,7 @@ try {
   assert.equal(await page.getByRole("alert").count(),0,"session switching displayed an extra notice");
   if (recovering) {
     persistentReadFailure = true;
-    await page.getByRole("alert").filter({hasText:"已自动重连5次"}).waitFor({timeout:40000});
+    await page.getByRole("alert").filter({hasText:"已重连 5 次"}).waitFor({timeout:40000});
     assert.equal(persistentReadAttempts,6,"initial failure must be followed by five retries");
     assert.equal(await message.inputValue(),"draft for first");
     if (capture) await page.screenshot({path:path.join(capture,engine+"-reconnect-exhausted.png")});

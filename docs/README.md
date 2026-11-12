@@ -19,5 +19,6 @@
 | 排查下载、启动、联网与授权问题 | [常见问题与恢复](troubleshooting.md) |
 | 导出故障日志并了解自动清理 | [导出诊断包](troubleshooting.md#导出诊断包) |
 | 报告隔离或凭据安全问题 | [安全报告](../SECURITY.md) |
+| 贡献修复、功能或文档，了解 Issue 审核、协作者邀请与 PR 流程 | [贡献指南](../.github/CONTRIBUTING.md) |
 
 许可材料见 [LICENSE](../LICENSE)、[NOTICE](../NOTICE)和[第三方许可](../THIRD_PARTY_LICENSES)。

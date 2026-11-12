@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+var errImageDigest = errors.New("系统镜像摘要不匹配，请重新选择或重新下载")
+
 func digestHash(digest string) (hash.Hash, error) {
 	kind, value, ok := strings.Cut(digest, ":")
 	decoded, err := hex.DecodeString(value)
@@ -41,6 +43,7 @@ type progressReader struct {
 	activity string
 	system   string
 	last     time.Time
+	touch    func()
 }
 
 func (r *progressReader) Read(p []byte) (int, error) {
@@ -48,6 +51,9 @@ func (r *progressReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 	n, err := r.reader.Read(p)
+	if n > 0 && r.touch != nil {
+		r.touch()
+	}
 	r.received += int64(n)
 	if time.Since(r.last) > 3*time.Second || err == io.EOF || (r.total > 0 && r.received >= r.total) {
 		operation := "download"
@@ -97,7 +103,7 @@ func verify(ctx context.Context, path string, plan Plan, output io.Writer) (stri
 	}
 	actual := strings.SplitN(digest, ":", 2)[0] + ":" + hex.EncodeToString(hasher.Sum(nil))
 	if plan.Digest != "" && actual != plan.Digest {
-		return "", errors.New("系统镜像摘要不匹配，请重新选择或重新下载")
+		return "", errImageDigest
 	}
 	if plan.Format == "ipsw" {
 		version, build, err := macImageIdentity(path)
@@ -117,7 +123,8 @@ func Prepare(ctx context.Context, cache string, plan Plan, output io.Writer, tra
 	if output == nil {
 		output = io.Discard
 	}
-	if plan.Path != "" {
+	managedCache := plan.URL != "" && plan.Digest != "" && plan.Path == plan.CachedPath(cache)
+	if plan.Path != "" && !managedCache {
 		fmt.Fprintln(output, "正在校验系统镜像…")
 		digest, err := verify(ctx, plan.Path, plan, output)
 		if err != nil {
@@ -131,6 +138,9 @@ func Prepare(ctx context.Context, cache string, plan Plan, output io.Writer, tra
 		plan.Bytes, plan.Modified = info.Size(), info.ModTime().UnixNano()
 		return plan, Save(cache, plan)
 	}
+	// Resolve can return the completed digest cache as Path. Process it under
+	// the download lock so a damaged cache can be repaired on a later attempt.
+	plan.Path, plan.Modified = "", 0
 	if err := os.MkdirAll(cache, 0700); err != nil {
 		return Plan{}, err
 	}
@@ -155,8 +165,26 @@ func Prepare(ctx context.Context, cache string, plan Plan, output io.Writer, tra
 		if !info.Mode().IsRegular() {
 			return Plan{}, errors.New("系统材料缓存路径无效")
 		}
-		plan.Path, plan.Modified = filepath.Join(cache, final), info.ModTime().UnixNano()
-		return Prepare(ctx, cache, plan, output, transport)
+		cached := plan
+		cached.Path, cached.Modified = filepath.Join(cache, final), info.ModTime().UnixNano()
+		_, verifyErr := verify(ctx, cached.Path, cached, output)
+		if verifyErr == nil {
+			cached.Bytes = info.Size()
+			return cached, Save(cache, cached)
+		}
+		if ctx.Err() != nil {
+			return Plan{}, ctx.Err()
+		}
+		wrongSize := plan.Bytes > 0 && info.Size() != plan.Bytes
+		if !wrongSize && !errors.Is(verifyErr, errImageDigest) {
+			return Plan{}, verifyErr
+		}
+		// Only Cage's digest-named download is retired. Keep it for diagnosis;
+		// explicitly chosen media outside this cache still fails without writes.
+		if err := root.Rename(final, final+".invalid-"+time.Now().UTC().Format("20060102T150405.000000000")); err != nil {
+			return Plan{}, err
+		}
+		fmt.Fprintln(output, "已保留校验失败的缓存，重新下载所选系统材料…")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Plan{}, err
 	}
@@ -221,6 +249,8 @@ func Prepare(ctx context.Context, cache string, plan Plan, output io.Writer, tra
 }
 
 func download(ctx context.Context, plan Plan, file *os.File, offset int64, output io.Writer, transport http.RoundTripper) error {
+	ctx, touch, stop := watchDownload(ctx)
+	defer stop()
 	client := &http.Client{Transport: transport, Timeout: 2 * time.Hour, CheckRedirect: func(request *http.Request, previous []*http.Request) error {
 		if len(previous) >= 5 {
 			return errors.New("系统下载重定向次数过多")
@@ -239,8 +269,13 @@ func download(ctx context.Context, plan Plan, file *os.File, offset int64, outpu
 	}
 	response, err := client.Do(request)
 	if err != nil {
+		if errors.Is(context.Cause(ctx), errDownloadIdle) {
+			return errDownloadIdle
+		}
 		return err
 	}
+	// Receiving headers is progress; give the response body its full idle window.
+	touch()
 	defer response.Body.Close()
 	switch response.StatusCode {
 	case http.StatusOK:
@@ -264,8 +299,11 @@ func download(ctx context.Context, plan Plan, file *os.File, offset int64, outpu
 	if plan.Bytes > 0 {
 		limit = plan.Bytes
 	}
-	count, err := io.Copy(file, &progressReader{ctx: ctx, reader: io.LimitReader(response.Body, limit-offset+1), out: output, received: offset, total: plan.Bytes, activity: "下载系统材料", system: plan.Host.System})
+	count, err := io.Copy(file, &progressReader{ctx: ctx, reader: io.LimitReader(response.Body, limit-offset+1), out: output, received: offset, total: plan.Bytes, activity: "下载系统材料", system: plan.Host.System, touch: touch})
 	if err != nil {
+		if errors.Is(context.Cause(ctx), errDownloadIdle) {
+			return errDownloadIdle
+		}
 		return err
 	}
 	if offset+count > limit || (plan.Bytes > 0 && offset+count != plan.Bytes) {

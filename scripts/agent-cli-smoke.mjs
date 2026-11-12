@@ -1,6 +1,7 @@
 // Exercise the shipped entry point against a disposable profile, without a VM.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
@@ -34,7 +35,8 @@ try {
   call(['service.start']);
   assert.equal(JSON.parse(await readFile(join(profile, 'profile', 'control.json'), 'utf8')).pid, controllerPID);
   assert.equal(call(['call', 'settings.get'], undefined, 3).error.code, 'account_locked');
-  call(['call', 'account.create', '--input', '-'], { username: 'agent_acceptance', password: 'Ephemeral-Test-Password-123!', confirm_password: 'Ephemeral-Test-Password-123!' });
+  const password = randomBytes(24).toString('base64url');
+  call(['call', 'account.create', '--input', '-'], { username: 'agent_acceptance', password, confirm_password: password });
   const before = call(['call', 'settings.get']).data;
   const patch = { balanced_display: !before.balanced_display };
   call(['call', 'settings.patch', '--input', '-'], { patch, dry_run: true });

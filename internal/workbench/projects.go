@@ -47,6 +47,35 @@ func (s *Server) connectProject(path string, add bool) (string, error) {
 	return path, nil
 }
 
+// lockProjectOperation tolerates brief monitor activity without turning a
+// legitimate project request into a 409. The lifecycle lock still guards the
+// entire authorization and mount operation; persistent contention remains a
+// bounded conflict and canceled requests stop waiting.
+func (s *Server) lockProjectOperation(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	if s.op.TryLock() {
+		return true
+	}
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+			return false
+		case <-ticker.C:
+			if s.op.TryLock() {
+				return true
+			}
+		}
+	}
+}
+
 func (s *Server) openProject(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Workspace string `json:"workspace"`
@@ -60,7 +89,10 @@ func (s *Server) openProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "请选择项目文件夹", 400)
 		return
 	}
-	if !s.op.TryLock() {
+	if !s.lockProjectOperation(r.Context()) {
+		if r.Context().Err() != nil {
+			return
+		}
 		w.Header().Set("X-Cage-Recovery", "project-operation-busy")
 		http.Error(w, "另一个操作仍在进行，请稍候", 409)
 		return
@@ -177,6 +209,10 @@ func (p *projectShare) close() {
 // The local SFTP server owns the host authorization boundary for both macOS
 // and Linux mounts. The remote shell receives only that directory's byte stream.
 func startProjectTransport(cmd *exec.Cmd, path string) (*projectShare, error) {
+	identity, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -193,7 +229,7 @@ func startProjectTransport(cmd *exec.Cmd, path string) (*projectShare, error) {
 	}
 	go func() {
 		defer close(share.done)
-		_ = reversesshfs.ServeConfined(share.transport, path, false, nil)
+		_ = reversesshfs.ServeConfinedPinned(share.transport, path, false, nil, identity)
 		share.stop()
 		_ = cmd.Wait()
 	}()

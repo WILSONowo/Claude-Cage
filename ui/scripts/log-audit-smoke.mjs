@@ -64,7 +64,7 @@ try {
   for (let round = 0; round < 4; round++) {
     await trigger.click();
     await page.getByRole("dialog", { name: "下载文件", exact: true }).waitFor();
-    await page.getByRole("button", { name: "工作台", exact: true }).click();
+    await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
     await page.setViewportSize({ width: 950 + round * 25, height: 720 });
     await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
   }

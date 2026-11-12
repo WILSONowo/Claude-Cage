@@ -16,6 +16,19 @@ test("address input retains loopback inside guest and rejects active schemes", (
   assert.throws(() => normalizeURL("file:///etc/passwd"));
 });
 
+test("address input recognizes ports and bracketed IPv6 before URI schemes", () => {
+  for (const [input, expected] of [
+    ["example.com:8080/docs", "https://example.com:8080/docs"],
+    ["EXAMPLE.com:8443?q=1#section", "https://example.com:8443/?q=1#section"],
+    ["LOCALHOST:3000", "http://localhost:3000/"],
+    ["[::1]:3000/test", "http://[::1]:3000/test"],
+    ["[2001:db8::1]:8443/path", "https://[2001:db8::1]:8443/path"],
+  ]) assert.equal(normalizeURL(input), expected);
+  for (const input of ["javascript:alert(1)", "data:text/plain,example.com", "file:///tmp/test", "mailto:user@example.com"])
+    assert.throws(() => normalizeURL(input), /http 或 https/);
+  assert.equal(normalizeURL("find example.com:8080"), "https://www.google.com/search?q=find%20example.com%3A8080");
+});
+
 import { api, native, nativeAvailable } from "./api.js";
 function nativeRuntime(t, fetcher, bridge) {
   const saved = {
@@ -154,4 +167,53 @@ test("a new control address reconnects without sending a ticket to the old origi
   );
   await assert.rejects(api("/stop", {}), /地址已更新/);
   assert.deepEqual(actions, ["refreshSession", "reconnect"]);
+});
+
+test("canceling one request does not wait for or cancel shared session renewal", async t => {
+  const controller = new AbortController();
+  const reason = new Error("session open canceled");
+  let release, authorized = false, canceled = false, renewals = 0, opens = 0;
+  const ticket = new Promise(resolve => { release = resolve; });
+  nativeRuntime(t, async path => {
+    if (path === "/api/session") { authorized = true; return json({}); }
+    if (!authorized) return new Response("expired", {status:401});
+    if (path === "/api/cli/sessions/test/open") opens++;
+    return json({ready:true});
+  }, async () => { renewals++; return ticket; });
+  const opening = api("/cli/sessions/test/open", {}, undefined, {}, {signal:controller.signal})
+    .catch(error => { assert.equal(error, reason); canceled = true; });
+  const status = api("/status");
+  let recovered;
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort(reason);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(canceled, true, "cancellation must settle while the shared renewal is still pending");
+  } finally {
+    release({url:"http://localhost:17777/#shared-ticket"});
+    [, recovered] = await Promise.all([opening, status]);
+  }
+  assert.equal(renewals, 1);
+  assert.equal(opens, 0);
+  assert.deepEqual(recovered, {ready:true});
+});
+
+test("cancellation while decoding a response preserves the abort reason", async t => {
+  const controller = new AbortController();
+  const reason = new Error("request canceled during body read");
+  nativeRuntime(t, async () => ({
+    ok:true, status:200,
+    json: async () => { controller.abort(reason); throw reason; },
+  }), () => { throw Error("unexpected renewal"); });
+  await assert.rejects(api("/status", undefined, undefined, {}, {signal:controller.signal}), error => error === reason);
+});
+
+test("cancellation while reading an HTTP error preserves the abort reason", async t => {
+  const controller = new AbortController();
+  const reason = new Error("request canceled during error-body read");
+  nativeRuntime(t, async () => ({
+    ok:false, status:500,
+    text: async () => { controller.abort(reason); throw new DOMException("aborted", "AbortError"); },
+  }), () => { throw Error("unexpected renewal"); });
+  await assert.rejects(api("/status", undefined, undefined, {}, {signal:controller.signal}), error => error === reason);
 });

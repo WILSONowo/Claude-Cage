@@ -89,6 +89,9 @@ func run() int {
 	} {
 		os.Unsetenv(name)
 	}
+	// The shared commands otherwise name agent-vm and suggest its installer.
+	cli.Command = "claude-cage"
+	cli.UpdateHint = "update Cage from the app, or with the installer or package that installed it"
 	args := os.Args[1:]
 	if len(args) > 0 && args[0] == "host-download" {
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -83,7 +83,7 @@ jobs:
           bash scripts/package-linux.sh --skip-build
           npm test --prefix ui
           npm run --prefix ui lint
-          node --test internal/cage/browser-clipboard.test.mjs internal/cage/native-input.test.mjs internal/cage/display-density.test.mjs
+          node --test internal/cage/browser-clipboard.test.mjs internal/cage/native-input.test.mjs internal/cage/display-density.test.mjs internal/cage/browser-wheel.test.mjs
       - name: Linux executable tests as an ordinary user
         env:
           UV_CACHE_DIR: /home/cage/.cache/uv

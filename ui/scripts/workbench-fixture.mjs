@@ -142,7 +142,7 @@ export async function createWorkbench({
         state.account.unlocked = true;
         state.account.require_authentication = false;
       } else if (action === "profile") {
-        if (state.failAccountSave) return route.fulfill({ status: 400, body: "资料未能保存，请重试" });
+        if (state.failAccountSave) return route.fulfill({ status: 400, contentType: "text/plain; charset=utf-8", body: "资料未能保存，请重试" });
         Object.assign(state.account, { username: body.username.trim(), avatar: body.avatar });
       } else if (action === "password") {
         if (body.old_password !== state.accountPassword) return route.fulfill({ status: 400, body: "密码不正确" });
@@ -181,7 +181,7 @@ export async function createWorkbench({
           return route.fulfill({ status: 400, body: "请先确认启用保护" });
         if (state.failHostGit)
           return route.fulfill({
-            status: 500,
+            status: 500, contentType: "text/plain; charset=utf-8",
             body: "未能保存 Git 安全设置，请检查写入权限后重试。",
           });
         state.hostGit = {
@@ -387,7 +387,7 @@ export async function createWorkbench({
   });
   if (beforeNavigate) await beforeNavigate(page, state);
   await page.goto(url || process.env.CAGE_UI_URL || "http://127.0.0.1:5198");
-  if (waitForReady && !startupFailure && !state.status.vm_running && clientContext.mode !== "none") await page.getByRole("heading", { name: state.initialization.required ? state.initialization.started ? "安装并检查客机环境" : "为 Cage 准备独立环境" : "先启动 Cage 环境" }).waitFor();
+  if (waitForReady && !startupFailure && !state.status.vm_running && clientContext.mode !== "none") await page.getByRole("heading", { name: state.initialization.required ? state.initialization.started ? "安装并检查客机环境" : "设置工作环境" : "开始使用 Cage" }).waitFor();
   return { browser, context, page, state, errors };
 }
 

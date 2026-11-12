@@ -29,7 +29,7 @@ try {
   page.setDefaultTimeout(10000);
   workbench.state.settings.browser_home_url = controller.origin + '/ui-home';
   await page.getByRole('button', { name: '启动 Cage 环境', exact: true }).click();
-  await page.getByRole('heading', { name: 'Cage 环境已就绪', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '新建对话', exact: true }).waitFor();
   await page.getByRole('button', { name: '打开浏览器', exact: true }).click();
   await page.getByRole('tab', { name: 'Privacy fixture', exact: true }).waitFor();
   const menu = page.getByRole('button', { name: '浏览器菜单', exact: true });

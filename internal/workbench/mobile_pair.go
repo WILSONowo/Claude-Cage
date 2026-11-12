@@ -290,7 +290,7 @@ func (s *Server) pairPhone(w http.ResponseWriter, r *http.Request) {
 	}()
 	room, err := mobilelink.CreateRoom(ctx, origin, input.Admin)
 	if err != nil {
-		requestError(w, errors.New("中继未能创建连接。请检查网络、自建地址和管理令牌。"))
+		requestError(w, errors.New("中继连接失败，请检查网络、中继地址和管理令牌。"))
 		return
 	}
 	_, key, err := ed25519.GenerateKey(rand.Reader)

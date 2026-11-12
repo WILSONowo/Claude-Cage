@@ -1,5 +1,5 @@
 export const systemUIFont =
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif';
+  '-apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif';
 export const systemCodeFont = '"SF Mono", Menlo, Consolas, monospace';
 import { presets } from "./appearance-presets.mjs";
 export {
@@ -14,14 +14,14 @@ export const defaultAppearance = {
   customThemes: [],
   mode: "system",
   lightTheme: {
-    ...presets.light.codex,
-    preset: "codex",
+    ...presets.light["claude-desktop"],
+    preset: "claude-desktop",
     opaqueWindows: false,
     fonts: { ui: "", code: "" },
   },
   darkTheme: {
-    ...presets.dark.codex,
-    preset: "codex",
+    ...presets.dark["claude-desktop"],
+    preset: "claude-desktop",
     opaqueWindows: false,
     fonts: { ui: "", code: "" },
   },
@@ -31,32 +31,27 @@ export const defaultAppearance = {
   fontSmoothing: true,
   reducedMotion: "system",
 };
+function normalizeVariant(value = {}, variant) {
+  const defaults = defaultAppearance[variant + "Theme"];
+  const light = variant === "light";
+  const legacy = value?.preset === "claude-desktop" && value.accent === "#d97757" &&
+    value.surface === (light ? "#faf9f5" : "#262624") &&
+    value.ink === (light ? "#262624" : "#faf9f5") && value.contrast === defaults.contrast;
+  return {
+    ...defaults, ...value,
+    ...(legacy && { accent: defaults.accent, surface: defaults.surface, ink: defaults.ink }),
+    colors: { ...value?.colors }, terminal: { ...value?.terminal },
+    fonts: { ...defaults.fonts, ...value?.fonts },
+  };
+}
 export function normalizeAppearance(value = {}) {
   value = value && typeof value === "object" ? value : {};
   return {
     ...defaultAppearance,
     ...value,
     customThemes: Array.isArray(value.customThemes) ? value.customThemes : [],
-    lightTheme: {
-      ...defaultAppearance.lightTheme,
-      ...value.lightTheme,
-      colors: { ...value.lightTheme?.colors },
-      terminal: { ...value.lightTheme?.terminal },
-      fonts: {
-        ...defaultAppearance.lightTheme.fonts,
-        ...value.lightTheme?.fonts,
-      },
-    },
-    darkTheme: {
-      ...defaultAppearance.darkTheme,
-      ...value.darkTheme,
-      colors: { ...value.darkTheme?.colors },
-      terminal: { ...value.darkTheme?.terminal },
-      fonts: {
-        ...defaultAppearance.darkTheme.fonts,
-        ...value.darkTheme?.fonts,
-      },
-    },
+    lightTheme: normalizeVariant(value.lightTheme, "light"),
+    darkTheme: normalizeVariant(value.darkTheme, "dark"),
   };
 }
 export function mix(a, b, weight) {
@@ -110,16 +105,63 @@ export function themeVariables(theme, variant) {
     "--code-font-family": theme.fonts.code || systemCodeFont,
     "--accent-ink": luminance(accent) > 0.4 ? "#111111" : "#ffffff",
   };
+  const dark = variant === "dark";
+  const stock = presets[variant]["claude-desktop"];
+  const claude = theme.preset === "claude-desktop" && surface === stock.surface &&
+    ink === stock.ink && contrast === stock.contrast;
+  if (claude) {
+    Object.assign(variables, {
+      "--chrome": dark ? "#1f1f1f" : "#ffffff",
+      "--chrome-dark": dark ? "#0b0b0b" : "#f9f9f9",
+      "--input": dark ? "#252525" : "#ffffff",
+      "--muted": dark ? "#9c9c9c" : "#666666",
+      "--line": dark ? "#303030" : "#e0e0e0",
+      "--selected": dark ? "#373737" : "#ebebeb",
+      "--hover": dark ? "#2a2a2a" : "#ececec",
+      "--link": accent,
+      "--strong": ink,
+    });
+  }
+  if (theme.preset === "cage") {
+    variables["--chrome"] = mix(surface, ink, 0.045);
+    variables["--muted"] = mix(ink, surface, 0.30);
+    variables["--line"] = mix(surface, ink, 0.085 + contrast * 0.0007);
+    variables["--selected"] = mix(surface, accent, variant === "dark" ? 0.18 : 0.095);
+  }
   for (const [key, value] of Object.entries(theme.colors || {})) {
     if (colorTokens[key]) variables[colorTokens[key]] = value;
   }
-  variables["--sidebar"] = theme.colors?.sidebar || variables["--chrome"];
+  variables["--sidebar"] = theme.colors?.sidebar || (claude ? variables["--chrome-dark"] : variables["--chrome"]);
   variables["--sidebar-ink"] = theme.colors?.sidebarInk || ink;
   variables["--toolbar"] = theme.colors?.toolbar || surface;
   variables["--toolbar-ink"] = theme.colors?.toolbarInk || ink;
   // Shared components also use these aliases.
   variables["--border"] = variables["--line"];
   variables["--surface"] = variables["--paper"];
+  const colors = theme.colors || {};
+  const fieldBorder = colors.line || (claude ? (dark ? "#ffffff0a" : "#00000014") : line);
+  const hoverBorder = claude && !colors.line
+    ? (dark ? "rgb(255 255 255 / 20%)" : "rgb(11 11 11 / 20%)")
+    : `color-mix(in srgb, ${fieldBorder} 70%, ${ink})`;
+  const focus = variables["--focus"];
+  const page = claude ? variables["--chrome-dark"] : variables["--paper"];
+  const glow = claude && dark && focus === stock.accent
+    ? "rgb(23 87 172 / 60%)" : `color-mix(in srgb, ${focus} 12%, transparent)`;
+  const composerBorder = colors.line || (claude ? (dark ? "#ffffff14" : "#0000001f") : line);
+  const edge = `${dark ? "inset " : ""}0 0 0 1px ${composerBorder}`;
+  Object.assign(variables, {
+    "--panel-bg": claude ? variables["--chrome"] : surface,
+    "--field-bg": colors.input || (claude ? (dark ? "rgb(255 255 255 / 5%)" : "rgb(255 255 255 / 50%)") : variables["--input"]),
+    "--field-border": fieldBorder,
+    "--field-border-hover": hoverBorder,
+    "--field-shadow": `inset 0 0 0 1px ${fieldBorder}`,
+    "--field-shadow-hover": `inset 0 0 0 1px ${hoverBorder}`,
+    "--field-ring": `inset 0 0 0 1px ${page}, 0 0 0 1px ${focus}, 0 0 6px 1px ${glow}`,
+    "--field-radius": "6px",
+    "--composer-bg": colors.input || (claude && dark ? "#303030" : variables["--input"]),
+    "--composer-shadow": `0 4px 20px rgb(0 0 0 / 3.5%), ${edge}`,
+    "--composer-shadow-focus": `0 4px 20px rgb(0 0 0 / 7.5%), ${edge}`,
+  });
   return variables;
 }
 export function terminalTheme(theme, variant) {
@@ -133,7 +175,7 @@ export function terminalTheme(theme, variant) {
     black: variant === "dark" ? "#202020" : "#242424",
     red: variant === "dark" ? "#f26d78" : "#c43d3d",
     green: variant === "dark" ? "#aad94c" : "#4b7b23",
-    yellow: theme.accent,
+    yellow: theme.preset === "claude-desktop" ? (variant === "dark" ? "#edbd62" : "#946400") : theme.accent,
     blue: variant === "dark" ? "#59c2ff" : "#206bb1",
     magenta: variant === "dark" ? "#d2a6ff" : "#a03e9c",
     cyan: variant === "dark" ? "#95e6cb" : "#187b74",

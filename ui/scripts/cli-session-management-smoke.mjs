@@ -16,7 +16,7 @@ const sessions = [
   {id:"12345678-1234-4321-aaaa-123456789abf", workspace, title:"核对接口", archived:true, updated_at:"2026-11-05T08:00:00Z", turns:[]},
   {id:"12345678-1234-4321-aaaa-123456789ac0", workspace:otherProject, title:"移动端布局检查", archived:true, updated_at:"2026-11-04T08:00:00Z", turns:[]},
 ];
-let state, failPurge = true, failOpen = true, opens = 0, releaseOpen;
+let state, failPurge = true, failOpen = true, opens = 0, releaseOpen, staleOpen;
 const handle = async (route, path, body) => {
   const archived = new URL(route.request().url()).searchParams.get("archived") === "true";
   if (path === "/cli/sessions") return route.fulfill({json:{sessions:sessions.filter(s => Boolean(s.archived) === archived),notice:""}});
@@ -25,6 +25,10 @@ const handle = async (route, path, body) => {
   if (path.endsWith("/open")) {
     opens++;
     if (failOpen) return route.fulfill({status:409,contentType:"text/plain; charset=utf-8",body:"测试：原终端仍在运行，请先退出其中的 Claude Code"});
+    if (session.id === otherID) {
+      await new Promise(resolve => { staleOpen = resolve; });
+      return route.fulfill({status:409,contentType:"text/plain; charset=utf-8",body:"已切换会话的过期错误"});
+    }
     await new Promise(resolve => { releaseOpen = resolve; });
     const terminal = {id:"restored-terminal", kind:"claude", workspace, title:session.title, cli_session_id:session.id};
     state.terminals = [terminal];
@@ -51,17 +55,28 @@ try {
   const history = page.getByRole("button",{name:"电脑保留的历史",exact:true});
   await history.waitFor();
   await history.click();
-  await page.getByRole("status").filter({hasText:"测试：原终端仍在运行"}).waitFor();
+  await page.getByRole("alert").filter({hasText:"测试：原终端仍在运行"}).waitFor();
   assert.equal(await page.getByRole("dialog",{name:"电脑保留的历史"}).count(),0,"session click opened an intermediate preview");
   assert.equal(await history.isEnabled(),true,"failed session open could not be retried");
   failOpen = false;
+  const other = page.getByRole("button",{name:"另一段会话",exact:true});
+  const pendingOther = page.waitForRequest(request => request.url().endsWith("/" + otherID + "/open"));
+  await other.click();
+  await pendingOther;
+  await page.waitForFunction(() => document.querySelector('.sidebar-session[aria-busy="true"]')?.disabled);
+  assert.equal(await history.isEnabled(),true,"another session could not supersede a pending terminal restore");
+  const dropped = page.waitForEvent("requestfailed", request => request.url().endsWith("/" + otherID + "/open"));
   await history.click();
   await page.waitForFunction(() => document.querySelector('.sidebar-session[aria-busy="true"]')?.disabled);
-  assert.equal(await page.getByRole("button",{name:"另一段会话",exact:true}).isDisabled(),true,"another open was allowed during terminal restore");
+  staleOpen();
+  await dropped;
+  assert.equal(await page.getByRole("alert").filter({hasText:"已切换会话的过期错误"}).count(),0,"superseded restore surfaced a stale error");
   releaseOpen();
   await page.getByRole("tab",{name:"电脑保留的历史",exact:true}).waitFor();
   assert.equal(await history.count(),0,"history duplicated its live terminal");
-  assert.equal(opens,2,"clicking one session sent duplicate open requests");
+  for (let attempt = 0; !state.terminalConnections && attempt < 100; attempt++)
+    await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(opens,3,"clicking one session sent duplicate open requests");
   assert.equal(state.terminalConnections,1,"restored terminal did not connect");
   assert.equal(state.requests.filter(r => r.path === "/cli/sessions/" + id).length,0,"desktop fetched a history preview");
   await page.getByRole("tab",{name:"电脑保留的历史",exact:true}).hover();

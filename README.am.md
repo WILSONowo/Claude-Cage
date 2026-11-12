@@ -12,7 +12,7 @@
 
 **[የፕሮጀክት ድር ጣቢያ](https://claude-cage.com/) · [መተግበሪያውን ያውርዱ](https://claude-cage.com/am/#download) · [በመጀመር ላይ](docs/getting-started.md) · [የሚጠየቁ ጥያቄዎች](docs/troubleshooting.md) · [የአጠቃቀም መመሪያ (በቻይንኛ)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ macOS እና የተፈረሙ Windows ስሪቶች በተመረጠው ፕሮክ�
 | ማውረዶችን፣ ጅምርን፣ ግንኙነትን እና መግባትን መላ ፈልግ | [የሚጠየቁ ጥያቄዎች እና መልሶ ማግኛ](docs/troubleshooting.md) |
 | የቁልፍ ሰሌዳ መቆጣጠሪያዎችን፣ መልክን፣ የውሂብን ጽናት እና የመውጣት ባህሪን ተማር | [ዕለታዊ አጠቃቀም](docs/getting-started.md#日常使用) |
 | ሊባዛ የሚችል ጉዳይ ሪፖርት ያድርጉ | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| ማስተካከያ፣ ባህሪ ወይም ሰነድ ለማበርከት፦ Issue ግምገማ → የተባባሪ ግብዣ → PR | [የአስተዋጽኦ መመሪያ (ቻይንኛ)](.github/CONTRIBUTING.md) |
 
 ፕሮጀክቱ በፍጥነት እያደገ ነው. ግብረመልስ ለማጋራት የማህበረሰብ ቡድኑን ይቀላቀሉ; የማህበረሰብ ጠባቂዎች እንኳን ደህና መጡ።
 

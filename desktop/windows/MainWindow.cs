@@ -8,8 +8,8 @@ internal sealed class MainWindow : Form
 {
     private WebView2 web = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly NativeInput nativeInput;
-    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 Cage 工作台…", Margin = new Padding(12) };
-    private readonly FlowLayoutPanel status = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(48), WrapContents = false };
+    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 Cage 工作台…", Margin = new Padding(0, 0, 0, 16) };
+    private readonly FlowLayoutPanel status = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(32), WrapContents = false };
     private readonly Button retry = new() { Text = "重试连接", AutoSize = true, Visible = false };
     private readonly Button existing = new() { Text = "打开现有环境保存文件", AutoSize = true, Visible = false };
     private readonly Button complete = new() { Text = "保存后停止环境并完成更新", AutoSize = true, Visible = false };
@@ -18,16 +18,24 @@ internal sealed class MainWindow : Form
     private int expectedPort;
     private bool controllerNeedsUpdate, allowQuit, bootstrapping, webFailed;
     private bool completingSmoke;
+    private Task? initializingWebView;
     private string smokePhase = "starting";
     private readonly CancellationTokenSource lifetime = new();
     private readonly Dictionary<string, (string[] Paths, DateTime Expires)> fileSelections = new();
 
     public MainWindow()
     {
-        nativeInput = new NativeInput(value => Script("window.dispatchEvent(new CustomEvent('cage-native-input',{detail:" + JsonSerializer.Serialize(value) + "}));"));
+        nativeInput = new NativeInput(PublishInput);
         AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96, 96);
         Text = "Cage";
-        StartPosition = FormStartPosition.CenterScreen; BackColor = Color.FromArgb(247, 247, 247);
+        StartPosition = FormStartPosition.CenterScreen;
+        var lightApps = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1);
+        bool darkStartup = lightApps is int preference && preference == 0;
+        BackColor = SystemInformation.HighContrast ? SystemColors.Window :
+            darkStartup ? Color.FromArgb(25, 25, 25) : Color.White;
+        ForeColor = SystemInformation.HighContrast ? SystemColors.WindowText :
+            darkStartup ? Color.FromArgb(239, 239, 239) : Color.FromArgb(25, 25, 25);
+        web.DefaultBackgroundColor = BackColor;
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
         status.Controls.AddRange([message, retry, existing, complete]);
         Controls.Add(web); Controls.Add(status);
@@ -40,11 +48,13 @@ internal sealed class MainWindow : Form
             if (ConfirmStop()) await Bootstrap("--complete-update");
         };
         var trayMenu = new TrayMenu();
-        trayMenu.Items.Add("打开 Cage", null, (_, _) => RestoreWindow());
-        trayMenu.Items.Add("检查应用更新…", null, (_, _) => updater!.Handle("check"));
-        trayMenu.Items.Add("关于 Cage", null, (_, _) => MessageBox.Show(this, $"Cage {AppUpdater.Version}\n本机隔离编码工作区", "关于 Cage"));
+        trayMenu.AddCommand("打开 Cage", "\uE8A7", (_, _) => RestoreWindow());
         trayMenu.Items.Add(new ToolStripSeparator());
-        trayMenu.Items.Add("退出 Cage…", null, (_, _) => RequestQuit());
+        var checkUpdate = trayMenu.AddCommand("检查更新…", "\uE72C", (_, _) => HandleUpdate("check"));
+        checkUpdate.Enabled = Program.SmokeOutput == null;
+        trayMenu.AddCommand("关于 Cage", "\uE946", (_, _) => MessageBox.Show(this, $"Cage {AppUpdater.Version}\n本机隔离工作区", "关于 Cage"));
+        trayMenu.Items.Add(new ToolStripSeparator());
+        trayMenu.AddCommand("退出 Cage…", "\uE8BB", (_, _) => RequestQuit());
         trayMenu.Opening += (_, _) => (chrome ?? new WindowChrome(BackColor, ForeColor, false)).ApplyMenu(trayMenu);
         tray = new NotifyIcon { Icon = Icon, Text = "Cage", Visible = true, ContextMenuStrip = trayMenu };
         tray.DoubleClick += (_, _) => RestoreWindow();
@@ -125,8 +135,8 @@ internal sealed class MainWindow : Form
     }
 
     private bool ConfirmStop() => MessageBox.Show(this,
-        "请先保存编辑器中的文件并结束正在运行的工作。继续后 Cage 会停止环境、安装已验证的更新并重新启动。",
-        "保存并停止环境后安装重启", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
+        "请先保存编辑器中的文件并结束正在运行的工作。Cage 将停止环境、安装更新并重启。",
+        "停止环境并更新？", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
 
     public void RestoreWindow() { Show(); if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal; Activate(); PublishVisibility(); }
     private void RequestQuit()
@@ -141,10 +151,25 @@ internal sealed class MainWindow : Form
         if (state.TryGetValue("phase", out var phase) && phase as string == "failed") _ = Backend.Report("App update failed: " + state.GetValueOrDefault("message"));
         Script("window.dispatchEvent(new CustomEvent('cage-app-update',{detail:" + JsonSerializer.Serialize(state) + "}));");
     }
+    private Dictionary<string, object?> HandleUpdate(string operation)
+    {
+        // A packaging smoke may inspect update status, never download/install
+        // an application (or start the updater's separate streamed helpers).
+        if (Program.SmokeOutput != null && operation != "status")
+            return new() { ["phase"] = "idle", ["message"] = "自检期间不执行应用更新" };
+        return updater.Handle(operation);
+    }
     private async void Script(string script)
     {
         if (web.IsDisposed || web.CoreWebView2 == null || IsDisposed) return;
         try { await web.ExecuteScriptAsync(script); }
+        catch (InvalidOperationException) { }
+        catch (System.Runtime.InteropServices.COMException) { }
+    }
+    private void PublishInput(Dictionary<string, object?> value)
+    {
+        if (web.IsDisposed || web.CoreWebView2 == null || IsDisposed) return;
+        try { web.CoreWebView2.PostWebMessageAsJson(NativeBridge.InputMessage(value)); }
         catch (InvalidOperationException) { }
         catch (System.Runtime.InteropServices.COMException) { }
     }
@@ -156,6 +181,7 @@ internal sealed class MainWindow : Form
 
     private async Task Initialize(bool recreate = false)
     {
+        if (completingSmoke) return;
         smokePhase = "initializing_webview";
         retry.Enabled = false;
         try
@@ -166,8 +192,9 @@ internal sealed class MainWindow : Form
                 web = new WebView2 { Dock = DockStyle.Fill, Visible = false };
                 Controls.Add(web); status.BringToFront();
             }
-            var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Backend.Root, "webview2"));
-            await web.EnsureCoreWebView2Async(environment);
+            initializingWebView = InitializeWebView();
+            await initializingWebView;
+            if (completingSmoke) return;
             smokePhase = "webview_initialized";
             var core = web.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false; core.Settings.AreDefaultContextMenusEnabled = false;
@@ -192,7 +219,7 @@ internal sealed class MainWindow : Form
                 }
                 status.Hide(); web.Show(); web.Focus(); PublishVisibility();
             };
-            await core.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript);
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(NativeBridge.Script);
             if (Program.SmokeOutput != null) await core.AddScriptToExecuteOnDocumentCreatedAsync(SmokeDiagnosticsScript);
             webFailed = false;
             await Bootstrap();
@@ -202,8 +229,15 @@ internal sealed class MainWindow : Form
             Error("缺少 Microsoft Edge WebView2 Runtime。请运行 Cage 安装程序安装随附运行时后重试。");
             webFailed = true;
         }
-        catch (Exception error) { webFailed = true; Error("无法初始化工作台：" + error.Message); }
+        catch (Exception error) { if (!completingSmoke) { webFailed = true; Error("无法初始化工作台：" + error.Message); } }
         finally { retry.Enabled = true; }
+    }
+
+    private async Task InitializeWebView()
+    {
+        var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Backend.Root, "webview2"));
+        if (completingSmoke) return;
+        await web.EnsureCoreWebView2Async(environment);
     }
 
     private async Task SmokeDeadline()
@@ -216,38 +250,48 @@ internal sealed class MainWindow : Form
     {
         if (Program.SmokeOutput == null || completingSmoke) return;
         completingSmoke = true;
+        Backend.CloseSmokeAdmission();
         JsonElement? page = null;
-        var pageURL = web.Source?.GetLeftPart(UriPartial.Path);
-        var environment = web.CoreWebView2?.Environment;
-        var webviewVersion = environment?.BrowserVersionString;
+        CoreWebView2Environment? environment = null;
+        string? webviewVersion = null;
         using var shutdown = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-        shutdown.CancelAfter(TimeSpan.FromSeconds(20));
         var errors = new List<string>();
         int? prepareExit = null;
         string? prepareStatus = null;
         if (failure != null) errors.Add(failure);
+        if (initializingWebView != null)
+        {
+            try { await initializingWebView.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (Exception error) { errors.Add("自检初始化未完成：" + error.GetType().Name); }
+        }
+        environment = web.CoreWebView2?.Environment;
+        webviewVersion = environment?.BrowserVersionString;
         try
         {
-            if (!nativeBridgeReady && web.CoreWebView2 != null)
+            if (web.CoreWebView2 != null)
             {
                 try
                 {
-                    var snapshot = await web.CoreWebView2.ExecuteScriptAsync("({title:document.title,ready:document.readyState,text:(document.body?.innerText||'').slice(0,4096),errors:window.__cageSmokeErrors||[]})");
+                    var snapshot = await web.CoreWebView2.ExecuteScriptAsync("({ready:document.readyState,errors:(window.__cageSmokeErrors||[]).slice(0,8)})")
+                        .WaitAsync(TimeSpan.FromSeconds(3));
                     page = JsonDocument.Parse(snapshot).RootElement.Clone();
-                    await using var capture = File.Create(Path.ChangeExtension(Program.SmokeOutput, ".png"));
-                    await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, capture);
                 }
-                catch (Exception error) { errors.Add("无法保存工作台画面：" + error.Message); }
+                catch (Exception error) { errors.Add("无法采集工作台错误状态：" + error.GetType().Name); }
             }
+            // Finish all admitted desktop/diagnostic CLI calls before reading
+            // control.json: a late refresh can publish a new controller record.
+            if (!await Backend.DrainSmokeHelpers(TimeSpan.FromSeconds(5)))
+                errors.Add("自检辅助请求超时，已取消并确认退出");
+            shutdown.CancelAfter(TimeSpan.FromSeconds(20));
             var controllers = Backend.CaptureSmokeControllers();
             try
             {
                 if (nativeBridgeReady) smokePhase = "stopping_backend";
-                var (exit, data) = await Backend.Json(["prepare-update", "--json"], shutdown.Token, TimeSpan.FromSeconds(20));
+                var (exit, data) = await Backend.PrepareSmokeShutdown(shutdown.Token);
                 prepareExit = exit;
                 prepareStatus = data.Text("status") is "prepared" or "stop_required" or "error" ? data.Text("status") : "unexpected";
                 if (exit != 0 || data.Text("status") != "prepared") throw new IOException("自检结束时无法确认后台已停止");
-                await Task.WhenAll(controllers.Select(process => process.WaitForExitAsync(shutdown.Token)));
+                await Task.WhenAll(controllers.Select(process => NativeHelperLifetime.WaitForProcessExitAsync(process, shutdown.Token)));
             }
             finally { foreach (var process in controllers) process.Dispose(); }
         }
@@ -259,22 +303,24 @@ internal sealed class MainWindow : Form
             var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             void BrowserExited(object? sender, CoreWebView2BrowserProcessExitedEventArgs args) => exited.TrySetResult();
             environment.BrowserProcessExited += BrowserExited;
+            using var browserShutdown = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             try
             {
                 if (nativeBridgeReady && errors.Count == 0) smokePhase = "stopping_browser";
                 web.Dispose();
-                await exited.Task.WaitAsync(shutdown.Token);
+                await exited.Task.WaitAsync(browserShutdown.Token);
             }
             catch (Exception error) { errors.Add("自检浏览器尚未退出：" + error.Message); }
             finally { environment.BrowserProcessExited -= BrowserExited; }
         }
+        else web.Dispose(); // Also release a controller whose initialization failed/timed out.
         try
         {
             if (nativeBridgeReady && errors.Count == 0) smokePhase = "completed";
             File.WriteAllText(Program.SmokeOutput, JsonSerializer.Serialize(new {
                 success = nativeBridgeReady && errors.Count == 0, nativeBridgeReady, version = AppUpdater.Version,
                 phase = smokePhase, nativeStatus = message.Text, prepareExit, prepareStatus, errors, page,
-                pageURL, webviewVersion,
+                webviewVersion,
                 windowBounds = Bounds, workingArea = Screen.FromHandle(Handle).WorkingArea, deviceDpi = DeviceDpi,
                 nativeMenuBar = MainMenuStrip != null,
             }));
@@ -285,7 +331,7 @@ internal sealed class MainWindow : Form
 
     private async Task Bootstrap(params string[] options)
     {
-        if (bootstrapping || web.CoreWebView2 == null) return;
+        if (completingSmoke || bootstrapping || web.CoreWebView2 == null) return;
         bootstrapping = true;
         message.Text = "正在连接 Cage 工作台…"; status.Show(); status.BringToFront();
         retry.Hide(); existing.Hide(); complete.Hide();
@@ -293,6 +339,7 @@ internal sealed class MainWindow : Form
         {
             smokePhase = "starting_backend";
             var (exit, data) = await Backend.Json(["desktop", "--json", ..options], lifetime.Token);
+            if (completingSmoke) return;
             smokePhase = "backend_returned";
             if (exit != 0) throw new IOException(data.Text("message") is { Length: > 0 } detail ? detail : "工作台未能启动");
             controllerNeedsUpdate = data.Text("status") != "ready";
@@ -305,8 +352,9 @@ internal sealed class MainWindow : Form
             Text = controllerNeedsUpdate ? "Cage（更新待完成）" : "Cage";
             web.CoreWebView2.Navigate(entry.AbsoluteUri);
         }
-        catch (OperationCanceledException) { if (!lifetime.IsCancellationRequested) Error("启动工作台失败：等待本机后台响应超时。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。"); }
+        catch (OperationCanceledException) { if (!completingSmoke && !lifetime.IsCancellationRequested) Error("启动工作台失败：等待本机后台响应超时。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。"); }
         catch (Exception error) {
+            if (completingSmoke) return;
             _ = Backend.Report("Workbench startup failed: " + error);
             Error(error.Message.Any(c => c is >= '\u4E00' and <= '\u9FFF') ? error.Message : "启动工作台失败：本机后台未返回可识别的原因（错误类型 " + error.GetType().Name + "）。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。");
         }
@@ -345,6 +393,7 @@ internal sealed class MainWindow : Form
             var body = envelope.RootElement;
             id = body.Text("id");
             if (!Guid.TryParse(id, out _)) return;
+            if (completingSmoke) throw new InvalidOperationException("自检正在关闭，不再接受原生请求");
             // Match the Linux bridge envelope limit. A 20 MiB PNG needs about
             // 27 MiB after Base64 encoding; retain the ID to reply on rejection.
             if (message.Length > 30 * 1024 * 1024) throw new InvalidDataException("请求内容过大，请减少图片或文本内容后重试");
@@ -366,7 +415,7 @@ internal sealed class MainWindow : Form
                 case "workbenchReady":
                     if (controllerNeedsUpdate) throw new IOException("后台版本尚未同步，更新未完成");
                     updater.MarkReady(); result = true; _ = CompleteSmoke(); break;
-                case "appUpdate": result = updater.Handle(request.Text("operation")); break;
+                case "appUpdate": result = HandleUpdate(request.Text("operation")); break;
                 case "importTheme":
                     using (var picker = new OpenFileDialog { Filter = "Cage 主题 (*.json)|*.json", Title = "导入主题", Multiselect = false })
                     {
@@ -403,7 +452,7 @@ internal sealed class MainWindow : Form
                     result = response.Data; break;
                 }
                 case "chooseFolder":
-                    using (var picker = new FolderBrowserDialog { Description = request.Text("purpose") == "environmentStorage" ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "仅此文件夹会与 Cage 共享。请选择具体项目。", UseDescriptionForTitle = true, ShowNewFolderButton = true })
+                    using (var picker = new FolderBrowserDialog { Description = request.Text("purpose") == "environmentStorage" ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "选择项目文件夹。Cage 只会共享所选文件夹。", UseDescriptionForTitle = true, ShowNewFolderButton = true })
                         result = picker.ShowDialog(this) == DialogResult.OK ? picker.SelectedPath : "";
                     break;
                 case "clipboardRead": result = Clipboard.ContainsText() ? Clipboard.GetText() : ""; break;
@@ -434,7 +483,7 @@ internal sealed class MainWindow : Form
                     {
                         var fileName = Path.GetFileName(request.Text("name"));
                         foreach (var character in Path.GetInvalidFileNameChars()) fileName = fileName.Replace(character, '_');
-                        using var picker = new SaveFileDialog { Title = "将下载另存为到本机", FileName = fileName, OverwritePrompt = true, AddExtension = false };
+                        using var picker = new SaveFileDialog { Title = "保存下载文件到本机", FileName = fileName, OverwritePrompt = true, AddExtension = false };
                         if (picker.ShowDialog(this) != DialogResult.OK) { result = new { canceled = true }; break; }
                         arguments.Add(picker.FileName);
                     }
@@ -516,7 +565,7 @@ internal sealed class MainWindow : Form
         }
         catch (Exception error)
         {
-            _ = Backend.Report(error.ToString());
+            if (!completingSmoke) _ = Backend.Report(error.ToString());
             if (id.Length != 0 && !IsDisposed && !web.IsDisposed) web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { id, error = error.Message }));
         }
     }
@@ -526,60 +575,20 @@ internal sealed class MainWindow : Form
           if (window !== window.top || location.protocol !== 'http:' || location.hostname !== 'localhost') return;
           const errors = [];
           Object.defineProperty(window, '__cageSmokeErrors', { value: errors });
-          const ownPath = value => {
-            try { const url = new URL(value, location.href); return url.origin === location.origin ? url.pathname : ''; }
-            catch { return ''; }
-          };
-          const scrub = value => {
-            let text = String(value || '');
-            for (const input of document.querySelectorAll('input,textarea'))
-              if (input.value) text = text.split(input.value).join('[form-value]');
-            return text.replace(/https?:\/\/[^\s"'<>`]+/g, value => ownPath(value) || '[external]')
-              .replace(/[?#][^\s"'<>)]*/g, '[redacted]').slice(0, 768);
-          };
-          const stack = error => String(error?.stack || '').split('\n').slice(1)
-            .filter(line => line.includes(location.origin + '/')).slice(0, 6).map(scrub);
+          // Export classifications only. Error messages, stacks, URLs and page
+          // content can contain credentials/user text even after URL scrubbing.
           const record = value => { if (errors.length < 8) errors.push(value); };
           addEventListener('error', event => {
             if (event.target instanceof HTMLScriptElement || event.target instanceof HTMLLinkElement) {
-              const source = ownPath(event.target.src || event.target.href);
-              if (source) record({ type: 'module-load', source });
+              record({ type: 'module-load', message: 'Resource load failed' });
               return;
             }
-            const source = ownPath(event.filename || location.href);
-            if (source) record({ type: 'error', source, message: scrub(event.message), stack: stack(event.error) });
+            record({ type: 'error', message: 'JavaScript error' });
           }, true);
           addEventListener('unhandledrejection', event => {
-            const frames = stack(event.reason);
-            // Primitive/cross-origin rejections are counted without exporting arbitrary values.
-            record({ type: 'unhandledrejection', message: frames.length ? scrub(event.reason?.message) : 'Unhandled rejection', stack: frames });
+            record({ type: 'unhandledrejection', message: 'Unhandled rejection' });
           });
         })();
         """;
 
-    private const string BridgeScript = """
-        (() => {
-          if (window !== window.top || location.protocol !== 'http:' || location.hostname !== 'localhost') return;
-          window.cageNativeIMEAvailable = true;
-          const pending = new Map();
-          const fileActions = new Set([
-            'uploadHostFiles', 'chooseUploadFiles', 'clipboardSyncRead', 'clipboardSyncWrite',
-            'saveBrowserDownload', 'browserDownloadAction', 'desktopFileAction', 'exportDiagnostics',
-            'importTheme', 'exportTheme', 'shareLocalProject', 'chooseFolder', 'chooseGuestMedia',
-          ]);
-          chrome.webview.addEventListener('message', ({data}) => {
-            const item = pending.get(data.id); if (!item) return;
-            pending.delete(data.id); clearTimeout(item.timer);
-            data.error ? item.reject(new Error(data.error)) : item.resolve(data.result);
-          });
-          const cage = {postMessage(request) { return new Promise((resolve, reject) => {
-            const id = crypto.randomUUID();
-            // File commands have a 30-minute backend deadline. Leave time for
-            // the native file dialog and the final subprocess response.
-            const timer = setTimeout(() => { pending.delete(id); reject(new Error('原生操作超时，请重试')); }, fileActions.has(request.action) ? 3600000 : 240000);
-            pending.set(id, {resolve, reject, timer}); chrome.webview.postMessage({id, request});
-          }); }};
-          Object.defineProperty(window, 'webkit', {value: {messageHandlers: {cage}}, writable: false});
-        })();
-        """;
 }

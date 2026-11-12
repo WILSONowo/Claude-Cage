@@ -53,7 +53,7 @@ export function SetupProgress({ job, onDetails, onStop, onRetry, disconnected })
       {windows && operation === "account" && <p className="setup-transfer-hint">为虚拟 Windows 设置新的本地管理员名称和密码。安装后用此账户登录客机，并在继续安装时再次输入。</p>}
       {waitingForWindows && <p className="setup-transfer-hint">在虚拟机连接（VMConnect）窗口选择 Windows 版本、磁盘和区域，使用安装前设置的本地管理员登录桌面，再回到 Cage 继续。本轮 PowerShell 创建窗口会自动关闭。</p>}
       {windows && operation === "credentials" && <p className="setup-transfer-hint">确认客机已登录桌面，在 PowerShell 安装窗口输入客机管理员账户。请保持该窗口开启，等待组件安装结束。</p>}
-      {windows && ["media", "tools", "services"].includes(operation) && <p className="setup-transfer-hint">请保持 PowerShell 安装窗口开启，Cage 完成组件安装后会自动关闭。</p>}
+      {windows && ["media", "tools", "services"].includes(operation) && <p className="setup-transfer-hint">请保持 PowerShell 窗口开启，组件装好后会自动关闭。</p>}
       {failed && <>
         <p className="setup-transfer-error" role="alert"><SafetyMessage message={job.error} /></p>
         <p className="setup-transfer-hint">可手动继续安装，已保存的下载会尝试续传。</p>

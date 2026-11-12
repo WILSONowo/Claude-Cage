@@ -18,7 +18,7 @@ try {
     await page.getByRole("button", { name: "网络与代理", exact: true }).click();
   };
   await openSettings();
-  await page.getByText("中国大陆出口禁止放行；静态 IP 和不限地区也必须确认出口国家。", { exact: true }).waitFor();
+  await page.getByText("禁止中国大陆出口。静态 IP 和不限地区也须验证出口国家。", { exact: true }).waitFor();
   const picker = page.getByRole("combobox", { name: "动态 IP 的允许范围", exact: true });
   const layoutTop = locator => locator.evaluate(element => {
     let top = element.getBoundingClientRect().top;

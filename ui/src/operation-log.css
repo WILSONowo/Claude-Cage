@@ -1,0 +1,63 @@
+.modal.operation-log-dialog {
+  --log-font: var(--code-font-family, ui-monospace, "Cascadia Mono", Consolas, monospace);
+  height: min(60dvh, 32rem);
+  min-height: min(15rem, 100%);
+  background: var(--log-bg);
+  color: var(--log-ink);
+  border-radius: var(--panel-radius, 8px);
+}
+.modal.operation-log-dialog > .modal-head {
+  justify-content: flex-start;
+  gap: .25rem;
+  padding: .35rem .55rem .35rem 1rem;
+  background: color-mix(in srgb, var(--log-bg) 96%, var(--log-ink));
+  border-color: color-mix(in srgb, var(--log-bg) 84%, var(--log-ink));
+}
+.operation-log-dialog .modal-head h2 {
+  flex: 1;
+  min-width: 0;
+  margin-inline-end: .3rem;
+  font: 550 1rem/1.4 var(--ui-font-family, sans-serif);
+}
+.operation-log-dialog .modal-head .icon-button {
+  flex: none;
+  height: clamp(32px, 1.9rem, 38px);
+  width: clamp(32px, 1.9rem, 38px);
+  padding: 0;
+  color: var(--log-ink);
+}
+.operation-log-terminal {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font: max(.9rem, var(--code-font-size, 13px))/1.6 var(--log-font);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.operation-log-terminal:focus { outline: none; }
+.operation-log-dialog:has(.operation-log-terminal:focus-visible) { border-color: var(--focus); }
+.operation-log-terminal > div { padding: 1rem; }
+.operation-log-dialog .operation-log-terminal :is(p, pre, h3, ol) {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+.operation-log-dialog .operation-log-terminal .operation-log-prompt {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .65em; margin-bottom: .4em;
+}
+.operation-log-prompt code { color: var(--log-prompt); font: inherit; font-weight: 600; }
+.operation-log-dialog .operation-log-output {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.operation-log-dialog .operation-log-terminal [role="alert"] { color: var(--log-error); margin-top: .65em; }
+.operation-log-dialog .operation-log-terminal h3 { margin-top: 1em; font-weight: 600; }
+.operation-log-dialog .initialization-checks { padding-inline-start: 1.7em; }
+.operation-log-dialog .operation-log-empty, .operation-log-feedback { opacity: .8; }
+.operation-log-feedback:not(:empty) { padding: .25rem 1rem .5rem; font-size: .86rem; line-height: 1.45; }

@@ -50,7 +50,7 @@ const unlock = async (enabled) => {
 };
 try {
   await restart();
-  await page.getByRole("heading", { name: "注册 Cage 账户", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "创建 Cage 账户", exact: true }).waitFor();
   await remember().waitFor();
   assert.equal(await remember().isChecked(), true);
   await remember().uncheck();

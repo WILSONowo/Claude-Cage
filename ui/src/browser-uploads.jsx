@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, uploadFile, native, nativeAvailable } from "./api";
-import { Modal } from "./views";
+import { Modal } from "./modal";
 
 export function BrowserUploads({ requests = [], onStatus }) {
   const [hidden, setHidden] = useState("");

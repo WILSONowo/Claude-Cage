@@ -111,7 +111,7 @@ export function useDesktopFiles(ready, onStatus) {
                 error: "请在 Cage 桌面应用中打开文件",
               });
               throw new Error(
-                "请在 Cage 桌面应用中打开文件，或从下载列表保存文件",
+                "可在 Cage 桌面打开文件，或从下载列表另存为",
               );
             }
             await native("desktopFileAction", { id: request.id });
@@ -273,7 +273,7 @@ export function BrowserDownloads({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        title={failed ? "有下载需要处理，点击查看" : "下载文件"}
+        title={failed ? "查看下载或打开文件时的错误" : "下载文件"}
         onClick={() => setOpen((value) => !value)}
       >
         {sidebar && failed ? <CircleAlert size={16} /> : <ArrowDownToLine size={16} />}
@@ -309,7 +309,6 @@ export function BrowserDownloads({
                 <div className="browser-download-empty">
                   <ArrowDownToLine size={28} />
                   <strong>暂无下载</strong>
-                  <p>下载的文件会显示在这里。</p>
                 </div>
               )}
               {items.map((item) => (

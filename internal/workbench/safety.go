@@ -775,6 +775,10 @@ func (s *Server) runSafetyCheck() (returned error) {
 			set("guest_settings", cage.CheckUnknown, err.Error(), "核对已保存的时区和语言后重新检测")
 			return err
 		}
+		if err := s.syncMacOSBrowserLanguage(ctx, cfg.BrowserLanguage); err != nil {
+			set("browser_settings", cage.CheckUnknown, err.Error(), "核对客机浏览器后重新检测")
+			return err
+		}
 	}
 	shares, networkLayout := s.inspectVMLayout()
 	private, err := os.CreateTemp(s.profile, ".cage-private-probe-*")

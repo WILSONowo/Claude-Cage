@@ -75,10 +75,10 @@ try {
  const unlocksBeforeMigration=calls.filter(x=>x.operation==='unlock').length;
  Object.assign(state.account,{device_binding:'migrated-directory',unlocked:false,require_authentication:false});
  await page.goto(workbenchURL);
- await page.getByRole('status').filter({hasText:'当前目录的快捷登录凭据缺失'}).waitFor();
+ await page.getByRole('status').filter({hasText:'快捷登录凭据缺失'}).waitFor();
  assert.equal(calls.filter(x=>x.operation==='unlock').length,unlocksBeforeMigration,JSON.stringify(calls));
  assert.equal(await page.getByRole('button',{name:'使用 Touch ID 解锁',exact:true}).count(),0);
- await page.reload();await page.getByRole('status').filter({hasText:'当前目录的快捷登录凭据缺失'}).waitFor();
+ await page.reload();await page.getByRole('status').filter({hasText:'快捷登录凭据缺失'}).waitFor();
  assert.equal(calls.filter(x=>x.operation==='unlock').length,unlocksBeforeMigration,'reopen retried invalid enrollment');
  await page.getByLabel('账户密码',{exact:true}).fill('fixture-password');
  await page.getByRole('button',{name:'解锁 Cage',exact:true}).click();await menu().waitFor();
@@ -127,7 +127,7 @@ try {
  const beforeRestart=calls.filter(x=>x.operation==='unlock').length;
  Object.assign(state.account,{device_binding:'restarted-directory',unlocked:false,require_authentication:false});
  await page.evaluate(()=>window.dispatchEvent(new Event('cage-account-locked')));
- await page.getByRole('status').filter({hasText:'当前目录的快捷登录凭据缺失'}).waitFor();
+ await page.getByRole('status').filter({hasText:'快捷登录凭据缺失'}).waitFor();
  assert.equal(calls.filter(x=>x.operation==='unlock').length,beforeRestart,'locked response reused old availability');
  await page.getByLabel('账户密码',{exact:true}).fill('fixture-password');
  await page.getByRole('button',{name:'解锁 Cage',exact:true}).click();await menu().waitFor();

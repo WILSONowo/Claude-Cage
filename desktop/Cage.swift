@@ -66,7 +66,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = CageProfile.macGuestTrial ? "Cage macOS" : "Cage"
         window.titlebarAppearsTransparent = false
-        window.backgroundColor = NSColor(srgbRed: 247.0/255, green: 247.0/255, blue: 247.0/255, alpha: 1)
+        window.backgroundColor = .windowBackgroundColor
         window.minSize = NSSize(width: 820, height: 580)
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -96,8 +96,8 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         content.addSubview(nativeInput)
         NSLayoutConstraint.activate([webView.leadingAnchor.constraint(equalTo: content.leadingAnchor), webView.trailingAnchor.constraint(equalTo: content.trailingAnchor), webView.topAnchor.constraint(equalTo: content.topAnchor), webView.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
         loading = NSTextField(labelWithString: "正在启动 Cage 工作台…")
-        loading.font = NSFont.systemFont(ofSize: 16, weight: .medium)
-        loading.textColor = NSColor(srgbRed: 54.0/255, green: 54.0/255, blue: 54.0/255, alpha: 1)
+        loading.font = NSFont.systemFont(ofSize: 15, weight: .medium)
+        loading.textColor = .labelColor
         loading.alignment = .center
         loading.maximumNumberOfLines = 4
         loading.translatesAutoresizingMaskIntoConstraints = false
@@ -548,7 +548,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
             guard !nativeFilePanelOpen, let id = body["id"] as? String, UUID(uuidString:id) != nil else { replyHandler(nil,"请先完成当前文件窗口"); return }
             let panel = NSSavePanel(); panel.canCreateDirectories = true
             panel.nameFieldStringValue = ((body["name"] as? String ?? "download") as NSString).lastPathComponent
-            panel.prompt = "保存"; panel.title = "将下载另存为到本机"
+            panel.prompt = "保存"; panel.title = "保存下载文件到本机"
             nativeFilePanelOpen = true
             panel.beginSheetModal(for: window) { response in
                 self.nativeFilePanelOpen = false
@@ -608,7 +608,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
             let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false
             let storage = (body["purpose"] as? String) == "environmentStorage"
             panel.prompt = storage ? "选择文件夹" : "共享此项目"
-            panel.message = storage ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "仅此文件夹会与 Cage 共享。请选择具体项目。"
+            panel.message = storage ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "选择项目文件夹。Cage 只会共享所选文件夹。"
             nativeFilePanelOpen = true
             panel.beginSheetModal(for:window) { response in self.nativeFilePanelOpen = false; replyHandler(response == .OK ? panel.url?.path : "",nil) }
         case "refreshSession":

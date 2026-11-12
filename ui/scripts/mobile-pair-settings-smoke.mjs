@@ -39,12 +39,12 @@ async function confirmRemoval() {
 }
 try {
   await open();
-  await page.getByText("远程待机已请求主机保持运行，屏幕可正常熄灭。移除配对或结束后台服务后恢复原系统休眠策略。",{exact:true}).waitFor();
+  await page.getByText("远程待机已请求防止电脑休眠，屏幕仍可熄灭。移除配对或停止后台服务后恢复原休眠设置。",{exact:true}).waitFor();
   power = {active:false,error:"测试：系统未允许防休眠"};
   await page.getByRole("alert").filter({hasText:"主机防休眠未生效：测试：系统未允许防休眠"}).waitFor();
   power = {active:true};
   await page.getByRole("alert").filter({hasText:"主机防休眠未生效"}).waitFor({state:"hidden"});
-  await page.getByText("型号待获取，请更新手机端 Cage 后重新连接。", { exact: true }).waitFor();
+  await page.getByText("未能读取型号，请更新手机端 Cage 后重连。", { exact: true }).waitFor();
   device = { platform: "android", model: "Google Pixel 9 Pro" };
   await page.getByLabel("已配对手机", { exact: true }).getByText(device.model, { exact: true }).waitFor();
   assert.equal(await page.getByLabel("已配对手机", { exact: true }).innerText(), "Google Pixel 9 Pro\nAndroid");

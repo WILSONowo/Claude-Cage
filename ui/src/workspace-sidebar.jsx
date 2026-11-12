@@ -1,3 +1,4 @@
+import { SearchField } from "./search-field";
 import { shortcut } from "./platform.mjs";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -6,7 +7,9 @@ import {
   Folder,
   FolderOpen,
   Globe2,
-  Home,
+  SquarePen,
+  Search,
+  Code2,
   Monitor,
   Network,
   MessageCircle,
@@ -17,7 +20,6 @@ import {
   Server,
   SquareTerminal,
 } from "lucide-react";
-import { EnvironmentShield } from "./environment-shield";
 import logo from "./logo.png";
 import { projectName } from "./workspace-state.mjs";
 import { WorkspaceTabs } from "./workspace-tabs";
@@ -44,11 +46,10 @@ export function WorkspaceSidebar({
   saved,
   active,
   home,
+  sidebarCollapsed,
   busy,
   ready,
   running,
-  runtimeLabel,
-  network,
   onHome,
   onOpenProject,
   onProjectSelect,
@@ -70,12 +71,26 @@ export function WorkspaceSidebar({
   onSettings,
   onAccountConfirm,
   onAccountStatus,
-  onSafety,
   onCollapse,
   updateAction,
 }) {
   const ssh = useSSHNavigation();
   const [collapsed, setCollapsed] = useState({});
+  const [query, setQuery] = useState(null);
+  const [width, setWidth] = useState(() => {
+    const saved = Number(localStorage.getItem("cage-sidebar-width"));
+    return saved > 0 ? Math.min(420, Math.max(192, saved)) : 244;
+  });
+  const searchButton = useRef(null);
+  const dragOffset = useRef(null);
+  const needle = query?.trim().toLocaleLowerCase() || "";
+  const matches = text => String(text || "").toLocaleLowerCase().includes(needle);
+  const resize = value => {
+    const next = Math.round(Math.max(192, Math.min(420, window.innerWidth - 200, value)));
+    setWidth(next);
+    return next;
+  };
+  const saveWidth = value => localStorage.setItem("cage-sidebar-width", String(value));
   const sessionBaseline = useRef(new Map());
   const activeWorkspace = tabs.find((tab) => tab.id === active)?.workspace;
   useEffect(() => {
@@ -83,9 +98,9 @@ export function WorkspaceSidebar({
       setCollapsed((previous) => ({ ...previous, [activeWorkspace]: false }));
   }, [active, activeWorkspace]);
   if (ssh?.expanded) return null;
-  const healthy = ready && network.mode === "open";
   return (
-    <aside className="workspace-sidebar" aria-label="项目与终端">
+    <aside className="workspace-sidebar" aria-label="项目与终端" inert={sidebarCollapsed || undefined}
+      style={{ "--expanded-sidebar": width + "px" }}>
       <div className="sidebar-top">
         <span className="sidebar-brand">
           <img className="brand-logo" src={logo} alt="" />
@@ -101,14 +116,22 @@ export function WorkspaceSidebar({
           <PanelLeftClose size={17} />
         </button>
       </div>
+      <div className="workspace-modes" aria-label="工作模式">
+        <button aria-pressed={desktopOpen} disabled={!running || busy} onClick={onClaudeDesktop} title="安装或打开 Claude Desktop"><Monitor size={15} />Claude Desktop</button>
+        <button aria-pressed={!desktopOpen} onClick={onHome}><Code2 size={15} />Code</button>
+      </div>
       <nav className="sidebar-navigation" aria-label="主导航">
         <button
           className={`sidebar-link ${home ? "selected" : ""}`}
           onClick={onHome}
         >
-          <Home size={17} />
-          工作台
+          <SquarePen size={17} />
+          {ready ? "新建对话" : "工作台"}
         </button>
+        <button className="sidebar-link" ref={searchButton} aria-expanded={query !== null}
+          onClick={() => setQuery(query === null ? "" : null)}><Search size={17} />搜索</button>
+        {query !== null && <SearchField label="搜索项目与会话" placeholder="项目或会话" autoFocus value={query} onValueChange={setQuery}
+          onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setQuery(null); searchButton.current?.focus(); } }} />}
         <button
           className={`sidebar-link ${!desktopOpen && !home && tabs.some((tab) => tab.id === active && tab.kind !== "terminal") ? "selected" : ""}`}
           onClick={onBrowser}
@@ -123,7 +146,7 @@ export function WorkspaceSidebar({
         {ssh && <button className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
         <div className="claude-shortcuts">
           <button className="sidebar-link" onClick={onClaudeWeb} disabled={!ready || busy} title="在 Cage 浏览器打开 claude.ai"><MessageCircle size={17} />claude.ai</button>
-          <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!running || busy} title="安装或打开 Claude Desktop"><Monitor size={17} />Claude Desktop</button>
+
         </div>
         {downloadAction}
       </nav>
@@ -161,11 +184,15 @@ export function WorkspaceSidebar({
         )}
         {projects.map((path) => {
           const project = projectName(path);
-          const rows = projectSessionRows(tabs.filter(tab => tab.kind === "terminal" && tab.workspace === path),
+          const ordered = projectSessionRows(tabs.filter(tab => tab.kind === "terminal" && tab.workspace === path),
             sessions.filter(session => session.workspace === path), saved, saved.sessionOrder?.[path], sessionBaseline.current);
+          const rows = needle && !matches(path) && !matches(project)
+            ? ordered.filter(row => matches(saved[row.id]?.title) || matches(row.title) || matches(row.historySession?.title))
+            : ordered;
+          if (needle && !matches(path) && !matches(project) && !rows.length) return null;
           const rowMetadata = { ...saved };
           for (const row of rows) rowMetadata[row.id] = { ...saved[row.id], pinned: row.sessionPinned };
-          const expanded = !collapsed[path];
+          const expanded = Boolean(needle) || !collapsed[path];
           return (
             <section
               className="sidebar-project"
@@ -246,10 +273,10 @@ export function WorkspaceSidebar({
                         else onPin(id);
                       }}
                       onReorder={(from, to) => {
-                        const targetIndex = rows.findIndex(row => row.id === to);
-                        const order = rows.map(row => row.id).filter(id => id !== from);
+                        const targetIndex = ordered.findIndex(row => row.id === to);
+                        const order = ordered.map(row => row.id).filter(id => id !== from);
                         order.splice(targetIndex, 0, from);
-                        onSessionReorder(path, order.map(id => sessionKey(rows.find(row => row.id === id))));
+                        onSessionReorder(path, order.map(id => sessionKey(ordered.find(row => row.id === id))));
                       }}
                       splitDrag={splitDrag}
                     />
@@ -262,22 +289,32 @@ export function WorkspaceSidebar({
             </section>
           );
         })}
-        {!projects.length && (
+        {needle && <p className="sidebar-search-empty">没有匹配的项目或会话</p>}
+        {!projects.length && !needle && (
           <p className="sidebar-empty">打开本地文件夹开始工作</p>
         )}
       </div>
       <div className="sidebar-bottom">
-        <button className="sidebar-status" onClick={onSafety}>
-          <i className={`status-dot ${network.mode}`} />
-          <span>{healthy ? "环境运行正常" : runtimeLabel}</span>
-          <EnvironmentShield size={17} healthy={healthy} />
-        </button>
         <div className="sidebar-footer-actions">
           <AccountMenu onSettings={onSettings} onConfirm={onAccountConfirm} onStatus={onAccountStatus} busy={busy} />
           <button className="icon-button" aria-label="设置" title={shortcut("设置 ⌘,")} onClick={() => onSettings("keyboard")}><Settings size={17} /></button>
           {updateAction}
         </div>
       </div>
+      <div className="sidebar-resizer" role="separator" aria-label="调整侧栏宽度" aria-orientation="vertical"
+        aria-valuemin={192} aria-valuemax={420} aria-valuenow={width} tabIndex={0}
+        onPointerDown={event => {
+          if (event.button !== 0) return;
+          dragOffset.current = event.clientX - event.currentTarget.parentElement.getBoundingClientRect().width;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={event => { if (dragOffset.current !== null) resize(event.clientX - dragOffset.current); }}
+        onLostPointerCapture={() => { dragOffset.current = null; saveWidth(width); }}
+        onDoubleClick={() => saveWidth(resize(244))}
+        onKeyDown={event => {
+          const targets = { ArrowLeft: width - 8, ArrowRight: width + 8, Home: 192, End: 420 };
+          if (event.key in targets) { event.preventDefault(); saveWidth(resize(targets[event.key])); }
+        }} />
     </aside>
   );
 }

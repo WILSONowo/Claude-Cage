@@ -10,12 +10,12 @@ final class MobileTheme {
 
     private MobileTheme(boolean dark) {
         this.dark = dark;
-        bg = dark ? 0xff191a18 : 0xfffaf9f6;
-        panel = dark ? 0xff252623 : 0xffffffff;
-        ink = dark ? 0xfff6f5ef : 0xff292a27;
-        muted = dark ? 0xffb5b6af : 0xff62645e;
-        line = dark ? 0xff44463f : 0xffdeded6;
-        soft = dark ? 0xff32342f : 0xffeeeee8;
+        bg = dark ? 0xff151517 : 0xfffafafa;
+        panel = dark ? 0xff1c1c1f : 0xffffffff;
+        ink = dark ? 0xfff4f4f5 : 0xff18181b;
+        muted = dark ? 0xffb3b3bd : 0xff52525b;
+        line = dark ? 0xff3b3b42 : 0xffe4e4e9;
+        soft = dark ? 0xff27272b : 0xfff4f4f5;
         action = ink;
         onAction = bg;
     }

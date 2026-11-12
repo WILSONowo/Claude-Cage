@@ -12,7 +12,7 @@
 
 **[Mareegta mashruuca](https://claude-cage.com/) · [Soo dejiso abka](https://claude-cage.com/so/#download) · [Bilaabidda](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [Hagaha isticmaalka (Shiine)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ Si aad u hesho tusmada buuxda, eeg [Tusmada dhokumentiyada](docs/README.md).
 | Xallinta soo dejinta, bilaabista, isku xidhka, iyo soo gelista | [FAQ iyo soo kabashada](docs/troubleshooting.md) |
 | Baro kontaroolada kiiboodhka, muuqaalka, adkaysiga xogta, iyo habdhaqanka bixista | [Isticmaalka maalinlaha ah](docs/getting-started.md#日常使用) |
 | Ka warbixi arrin dib loo soo saari karo | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| Ku biiri sixid, hawl cusub ama dukumenti: dib-u-eegista Issue → martiqaadka wada-shaqeeyaha → PR | [Hagaha wax-ku-biirinta (Shiine)](.github/CONTRIBUTING.md) |
 
 Mashruucu si xawli ah ayuu u socdaa. Ku biir kooxda bulshada si aad ula wadaagto jawaab celinta; ilaaliyayaasha bulshada waa la soo dhawaynayaa.
 

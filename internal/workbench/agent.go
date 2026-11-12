@@ -267,9 +267,14 @@ func agentValidateInput(input json.RawMessage, schema map[string]any) error {
 		return &AgentError{Code: "invalid_input", Message: "Expected one JSON object.", NextAction: "capabilities"}
 	}
 	properties := schema["properties"].(map[string]any)
-	for key := range value {
+	for key, field := range value {
 		if _, ok := properties[key]; !ok {
 			return &AgentError{Code: "invalid_input", Message: "Unknown input field; read the operation's input_schema.", NextAction: "capabilities"}
+		}
+		// None of the named operation fields are nullable. In particular,
+		// allocation:null must not become resources.set's apply-and-restart {}.
+		if bytes.Equal(bytes.TrimSpace(field), []byte("null")) {
+			return &AgentError{Code: "invalid_input", Message: "Input fields cannot be null; omit unused fields instead.", NextAction: "capabilities"}
 		}
 	}
 	return nil

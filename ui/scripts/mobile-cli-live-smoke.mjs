@@ -58,7 +58,7 @@ try {
   await approve.click();
   await page.getByRole("alert").getByRole("button", {name:"重新读取"}).waitFor();
   await page.unroute(sessionRequests);
-  await page.getByText("主机仍在等待这次审批。请核对参数后再次选择。", {exact:true}).waitFor();
+  await page.getByText("主机仍在等待审批，请核对参数后再选择。", {exact:true}).waitFor();
   await assert.rejects(readFile(process.env.CAGE_TEST_MOBILE_MARKER), {code:"ENOENT"});
   await approve.click();
   await page.getByText("isolated tool completed", {exact:true}).waitFor();

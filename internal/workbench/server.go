@@ -406,6 +406,8 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /api/environment/tools", s.updateEnvironmentTools)
 	mux.HandleFunc("GET /api/host/git", s.hostGit)
 	mux.HandleFunc("POST /api/host/git", s.enableHostGit)
+	mux.HandleFunc("GET /api/host/debian-mirrors", s.hostDebianMirrors)
+	mux.HandleFunc("POST /api/host/debian-mirrors", s.chooseDebianMirror)
 	mux.HandleFunc("GET /api/appearance", s.getAppearance)
 	mux.HandleFunc("GET /api/favorites", s.serveFavorites)
 	mux.HandleFunc("POST /api/favorites", s.serveFavorites)
@@ -454,7 +456,9 @@ func (s *Server) handler() http.Handler {
 			http.Error(w, "环境尚未就绪", 409)
 			return
 		}
-		jsonReply(w, map[string]any{"password": s.credentials.VNCPassword, "display_scale": s.credentials.DisplayScale, "dynamic_scale": s.credentials.DynamicScale})
+		// A Linux guest scrolls its page by the viewer's distance, outside the
+		// display stream. The native guests negotiate it inside theirs.
+		jsonReply(w, map[string]any{"password": s.credentials.VNCPassword, "display_scale": s.credentials.DisplayScale, "dynamic_scale": s.credentials.DynamicScale, "pixel_wheel": s.macosGuest == nil && s.windowsGuest == nil})
 	})
 	mux.HandleFunc("GET /api/vnc", s.vnc)
 	mux.HandleFunc("GET /api/claude-desktop", s.claudeDesktopStatus)

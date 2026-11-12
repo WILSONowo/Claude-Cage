@@ -9,6 +9,7 @@ full rate within a few frames; an unattended animation runs at a lower one.
 import os
 import select
 import signal
+import socket
 import struct
 import sys
 import time
@@ -80,10 +81,69 @@ def choose_mode(rate, current, base, available):
     return mode_name(rate, width, height), base
 
 
+class Activity:
+    """Viewer input that does not pass through the display.
+
+    A page scrolled by its viewer's distance receives no display input. The
+    client that scrolls it writes to this socket instead, and each write
+    counts as input. Without a path nothing listens.
+    """
+
+    def __init__(self, path=None):
+        self.listener, self.clients = None, []
+        if not path:
+            return
+        try:
+            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+            if os.path.lexists(path):
+                os.unlink(path)
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            mask = os.umask(0o177)
+            try:
+                listener.bind(path)
+            finally:
+                os.umask(mask)
+            listener.listen(4)
+            listener.setblocking(False)
+            self.listener = listener
+        except OSError as error:
+            # The display is still paced by its own input.
+            print(f'display governor: activity socket unavailable: {error}', file=sys.stderr)
+
+    def files(self):
+        return ([self.listener] if self.listener else []) + self.clients
+
+    def acted(self):
+        acted = False
+        while self.listener:
+            try:
+                client = self.listener.accept()[0]
+            except OSError:
+                break
+            client.setblocking(False)
+            if len(self.clients) >= 4:
+                self.clients.pop(0).close()
+            self.clients.append(client)
+        for client in list(self.clients):
+            try:
+                data = client.recv(4096)
+            except (BlockingIOError, InterruptedError):
+                continue
+            except OSError:
+                data = b''
+            if data:
+                acted = True
+            else:
+                client.close()
+                self.clients.remove(client)
+        return acted
+
+
 class Governor:
-    def __init__(self, connection, output='VNC-0'):
+    def __init__(self, connection, output='VNC-0', activity=None):
         from Xlib.ext import randr, xinput
         self.conn = connection
+        self.activity = activity or Activity()
         self.root = connection.screen().root
         self.output_name = output
         self.xinput = xinput
@@ -204,6 +264,7 @@ class Governor:
         last_input, shown = clock(), None
         while True:
             acted, changed = self.events()
+            acted = self.activity.acted() or acted
             if acted:
                 last_input = clock()
             rate = target_rate(clock() - last_input)
@@ -221,7 +282,7 @@ class Governor:
             if self.conn.pending_events():
                 continue
             wait = next_change(clock() - last_input) if shown is not None else 5
-            select.select([self.conn.fileno()], [], [], None if wait is None else wait + .01)
+            select.select([self.conn.fileno(), *self.activity.files()], [], [], None if wait is None else wait + .01)
 
 
 def main():
@@ -245,7 +306,8 @@ def main():
         print('display governor: RandR or XInput2 unavailable', file=sys.stderr)
         return 0
     connection.xinput_query_version()
-    governor = Governor(connection, os.environ.get('CAGE_DISPLAY_OUTPUT', 'VNC-0'))
+    governor = Governor(connection, os.environ.get('CAGE_DISPLAY_OUTPUT', 'VNC-0'),
+                        Activity(os.environ.get('CAGE_DISPLAY_ACTIVITY')))
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
         governor.run()

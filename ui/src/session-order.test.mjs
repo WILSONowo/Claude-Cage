@@ -36,3 +36,30 @@ test("manual order overrides activity and pinning, survives terminal ID changes"
   const rows = projectSessionRows([], [...sessions, { id: "new", active: true }], {}, manual, new Map());
   assert.deepEqual(keys(rows), [...manual, "session:new"]);
 });
+
+test("large session lists do not rescan all sessions for each live tab", () => {
+  let idReads = 0;
+  const count = 2000;
+  const history = Array.from({length:count}, (_, index) => ({
+    get id() { idReads++; return String(index); }, title:`Session ${index}`,
+  }));
+  const tabs = Array.from({length:count}, (_, index) => ({id:`terminal:${index}`, cli_session_id:String(index)}));
+  const manual = tabs.map(sessionKey).reverse();
+  const rows = projectSessionRows(tabs, history, {}, manual, new Map());
+  assert.deepEqual(keys(rows), manual);
+  assert.ok(idReads < count * 10, `session lookup work should grow linearly, observed ${idReads} ID reads`);
+});
+
+test("indexed matching preserves the first live tab and first manual rank", () => {
+  const tabs = [
+    {id:"terminal:closed", cli_session_id:"one", closed:true},
+    {id:"terminal:first", cli_session_id:"one"},
+    {id:"terminal:second", cli_session_id:"one"},
+    {id:"terminal:local", closed:true},
+  ];
+  const rows = projectSessionRows(tabs, sessions, {"terminal:local":{pinned:true}},
+    ["session:three", "session:one", "session:three"], new Map());
+  assert.deepEqual(keys(rows), ["session:three", "session:one", "session:two", "terminal:local"]);
+  assert.equal(rows[1].id, "terminal:first");
+  assert.equal(rows.at(-1).sessionPinned, true);
+});

@@ -114,6 +114,8 @@ After=cage-display.service
 [Service]
 User=cage-browser
 Environment=DISPLAY=:77
+# The browser controller reports here the scrolling it delivers to a page.
+Environment=CAGE_DISPLAY_ACTIVITY=/home/cage-browser/.cache/cage-display/activity.sock
 ExecStart=/usr/local/bin/cage-log-run /usr/local/bin/cage-display-governor
 LogNamespace=cage
 Restart=on-failure

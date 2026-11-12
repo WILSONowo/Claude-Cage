@@ -117,7 +117,7 @@ for (const platform of ["windows", "darwin", "linux"]) {
 
     Object.assign(state.account, { exists: false, unlocked: false, username: "", devices: {}, require_authentication: false });
     await page.reload();
-    await page.getByRole("heading", { name: "注册 Cage 账户", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "创建 Cage 账户", exact: true }).waitFor();
     await remember().waitFor();
     assert.equal(await remember().isChecked(), true);
     await page.getByLabel("用户名", { exact: true }).fill("测试工作区");

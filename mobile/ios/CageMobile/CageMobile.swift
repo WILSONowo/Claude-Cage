@@ -128,7 +128,7 @@ final class ConnectionModel: ObservableObject {
         }
         do {
             if let record = imported {
-                guard record.host == host else { status = "填写内容与连接文件不一致，请重新核对。"; return }
+                guard record.host == host else { status = "输入内容与连接文件不一致，请核对。"; return }
                 try HostKeychain.write(record)
                 hasSaved = true
             } else if trusted != host {
@@ -137,17 +137,17 @@ final class ConnectionModel: ObservableObject {
         } catch { status = "无法安全保存主机，请解锁手机后重试。"; return }
         trusted = host; UserDefaults.standard.set(host.relay,forKey:"preferred-relay"); UserDefaults.standard.set(data, forKey: trustKey); verified = false
         imported = nil; needsTrust = false
-        status = hasSaved ? "已保存这台电脑，可以重新连接。" : "已保存主机指纹。"
+        status = hasSaved ? "已保存电脑，可重新连接。" : "已保存主机指纹。"
     }
     func loadInvitation(_ file: URL) {
         invitation = nil; imported = nil; needsTrust = false; hasInvitation = false; verified = false
         do {
             switch try ConnectionFile.load(file) {
             case .temporary(let room):
-                invitation = room; hasInvitation = true; status = "已导入本次临时邀请。"
+                invitation = room; hasInvitation = true; status = "已导入临时邀请。"
             case .persistent(let saved):
                 imported = saved; needsTrust = true; relay = saved.host.relay; pin = saved.host.pin
-                status = "请与电脑上独立显示的指纹核对，再保存这台主机。"
+                status = "请核对电脑上显示的指纹，再保存主机。"
             }
         } catch { status = "文件无效或临时邀请已过期，请重新导入。" }
     }
@@ -176,8 +176,8 @@ final class ConnectionModel: ObservableObject {
         }
         let item = invitation
 
-        guard item != nil || hasSaved else { status = "请导入连接文件或有效的临时邀请。"; return }
-        if let item, (item.expiry ?? .distantPast) <= Date() { invitation = nil; hasInvitation = false; status = "临时邀请已过期，请重新连接或导入新邀请。"; return }
+        guard item != nil || hasSaved else { status = "请导入连接文件或临时邀请。"; return }
+        if let item, (item.expiry ?? .distantPast) <= Date() { invitation = nil; hasInvitation = false; status = "邀请已过期，请重新连接或导入新邀请。"; return }
         guard let directory = Bundle.main.url(forResource: "mobile-ui", withExtension: nil) else { status = "安装包缺少工作台资源。"; return }
         invitation = nil; hasInvitation = false; connecting = true; generation += 1
         let attempt = generation
@@ -316,7 +316,7 @@ private struct Workspace: UIViewRepresentable {
 
 private enum CageStyle {
     static let paper = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(white: 0.075, alpha: 1) : UIColor(red: 0.982, green: 0.978, blue: 0.967, alpha: 1)
+        traits.userInterfaceStyle == .dark ? UIColor(white: 0.085, alpha: 1) : UIColor(white: 0.98, alpha: 1)
     })
     static let ink = Color(uiColor: .label)
     static let inverse = Color(uiColor: .systemBackground)
@@ -334,13 +334,13 @@ private struct ActionLabel: View {
     let title: String
     let symbol: String
     var primary = true
-    var height: CGFloat = 52
+    var height: CGFloat = 48
     var body: some View {
         Label(title, systemImage: symbol)
             .font(.headline).frame(maxWidth: .infinity, minHeight: height)
             .foregroundStyle(primary ? CageStyle.inverse : CageStyle.ink)
             .background(primary ? CageStyle.ink : Color(uiColor: .secondarySystemFill),
-                        in: RoundedRectangle(cornerRadius: 16))
+                        in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
     }
 }
@@ -468,7 +468,7 @@ private struct ConnectionSheet: View {
                     Image("PairDevices").resizable().scaledToFit().frame(maxWidth: .infinity)
                         .frame(height: 150).accessibilityHidden(true)
                     Text("连接电脑").font(.title.bold())
-                    Text("在电脑的 Cage 设置中打开「远程连接」，生成配对二维码或复制配对码。")
+                    Text("在电脑的「设置 → 远程连接」中生成配对二维码或配对码。")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         .padding(.bottom, 10)
                     Button {
@@ -520,7 +520,7 @@ private struct ConnectionSheet: View {
                     VStack(spacing: 20) {
                         Text("取消连接？").font(.title2.bold())
                         Text(device.name).foregroundStyle(.secondary)
-                        Text("将关闭这台设备的连接。已保存的配对信息会保留。")
+                        Text("将断开设备连接，保留配对信息。")
                             .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         Button("取消连接", role: .destructive) {
                             model.disconnectDevice(device.id)

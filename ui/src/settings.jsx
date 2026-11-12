@@ -35,12 +35,12 @@ import { MacOSLogin } from "./macos-login";
 import { AccountSettings } from "./account";
 import { ClaudeAccountsPanel } from "./claude-accounts";
 const sections = [
+  ["keyboard", "通用", Settings],
+  ["appearance", "外观", Palette],
   ["account", "账户", UserRound],
   ["vault", "密码保险箱", KeyRound],
   ["claude-accounts", "Claude 账号", UsersRound],
   ["archived-sessions", "已归档会话", Archive],
-  ["keyboard", "通用", Settings],
-  ["appearance", "外观", Palette],
   ["mobile", "远程连接", Smartphone],
   ["network", "网络与代理", Globe2],
   ["region", "时区与语言", Clock3],
@@ -186,9 +186,16 @@ export function SettingsPanel({
     ],
     [],
   );
+  const changeSection = async id => {
+    if (id !== section && accountDirty && !(await onConfirm({ title: "放弃尚未保存的修改？", body: "已保存的资料和密码保持不变。", confirm: "放弃修改" }))) return;
+    if (id !== section && proxyDirty && !(await onConfirm({ title: "放弃尚未应用的代理修改？", body: "当前代理仍按已应用的链路运行。离开会丢弃这次节点选择。", confirm: "放弃修改" }))) return;
+    setSection(id);
+  };
   const contentRef = useRef();
+  const navRef = useRef();
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
   }, [section]);
   const currentLoc = probe || status.location;
   const closeRef = useRef(close);
@@ -223,17 +230,18 @@ export function SettingsPanel({
           返回工作台
         </button>
         <h2>设置</h2>
-        <nav aria-label="设置分组">
+        <div className="compact-settings-nav">
+          <InlineSelect aria-label="设置分组" filterable={false} value={section} onValueChange={changeSection}>
+            {sections.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </InlineSelect>
+        </div>
+        <nav ref={navRef} aria-label="设置分组">
           {sections.map(([id, label, Icon]) => (
             <button
               key={id}
               className={section === id ? "selected" : ""}
               aria-current={section === id ? "page" : undefined}
-              onClick={async () => {
-                if (id !== section && accountDirty && !(await onConfirm({ title: "放弃尚未保存的修改？", body: "已保存的资料和密码保持不变。", confirm: "放弃修改" }))) return;
-                if (id !== section && proxyDirty && !(await onConfirm({ title: "放弃尚未应用的代理修改？", body: "当前代理仍按已应用的链路运行。离开会丢弃这次节点选择。", confirm: "放弃修改" }))) return;
-                setSection(id);
-              }}
+              onClick={() => changeSection(id)}
             >
               <Icon size={17} />
               {label}
@@ -243,6 +251,7 @@ export function SettingsPanel({
       </aside>
       <div className="settings-main">
         <div className={section === "archived-sessions" ? "settings-content settings-content--archives" : section === "claude-accounts" ? "settings-content settings-content--accounts" : section === "mobile" ? "settings-content settings-content--remote" : "settings-content"} ref={contentRef}>
+          <div className="settings-sheet" data-section={section} key={section}>
           {section === "appearance" && <AppearanceSettings />}
           {section === "archived-sessions" && <ArchivedSessions ready={status.ready && !busy} />}
           {section === "vault" && <PasswordVaultSettings onConfirm={onConfirm} onDirty={setAccountDirty} />}
@@ -256,7 +265,7 @@ export function SettingsPanel({
             }} />}
           <fieldset className="settings-fields" disabled={busy && !(section === "project" && status.storage_recovery?.required)}>
             {section === "mobile" && (isRemoteClient()
-              ? <section className="section-title"><h3>连接这台电脑</h3><p>请先切换到这台电脑的本机环境，再生成或管理手机配对码。</p></section>
+              ? <section className="section-title"><h3>连接这台电脑</h3><p>切换到本机环境后即可管理手机配对码。</p></section>
               : <MobilePairSettings relay={draft.mobile_relay ?? ""} savedRelay={current.mobile_relay ?? ""} onChange={value => update("mobile_relay",value)} onConfirm={onConfirm} />)}
             {section === "network" && (
               <>
@@ -316,7 +325,7 @@ export function SettingsPanel({
                   </div>
                 )}
                 <p className="footnote">
-                  代理不可用时，Cage 会停止对外联网。修改表单后需要重新验证。
+                  代理失效会关闭外网。修改后需重新验证。
                 </p>
                 <section className="network-exit-policy" aria-label="IP 变化规则">
                   <ExitPolicyFields
@@ -334,18 +343,18 @@ export function SettingsPanel({
               <>
                 <div className="section-title">
                   <h3>时区与语言</h3>
-                  <p>这些设置作用于 Cage 内的系统、CLI 和浏览器。</p>
+                  <p>系统、CLI 和浏览器共用。</p>
                 </div>
                 {!draft.auto_timezone && !draft.auto_language && (
                   <p className="field-help">
-                    时区和语言将使用下方手动选择的值。所有出口仍须查询国家或地区，确认不属于中国大陆；静态 IP 和不限地区也不能跳过此检查。
+                    手动设置时区和语言。所有出口（含静态 IP 和不限地区）仍须验证位于中国大陆以外。
                   </p>
                 )}
                 <label className="toggle-row">
                   <span>
                     <strong>跟随出口 IP 的时区</strong>
                     <small>
-                      在启动或应用设置时重新查询，不会静默重启正在运行的任务。
+                      启动或应用设置时重新查询，运行中的任务会保留。
                     </small>
                   </span>
                   <input
@@ -389,7 +398,7 @@ export function SettingsPanel({
                   <span>
                     <strong>跟随出口地区的语言建议</strong>
                     <small>
-                      启动或应用设置时更新。多语言地区使用内置默认值；没有建议时保留已选语言。
+                      启动或应用设置时更新。多语言地区使用默认语言，无法匹配时保留当前选择。
                     </small>
                   </span>
                   <input
@@ -452,7 +461,7 @@ export function SettingsPanel({
                   网页首选语言
                   <InlineSelect
                     aria-label="网页首选语言"
-                    value={draft.browser_language}
+                    value={draft.browser_language || "en-US"}
                     disabled={draft.auto_language}
                     onValueChange={(next) => update("browser_language", next)}
                   >
@@ -475,8 +484,8 @@ export function SettingsPanel({
                       "ja-JP",
                       "de-DE",
                       "fr-FR",
-                    ].includes(draft.browser_language) && (
-                      <option value={draft.browser_language}>
+                    ].includes(draft.browser_language || "en-US") && (
+                      <option value={draft.browser_language || "en-US"}>
                         {draft.browser_language}
                       </option>
                     )}
@@ -491,7 +500,6 @@ export function SettingsPanel({
               <>
                 <div className="section-title">
                   <h3>通用</h3>
-                  <p>管理工作台的按键习惯与日常操作。</p>
                 </div>
                 <label>
                   Claude 终端启动命令
@@ -589,21 +597,21 @@ export function SettingsPanel({
                   </strong>
                 </div>
                 <p className="field-help">
-                  {isRemoteClient() ? "点击侧栏“项目”标题旁的加号，可浏览并选择云端文件夹。" : "点击侧栏“项目”标题旁的加号，可选择其他本地文件夹。"}
+                  {isRemoteClient() ? "用侧栏“项目”旁的 + 添加云端文件夹。" : "用侧栏“项目”旁的 + 添加本地文件夹。"}
                 </p>
                 <div className="project-explanation">
                   <FolderOpen size={22} />
                   <div>
                     <strong>所有项目共用一个 Cage 环境</strong>
                     <p>
-                      明确打开的项目文件夹会共享到同一个环境。主机的 Claude
-                      登录、SSH 密钥和个人配置不会自动导入。浏览器下载统一保存到
-                      独立的下载暂存目录，可从下载面板查看或另存为。
+                      仅共享已打开的文件夹。主机的 Claude
+                      登录、SSH 密钥和个人配置不会自动导入。下载文件可在
+                      下载面板查看或另存为。
                     </p>
                   </div>
                 </div>
                 <p className="footnote">
-                  切换项目只改变新终端和文件编辑器的起始位置；已有终端、网页和登录态会保留。
+                  切换项目会改变新终端和编辑器的起始目录。已有终端、网页和登录状态会保留。
                 </p>
                 {!status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
                 {status.guest_system === "macos" && <section aria-label="客机系统权限">
@@ -668,6 +676,7 @@ export function SettingsPanel({
               )}
             </div>
           )}
+          </div>
         </div>
         {(!["appearance", "browser", "account", "claude-accounts", "vault", "mobile", "archived-sessions", "project"].includes(section) || changed) && (
           <footer className="settings-footer">

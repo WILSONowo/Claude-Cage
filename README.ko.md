@@ -12,7 +12,7 @@
 
 **[프로젝트 웹사이트](https://claude-cage.com/) · [앱 다운로드](https://claude-cage.com/ko/#download) · [시작하기](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [사용 문서 (중국어)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ macOS와 서명된 Windows 버전은 선택한 프록시를 통해 업데이트�
 | 다운로드, 시작, 연결 및 로그인 문제 해결 | [FAQ 및 복구](docs/troubleshooting.md) |
 | 키보드 컨트롤, 모양, 데이터 지속성 및 종료 동작 알아보기 | [매일 사용](docs/getting-started.md#日常使用) |
 | 재현 가능한 문제 보고 | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| 수정·기능·문서 기여: Issue 검토 → 협업자 초대 → PR | [기여 안내 (중국어)](.github/CONTRIBUTING.md) |
 
 이 프로젝트는 빠르게 발전하고 있습니다. 피드백을 공유하려면 커뮤니티 그룹에 가입하세요. 커뮤니티 관리자를 환영합니다.
 

@@ -983,6 +983,16 @@ func createSockPair() (server, client *os.File, _ error) {
 	return server, client, nil
 }
 
+// macOSIPSWPath keeps Lima's stable instance/socket paths intact, but gives
+// Apple's sandboxed installation service a path without symbolic links. A
+// hard-linked image.ipsw is insufficient when an ancestor (e.g. state) is a link.
+func macOSIPSWPath(instDir string) (string, error) {
+	if err := ensureIPSW(instDir); err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(filepath.Join(instDir, filenames.ImageIPSW))
+}
+
 func ensureIPSW(instDir string) error {
 	ipsw := filepath.Join(instDir, filenames.ImageIPSW)
 	if osutil.FileExists(ipsw) {

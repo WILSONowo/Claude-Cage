@@ -1,23 +1,33 @@
+import { OperationLogDialog } from "./operation-log";
+import { SetupBrand } from "./setup-brand";
 import React, { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
 import { useAccount } from "./account";
 import { MacOSLogin } from "./macos-login";
 import { DiagnosticSettings } from "./diagnostics.jsx";
-import { Modal } from "./modal";
 import "./initialization.css";
 
-const steps = [
+const permissionSteps = [
   { id: "screen", label: "窗口录制", hint: "打开 Cage Guest Window 的窗口录制开关。如果提示「退出并重新打开」，按提示操作。" },
   { id: "input", label: "辅助功能", hint: "打开 Cage Guest Window 的辅助功能开关，允许 Cage 操作客机窗口。" },
   { id: "projects", label: "文件系统扩展", hint: "打开 macFUSE 和 macFUSE (local) 两个开关，用于在客机中访问你选择的项目。" },
 ];
+
+function setupSteps(permissions) {
+  return permissions.macfuse_installer ? [
+    ...permissionSteps.slice(0, 2),
+    { id: "macfuse", label: "安装 macFUSE", hint: "在虚拟 Mac 中完成安装。若提示输入管理员凭据，请使用 cagesetup 和你的 Cage 账户密码。" },
+    ...permissionSteps.slice(2),
+  ] : permissionSteps;
+}
 
 export function MacOSFirstSetup() {
   const { account, refresh } = useAccount();
   const [permissionPage, setPermissionPage] = useState("screen");
   const [state, setState] = useState(null);
   const [permissions, setPermissions] = useState({});
+  const steps = setupSteps(permissions);
   const [error, setError] = useState("");
   const [readError, setReadError] = useState("");
   const [completionFailed, setCompletionFailed] = useState(false);
@@ -68,7 +78,7 @@ export function MacOSFirstSetup() {
       if (!c.active) return;
       setReadError("");
       setPermissions(measured);
-      const pending = steps.find(({ id }) => !measured[id]);
+      const pending = setupSteps(measured).find(({ id }) => !measured[id]);
       if (pending && c.pending !== pending.id) {
         c.pending = pending.id;
         setPermissionPage(pending.id);
@@ -125,7 +135,7 @@ export function MacOSFirstSetup() {
   }
 
   const pending = steps.find(({ id }) => !permissions[id]);
-  const selected = steps.find(({ id }) => id === permissionPage);
+  const selected = steps.find(({ id }) => id === permissionPage) || steps[0];
   const running = Boolean(state?.job?.running);
   const canOperate = Boolean(state?.vm_running && !running && !busy);
   const canFinish = Boolean(state?.ready && !account.macos_password_pending && !pending && !readError);
@@ -134,15 +144,15 @@ export function MacOSFirstSetup() {
     !state.ready ? "虚拟 Mac 已启动，正在等待客机连接。若停在登录画面，请打开客机画面完成登录。" :
     readError ? "暂时无法确认权限状态，已显示的结果供参考。恢复连接后会继续检查。" :
     pending ? `当前需要确认「${pending.label}」。完成后 Cage 会自动检查并继续。` :
-    completionFailed ? "三项权限已验证，最后的设置收尾未完成。请重试完成设置。" : "三项权限已验证，正在保存设置；随后继续工作区授权和联网检查。";
+    completionFailed ? "所需权限已验证，最后的设置收尾未完成。请重试完成设置。" : "所需权限已验证，正在保存设置；随后继续工作区授权和联网检查。";
   const controls = <button type="button" className="primary" disabled={!canOperate} onClick={() => act(pending?.id || permissionPage)}>
     {busy ? "正在处理…" : `打开${pending?.label || selected.label}`}
   </button>;
   const failure = error || readError || (!running && state?.job?.error) || (!state?.ready && state?.environment_update_error);
 
-  return <main className="initialization"><section className="initialization-content mac-setup-content">
+  return <main className="setup-scene initialization"><SetupBrand context="首次设置" /><section className="initialization-content mac-setup-content">
     <div className="initialization-title"><p className="mac-setup-eyebrow">安装与检查 · macOS 系统权限</p><h1>完成虚拟 Mac 的系统授权</h1>
-      <p>安装文件和客机磁盘已保留。下面三项授权在虚拟 Mac 内完成，每项验证通过后会自动继续。</p></div>
+      <p>在虚拟 Mac 内逐项完成授权，验证后会自动继续。安装文件和客机磁盘已保留。</p></div>
     <ol className="mac-setup-checklist" aria-label="系统授权进度">
       {steps.map(({ id, label }, index) => <li key={id} data-complete={Boolean(permissions[id])} aria-current={pending?.id === id ? "step" : undefined}>
         <span className="mac-setup-marker">{permissions[id] ? <Check size={16} aria-hidden="true" /> : index + 1}</span>
@@ -164,15 +174,18 @@ export function MacOSFirstSetup() {
         label="打开客机画面" setupActions={controls} setupHint={`${selected.hint} 系统要求管理员时，用户名填 cagesetup；选中密码框后可点击「填写授权密码」。`}
         setupStatus={failure || progress} setupError={Boolean(failure)} />}
     </section>
-    {failure && <section className="initialization-notice" role="alert"><h2>这一步尚未完成</h2><p>{failure}</p><p>已有安装进度会保留。可以重新打开当前设置页，或重新检查状态后继续。</p></section>}
+    {failure && <section className="initialization-notice" role="alert"><h2>这一步尚未完成</h2><p>{failure}</p><p>安装进度已保留。可重新打开设置页或重新检查。</p></section>}
     <details className="mac-setup-help"><summary>管理员密码与找不到设置页时的帮助</summary>
       <p>系统要求管理员时，用户名填 <strong>cagesetup</strong>，{account.macos_password_pending ? "密码同步完成前可能仍需原客机密码。" : account.macos_credentials_ready ? "密码与 Cage 账户相同。" : "在客机画面中选中密码框，再点击「填写授权密码」。"}你确认授权后继续；此临时管理员在收尾时停用。</p>
-      <p>文件系统扩展的手动入口：客机「系统设置 → 通用 → 登录项与扩展 → 按类别 → 文件系统扩展」，同时打开 macFUSE 和 macFUSE (local)。</p>
+      <p>如需手动设置，在虚拟 Mac 的「系统设置 → 通用 → 登录项与扩展 → 按类别 → 文件系统扩展」中打开 macFUSE 和 macFUSE (local)。</p>
       <div className="initialization-recovery">{steps.map(({ id, label }) => <button key={id} disabled={!canOperate} onClick={() => act(id)}>重新打开{label}</button>)}</div>
     </details>
-    <p className="mac-setup-retention">系统授权完成后，还会确认共享工作区和网络隔离。全部检查通过后即可进入工作台。</p>
+    <p className="mac-setup-retention">授权后将检查共享工作区和网络隔离，通过后进入工作台。</p>
     <div className="initialization-support"><button className="text-button" onClick={() => setDetails(true)}>查看操作详情</button><button className="text-button" onClick={() => setDiagnostics(!diagnostics)}>日志与诊断</button></div>
     {diagnostics && <DiagnosticSettings />}
-    {details && <Modal title="系统设置操作详情" onClose={() => setDetails(false)}><div className="modal-body"><p>{progress}</p>{failure && <p role="alert">{failure}</p>}<pre className="job-log">{state?.job?.log || "当前步骤没有额外操作日志。可通过「日志与诊断」导出完整记录。"}</pre></div></Modal>}
+    {details && <OperationLogDialog title="系统设置操作详情" job={state?.job} message={progress}
+      onClose={() => setDetails(false)}>
+      {failure && <p role="alert">{failure}</p>}
+    </OperationLogDialog>}
   </section></main>;
 }

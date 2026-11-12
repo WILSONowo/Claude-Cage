@@ -1,9 +1,10 @@
+import { PasswordInput } from "./password-input";
+import { SearchField } from "./search-field";
 import { InlineSelect } from "./inline-select";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import {
   Download,
   Plus,
-  Search,
   RefreshCw,
   Check,
   Activity,
@@ -13,11 +14,12 @@ import {
   LoaderCircle,
   Square,
   CircleHelp,
+  Copy,
   ArrowRight,
   X,
   Route,
 } from "lucide-react";
-import { api } from "./api";
+import { api, writeClipboard } from "./api";
 import { SafetyMessage } from "./safety-message";
 import { ProxyYAMLInput } from "./proxy-yaml-input";
 import "./proxy.css";
@@ -50,7 +52,16 @@ const emptyForm = {
   interval_hours: 24,
   host_download: false,
 };
+const proxyAgentPrompt = `请将本机 Cage 的最终出口设为【节点名称】。以下命令中的 cage 代表安装包里的后台 CLI，请用它的实际路径执行。
+先运行 cage agent capabilities 核对当前版本支持的操作，再用 cage agent call proxy.status 从 sources 中按名称找到节点 ID。找不到时，请引导我在“添加来源”中导入。重名时，请让我选定具体节点。
+运行 cage agent call status，结合 vm_running 和 safety.gate.reason 核对联网状态。已手动暂停时保留暂停，只报告状态。首次配置或客机尚未启动时，network_open 可以为 false。若外网关闭的原因仍不明确，先问我是否允许应用节点并恢复联网。若首次应用会重启正在运行的客机，请先提醒我并等我确认。
+若 selected 已是目标节点且 active 为 true，无需重新应用。需要应用时，按现有 route 选择下面一条命令，将示例中的 ID 换成实际 ID，通过标准输入传入 JSON。
+单节点：cage agent call proxy.select --input - --wait 2m，输入 {"node_id":"目标ID"}。
+已有中转链：cage agent call proxy.route --input - --wait 2m，输入 {"node_ids":["中转ID","目标ID"]}。保留 route 中全部中转 ID 和顺序，只替换最后一个 ID。
+最后用 cage agent call proxy.status 读回 selected，按 ID 核对节点名称，并分别报告代理是否已应用（active）和客机外网是否已放行（network_open）。若任务失败或超时，请报告原因，先核对状态再决定下一步。请勿在对话中回显订阅地址或凭据。`;
+
 export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializing = false }) {
+  const proxyPasswordId = useId();
   const [proxy, setProxy] = useState(null),
     [tab, setTab] = useState("nodes"),
     [search, setSearch] = useState(""),
@@ -76,6 +87,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   const [routeDraft, setRouteDraft] = useState(null);
   const [hostRefresh, setHostRefresh] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [promptCopyState, setPromptCopyState] = useState("");
   const [readingFile, setReadingFile] = useState(false);
   const alive = useRef(true),
     loading = useRef(false),
@@ -300,9 +312,33 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           >
             <CircleHelp size={17} aria-hidden="true" />
           </button>
+          <button
+            type="button"
+            title="复制给本机 AI 助手的代理配置提示词"
+            onClick={async () => {
+              try {
+                await writeClipboard(proxyAgentPrompt);
+                setPromptCopyState("copied");
+              } catch {
+                setPromptCopyState("manual");
+              }
+            }}
+          >
+            <Copy size={14} aria-hidden="true" />
+            复制配置提示词
+          </button>
         </div>
-        <p>选择最终出口，按需添加中转，供 Cage 内所有程序共用。</p>
+        <p>Cage 内的程序共用此出口，可按需添加中转。</p>
       </div>
+      {promptCopyState === "copied" && (
+        <p className="field-help" role="status">已复制。粘贴给本机 AI 助手，把【节点名称】换成要使用的节点。</p>
+      )}
+      {promptCopyState === "manual" && (
+        <>
+          <p className="field-help" role="alert">无法写入剪贴板，请复制下方提示词。</p>
+          <textarea aria-label="代理配置提示词" readOnly rows={5} value={proxyAgentPrompt} />
+        </>
+      )}
       {helpOpen && (
         <section
           id="proxy-help"
@@ -311,13 +347,12 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         >
           <h4 id="proxy-help-title">代理使用说明</h4>
           <p className="proxy-help-intro">
-            Cage 自带代理核心，无需另外安装
-            Clash。请先准备你已有的代理订阅或节点信息，Cage 不提供代理节点。
+            Cage 自带代理核心。请准备自己的订阅或节点，无需另装 Clash。
           </p>
           <ol className="proxy-help-steps">
             <li>
               <strong>导入你的代理</strong>
-              <p>打开「订阅」→「添加来源」，填写来源名称，再选择一种方式：</p>
+              <p>在「订阅」中添加来源、命名并选择导入方式。</p>
               <ul>
                 <li>
                   <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
@@ -337,23 +372,20 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <li>
               <strong>选择节点并启用</strong>
               <p>
-                导入完成后切到「节点」，选择最终出口，再点击「应用代理」。住宅代理无法从国内连接时，选择「链式代理」，在它前面添加可连接的中转节点；节点可以来自不同订阅。首次启用时若环境正在运行，需要重启；后续切换只重建网络连接。
+                在「节点」中选择出口，再点击「应用代理」。住宅代理无法直连时，可用「链式代理」添加中转，节点可跨订阅。首次启用需重启运行中的环境，后续切换只重连网络。
               </p>
             </li>
             <li>
               <strong>确认可以联网</strong>
               <p>
-                {initializing ? "点击“开始安装”，等待客机安装和网络检查完成。以初始化界面的检查结果为准；" : "回到工作台启动环境，等待网络检查通过。以工作台的联网状态为准；"}「测速」只检测节点延迟。Cage
-                内的浏览器、终端和开发工具会共用所选节点，无需分别配置代理。
+                {initializing ? "点击「开始安装」，安装后查看网络检查结果。" : "回到工作台，启动环境并查看联网状态。"}「测速」显示节点延迟。浏览器、终端和开发工具共用所选节点。
               </p>
             </li>
           </ol>
           <div className="proxy-help-notes">
             <strong>导入失败或无法联网？</strong>
             <p>
-              确认复制的是订阅地址，而非服务商登录页或管理页。暂不支持单条分享链接、Base64
-              节点列表，以及只引用远程节点列表的配置；请向服务商获取含节点的
-              Clash/Mihomo YAML。
+              请使用含节点的 Clash/Mihomo YAML 订阅地址。登录页、单条分享链接、Base64 列表或仅引用远程节点的配置无法导入。
             </p>
             <p>
               订阅下载失败时，可检查主机是否能访问订阅地址，或改用本地
@@ -614,15 +646,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </div>
           )}
           <div className="proxy-toolbar">
-            <label className="proxy-search">
-              <Search size={15} />
-              <input
-                aria-label="搜索节点"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索节点、来源或协议"
-              />
-            </label>
+            <SearchField label="搜索节点" placeholder="节点、来源或协议" value={search} onValueChange={setSearch} />
             <InlineSelect
               aria-label="节点来源"
               value={source}
@@ -1002,17 +1026,19 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                         }
                       />
                     </label>
-                    <label>
-                      密码
-                      <input
-                        type="password"
+                    <div className="secret-field">
+                      <label htmlFor={proxyPasswordId}>密码</label>
+                      <PasswordInput
+                        id={proxyPasswordId}
+                        label="代理密码"
+                        disabled={busy}
                         value={manual.password}
                         autoComplete="new-password"
                         onChange={(e) =>
                           setManual({ ...manual, password: e.target.value })
                         }
                       />
-                    </label>
+                    </div>
                   </div>
                 </>
               )}
@@ -1054,8 +1080,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </span>
           </div>
           <p className="field-help">
-            显示当前核心的连接与流量，包含 Cage
-            自身检测请求；重启核心后累计值重置。
+            流量统计包含 Cage 检测请求，重启代理核心后清零。
           </p>
           <div className="proxy-node-list">
             {connections.connections.map((c) => (
@@ -1128,8 +1153,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </button>
           </div>
           <p className="field-help">
-            Cage 不设置系统代理或主机 TUN。本机其他代理的 TUN
-            仍可能影响核心出站，需要结合实际路由验证。
+            Cage 不配置系统代理或主机 TUN。其他代理的 TUN 可能影响出口，请核对实际路由。
           </p>
         </>
       )}

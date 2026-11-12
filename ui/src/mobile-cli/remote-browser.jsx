@@ -59,7 +59,8 @@ function RemoteKeyboard({frame, busy, send, onClose}) {
   const insert = async event => {
     event.preventDefault();
     if (!draft || !frame.focus || busy || new TextEncoder().encode(draft).length > 8192) return;
-    if (await send({type: "text", focus: frame.focus, text: draft}, frame)) setDraft("");
+    if (await send({type: "text", focus: frame.focus, text: draft}, frame))
+      setDraft(current => current === draft ? "" : current);
   };
   const tooLong = new TextEncoder().encode(draft).length > 8192;
   return <form className="remote-keyboard" onSubmit={insert}>
@@ -90,14 +91,14 @@ function LoginKeyboard({frame, busy, session, onClose}) {
     void session.send({type:"key", key, focus:frame.focus}, frame).then(ok => {
       if (!ok) {
         keys.current.length = 0;
-        setNotice("输入焦点或连接已变化，请检查远程输入框。");
+        setNotice("焦点或连接已变更，请检查远程输入框。");
       }
       sending.current = false;
       if (keys.current.length) wake(value => value + 1);
     });
   }, [frame, busy, session, sequence]);
   const press = key => {
-    if (keys.current.length >= 32) {setNotice("请稍候，前面的按键正在发送。"); return;}
+    if (keys.current.length >= 32) {setNotice("正在发送先前的按键，请稍候。"); return;}
     keys.current.push(key); setNotice(""); wake(value => value + 1);
   };
   return <div className="remote-keyboard">
@@ -245,7 +246,7 @@ export function RemoteDisplay({visible, onBack, onReopen, id, tool, start, initi
         <img className="remote-screen" alt={desktop ? "远程 Desktop 画面" : "远程浏览器画面"} src={frame.image} draggable={false} />
       </div> :
         <div className="remote-empty" role={state.error ? "alert" : "status"}>
-          {preview ? <><Globe2 aria-hidden="true" /><p>连接真实电脑后，即可使用{name}。</p></> :
+          {preview ? <><Globe2 aria-hidden="true" /><p>连接电脑后可使用{name}。</p></> :
             state.error ? <><p>{state.error}</p>
               {state.uncertain && <p className="note">输入结果待确认，请先查看最新画面。</p>}
               <button className="action secondary" onClick={() => {
@@ -281,6 +282,6 @@ export function RemoteDisplay({visible, onBack, onReopen, id, tool, start, initi
       <Tool label="输入文字" icon={Keyboard} disabled={!focus || state.busy || favorites}
         onClick={() => flushSync(() => setKeyboard(focus))} />
     </nav>}
-    {desktop && frame?.login_supported === false && <p className="remote-home-note" role="status">需要登录时，请在电脑的 Cage 中完成 Claude Desktop 登录，手机会继续使用同一登录状态。</p>}
+    {desktop && frame?.login_supported === false && <p className="remote-home-note" role="status">请在电脑 Cage 中登录 Claude Desktop，手机会沿用该登录状态。</p>}
   </section>;
 }

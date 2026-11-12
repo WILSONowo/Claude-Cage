@@ -12,7 +12,7 @@
 
 **[د پروژې ویب پاڼه](https://claude-cage.com/) · [اپلیکیشن ډاونلوډ کړئ](https://claude-cage.com/ps/#download) · [پیل کول](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [د کارولو لارښود (په چینایي)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ macOS او لاسلیک شوې Windows نسخې د ټاکلي پراکسي له 
 | د ډاونلوډونو، پیل کولو، ارتباطاتو، او لاسلیک کولو ستونزې حل کړئ | [FAQ او بیا رغونه](docs/troubleshooting.md) |
 | د کیبورډ کنټرولونه، بڼه، د معلوماتو دوام، او د وتلو چلند زده کړئ | [ورځنی استعمال](docs/getting-started.md#日常使用) |
 | د بیا تولید وړ مسلې راپور ورکړئ | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| د سمون، ځانګړنې یا اسنادو ونډه: د Issue ارزونه ← د همکار بلنه ← PR | [د ونډې لارښود (چینایي)](.github/CONTRIBUTING.md) |
 
 پروژه په چټکۍ سره وده کوي. د نظر شریکولو لپاره د ټولنې ګروپ کې ګډون وکړئ؛ د ټولنې ساتونکي ښه راغلاست.
 

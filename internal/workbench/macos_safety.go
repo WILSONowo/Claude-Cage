@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,11 @@ import (
 
 //go:embed macos_safety_probe.cjs
 var macOSSafetyProbe string
+
+//go:embed macos-browser-language.cjs
+var macOSBrowserLanguageScript string
+
+const macOSWorkbenchNode = "/usr/local/libexec/cage-workbench-browser-4.145.0-pw1.65.0/editor/lib/node"
 
 func macOSZone(zone string) string {
 	switch zone {
@@ -83,8 +89,7 @@ func (s *Server) macOSGuestObservation(ctx context.Context, in map[string]any) (
 	if err != nil {
 		return result, err
 	}
-	node := "/usr/local/libexec/cage-workbench-browser-4.145.0-pw1.65.0/editor/lib/node"
-	out, err := s.guestControl(ctx, "exec "+shellescape.QuoteCommand([]string{node, "-e", macOSSafetyProbe, base64.StdEncoding.EncodeToString(data)}), "safety-probe")
+	out, err := s.guestControl(ctx, "exec "+shellescape.QuoteCommand([]string{macOSWorkbenchNode, "-e", macOSSafetyProbe, base64.StdEncoding.EncodeToString(data)}), "safety-probe")
 	if err != nil || json.Unmarshal(out, &result) != nil {
 		return result, errors.New("macOS 客机未返回完整的网络观测")
 	}
@@ -212,6 +217,21 @@ func (s *Server) macOSVMLayout() (bool, bool) {
 		return false, false
 	}
 	return spec.Mounts != nil && len(spec.Mounts) == 0 && len(spec.Extra) == 0, spec.Networks != nil && len(spec.Networks) == 0
+}
+
+func (s *Server) syncMacOSBrowserLanguage(ctx context.Context, language string) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	command := "printf '%s' " + shellescape.Quote(macOSBrowserLanguageScript) + " | " +
+		shellescape.QuoteCommand([]string{macOSWorkbenchNode, "-", language})
+	out, err := s.guestControl(ctx, command, "browser-language")
+	if err != nil {
+		return fmt.Errorf("无法应用 macOS 客机浏览器的语言 %q：%w", language, err)
+	}
+	if strings.TrimSpace(string(out)) == "updated" {
+		s.closeWindowsBrowser()
+	}
+	return nil
 }
 
 func (s *Server) macOSBrowserObservation(ctx context.Context, cfg cage.Config, network bool) (browserObservation, error) {

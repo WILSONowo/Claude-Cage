@@ -12,7 +12,7 @@
 
 **[專案主頁](https://claude-cage.com/) · [下載應用程式](https://claude-cage.com/zh-TW/#download) · [開始使用](docs/getting-started.md) · [常見問題](docs/troubleshooting.md) · [使用文件（簡體中文）](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ macOS 和已簽章 Windows 版本支援透過所選代理更新；Windows 未簽
 | 處理下載、啟動、聯網和登入問題 | [常見問題與恢復](docs/troubleshooting.md) |
 | 瞭解按鍵、外觀、資料儲存和退出行為 | [日常使用](docs/getting-started.md#日常使用) |
 | 報告可復現問題 | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| 貢獻修正、功能或文件：Issue 審核 → 協作者邀請 → PR | [貢獻指南（簡體中文）](.github/CONTRIBUTING.md) |
 
 本專案仍在快速迭代中，歡迎加入交流群提意見，歡迎社群大佬一起維護
 

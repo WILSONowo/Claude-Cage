@@ -47,7 +47,7 @@ try {
   assert.equal(display.stats.clipboardUpdates.at(-1).text,"new host copy");
   assert.equal(state.requests.some(request => request.path === "/input/image"),false,"synchronized paste uses the actual guest clipboard");
 
-  await page.getByRole("button",{ name:"工作台", exact:true }).click();
+  await page.getByRole("button",{ name:/^(工作台|新建对话)$/ }).click();
   await page.getByRole("region",{ name:"Claude Desktop", exact:true }).waitFor({ state:"hidden" });
   display.sharedClipboard({ text:"guest background copy" });
   await waitFor(() => clipboard.text === "guest background copy");

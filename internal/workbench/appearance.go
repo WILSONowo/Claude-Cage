@@ -47,7 +47,7 @@ type Appearance struct {
 }
 
 func defaultAppearance() Appearance {
-	return Appearance{Mode: "system", Light: AppearanceTheme{Preset: "codex", Accent: "#339cff", Surface: "#ffffff", Ink: "#1a1c1f", Contrast: 45}, Dark: AppearanceTheme{Preset: "codex", Accent: "#339cff", Surface: "#181818", Ink: "#ffffff", Contrast: 60}, UIFontSize: 14, CodeFontSize: 13, FontSmoothing: true, ReducedMotion: "system"}
+	return Appearance{Mode: "system", Light: AppearanceTheme{Preset: "claude-desktop", Accent: "#257de0", Surface: "#ffffff", Ink: "#191919", Contrast: 45}, Dark: AppearanceTheme{Preset: "claude-desktop", Accent: "#257de0", Surface: "#191919", Ink: "#efefef", Contrast: 60}, UIFontSize: 14, CodeFontSize: 13, FontSmoothing: true, ReducedMotion: "system"}
 }
 
 func (a Appearance) validate() error {
@@ -164,6 +164,9 @@ func (s *Server) saveAppearance(w http.ResponseWriter, r *http.Request) {
 
 func readCodexAppearance(configPath string) (Appearance, error) {
 	a := defaultAppearance()
+	// Codex may omit either palette when it uses its own factory colors.
+	a.Light = AppearanceTheme{Preset: "codex", Accent: "#339cff", Surface: "#ffffff", Ink: "#1a1c1f", Contrast: 45}
+	a.Dark = AppearanceTheme{Preset: "codex", Accent: "#339cff", Surface: "#181818", Ink: "#ffffff", Contrast: 60}
 	a.CodeFontSize = 12
 	var config struct {
 		Desktop struct {

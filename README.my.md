@@ -12,7 +12,7 @@
 
 **[ပရောဂျက်ဝက်ဘ်ဆိုက်](https://claude-cage.com/) · [အက်ပ်ကို ဒေါင်းလုဒ်လုပ်ရန်](https://claude-cage.com/my/#download) · [စတင်လုပ်ဆောင်ခြင်း။](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [အသုံးပြုမှုလမ်းညွှန် (တရုတ်ဘာသာ)](https://claude-cage.com/docs/)**
 
-[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md)
+[简体中文](README.md) · [繁體中文](README.zh-TW.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [فارسی](README.fa.md) · [한국어](README.ko.md) · [Español](README.es.md) · [မြန်မာဘာသာ](README.my.md) · [Беларуская](README.be.md) · [پښتو](README.ps.md) · [دری](README.prs.md) · [አማርኛ](README.am.md) · [Soomaali](README.so.md) · [ትግርኛ](README.ti.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -111,6 +111,7 @@ macOS နှင့် လက်မှတ်ထိုးထားသော Window
 | ဒေါင်းလုဒ်များ၊ စတင်ခြင်း၊ ချိတ်ဆက်မှုနှင့် လက်မှတ်ထိုးဝင်ခြင်းတို့ကို ပြဿနာဖြေရှင်းပါ။ | [FAQ နှင့် ပြန်လည်ရယူခြင်း။](docs/troubleshooting.md) |
 | ကီးဘုတ်ထိန်းချုပ်မှုများ၊ အသွင်အပြင်၊ ဒေတာ ခိုင်မြဲမှုနှင့် ထွက်ပေါက်အပြုအမူတို့ကို လေ့လာပါ။ | [နေ့စဉ်အသုံးပြုခြင်း။](docs/getting-started.md#日常使用) |
 | မျိုးပွားနိုင်သော ပြဿနာကို သတင်းပို့ပါ။ | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| ပြင်ဆင်ချက်၊ လုပ်ဆောင်ချက် သို့မဟုတ် စာရွက်စာတမ်း ပံ့ပိုးရန်: Issue စစ်ဆေးမှု → ပူးပေါင်းသူဖိတ်ခေါ်မှု → PR | [ပံ့ပိုးမှုလမ်းညွှန် (တရုတ်ဘာသာ)](.github/CONTRIBUTING.md) |
 
 ပရောဂျက်က အရှိန်အဟုန်နဲ့ တိုးတက်နေတယ်။ တုံ့ပြန်ချက်မျှဝေရန် ကွန်မြူနတီအဖွဲ့သို့ ဝင်ရောက်ပါ။ ရပ်ရွာထိန်းသိမ်းသူ များကို ကြိုဆိုပါတယ်။
 

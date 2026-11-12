@@ -17,7 +17,7 @@ for (const system of ["debian-13", "windows-11", "macos"]) {
   const { page, state, errors, browser } = fixture;
   try {
     const nav = page.getByRole("navigation", { name: "主导航" });
-    await nav.getByRole("button", { name: "工作台", exact: true }).waitFor();
+    await nav.getByRole("button", { name: /^(工作台|新建对话)$/ }).waitFor();
     const labels = await nav.getByRole("button").allTextContents();
     if (system === "debian-13") baseline = labels;
     else assert.deepEqual(labels, baseline, system);
@@ -31,7 +31,7 @@ for (const system of ["debian-13", "windows-11", "macos"]) {
     await nav.getByRole("button", {name:"打开浏览器"}).click();
     await page.locator(".address-bar input").first().waitFor();
     assert.ok(state.requests.some(r => r.path === "/browser/new"));
-    await nav.getByRole("button", {name:"工作台", exact:true}).click();
+    await nav.getByRole("button", {name:/^(工作台|新建对话)$/}).click();
     await page.locator('[data-terminal-location="shortcuts"]').click();
     await page.getByRole("menuitem", {name:"Claude 终端"}).click();
     await page.waitForFunction(() => document.querySelector(".terminal-lane:not([hidden]) .terminal-view"));

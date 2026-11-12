@@ -77,3 +77,43 @@ test("finished download history stays bounded without losing current transfers",
   assert.equal(JSON.parse(readFileSync(join(f.directory, "download-state.json"))).length, 51);
   assert.ok(records.every(r => !("sourceReady" in r) && !("url" in r)));
 });
+
+test("recoverable failed saves retain their records and reserve active download capacity", async t => {
+  const f = fixture(t, async () => { throw new Error("shared directory unavailable"); });
+  const canceled = [];
+  f.manager.cancel = id => canceled.push(id);
+  const ids = [];
+  for (let index = 0; index < 50; index++) {
+    const id = f.begin(`report-${index}.txt`);
+    ids.push(id);
+    await completed(f.manager, id);
+  }
+  const excess = randomUUID();
+  f.manager.begin(excess, "wait-for-recovery.txt");
+  assert.deepEqual(canceled, [excess]);
+  assert.equal(f.manager.snapshot().filter(record => record.retryable).length, 50);
+  assert.equal(f.manager.snapshot().find(record => record.id === ids[0]).name, "report-0.txt");
+
+  const restored = new DownloadManager({...f.options, save: async (_id, name) => ({ok:true, path:`/shared/${name}`})});
+  assert.equal(restored.snapshot().filter(record => record.retryable).length, 50);
+  assert.deepEqual(restored.retry(ids[0]), {ok:true});
+  await restored.queue;
+  const next = randomUUID();
+  restored.begin(next, "new-download.txt");
+  assert.equal(restored.snapshot().find(record => record.id === next).state, "downloading");
+});
+
+test("successful download history cannot evict a complete file awaiting recovery", async t => {
+  let first = true;
+  const f = fixture(t, async (_id, name) => {
+    if (first) { first = false; throw new Error("temporary save failure"); }
+    return {ok:true, path:`/shared/${name}`};
+  });
+  const pending = f.begin("recover-me.txt");
+  await completed(f.manager, pending);
+  for (let index = 0; index < 55; index++) await completed(f.manager, f.begin(`saved-${index}.txt`));
+  const retained = f.manager.snapshot().find(record => record.id === pending);
+  assert.ok(retained?.retryable, "a failed save with a complete source must remain retryable after history pruning");
+  assert.equal(retained.name, "recover-me.txt");
+  assert.equal(f.manager.snapshot().filter(record => record.state === "saved").length, 50);
+});

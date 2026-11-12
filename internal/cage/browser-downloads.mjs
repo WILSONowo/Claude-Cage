@@ -6,6 +6,9 @@ const historyLimit = 50;
 const activeLimit = 50;
 const guidPattern = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
 const terminalStates = new Set(["saved", "failed", "canceled"]);
+// A failed copy still owns a complete source and its original filename until
+// it is recovered. Bound these records with active work, not disposable history.
+const finished = record => terminalStates.has(record.state) && !record.retryable;
 
 export class DownloadManager {
   constructor({ directory, save, changed = () => {}, cancel = () => {} }) {
@@ -68,8 +71,8 @@ export class DownloadManager {
   }
 
   prune() {
-    const finished = [...this.records.values()].filter(r => terminalStates.has(r.state));
-    for (const record of finished.slice(0, Math.max(0, finished.length - historyLimit))) this.records.delete(record.id);
+    const history = [...this.records.values()].filter(finished);
+    for (const record of history.slice(0, Math.max(0, history.length - historyLimit))) this.records.delete(record.id);
   }
 
   persist() {
@@ -103,11 +106,11 @@ export class DownloadManager {
 
   begin(id, name) {
     if (!guidPattern.test(id) || typeof name !== "string" || !name || name.length > 1024 || basename(name) !== name) return;
-    const active = [...this.records.values()].filter(r => !terminalStates.has(r.state)).length;
+    const active = [...this.records.values()].filter(r => !finished(r)).length;
     const record = { id, name, state: "downloading", receivedBytes: 0, totalBytes: 0, retryable: false, sourceReady: false };
     if (active >= activeLimit) {
       record.state = "canceled";
-      record.error = "同时下载的文件过多，请等待部分下载完成后重试。";
+      record.error = "待完成的下载过多，请先完成或重试下载列表中的文件。";
       void Promise.resolve(this.cancel(id)).catch(() => {});
     }
     this.records.set(id, record);

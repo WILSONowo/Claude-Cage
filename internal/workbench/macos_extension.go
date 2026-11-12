@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -25,7 +26,19 @@ func (s *Server) checkMacOSSetupProjects(parent context.Context) error {
 	}
 	s.mu.Unlock()
 	if err != nil {
-		return errors.New("文件共享权限尚未通过。请点击「文件系统扩展」重新打开授权面板，确认 macFUSE 和 macFUSE (local) 两个开关均已打开，Cage 会自动检查")
+		if ctx.Err() != nil {
+			return errors.New("文件共享挂载检测超时，请重新检查状态")
+		}
+		var exited *exec.ExitError
+		if errors.As(err, &exited) {
+			switch exited.ExitCode() {
+			case 2:
+				return errors.New("文件共享测试卷已挂载，但卸载失败。扩展授权已生效，请重新检查状态")
+			case 3:
+				return errors.New("文件共享测试的临时目录未能清理，请重新检查状态")
+			}
+		}
+		return errors.New("文件共享挂载测试未通过。请确认 macFUSE 和 macFUSE (local) 两个文件系统扩展均已打开，再重新检查状态")
 	}
 	return nil
 }

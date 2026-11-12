@@ -48,7 +48,7 @@ try {
   assert.equal(requests, hiddenCount, "hidden windows must stop Desktop status polling");
   await visible(true);
   await waitFor(() => requests > hiddenCount);
-  await page.getByRole("button", { name: "工作台", exact: true }).click();
+  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
   await waitFor(() => pending === 0);
   const closedCount = requests;
   await new Promise((resolve) => setTimeout(resolve, 240));

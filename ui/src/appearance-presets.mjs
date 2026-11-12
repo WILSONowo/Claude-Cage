@@ -23,10 +23,26 @@ const dark = (accent, surface, ink, colors = {}, terminal = {}) => ({
 
 export const themeCatalog = [
   {
+    id: "claude-desktop",
+    name: "Claude Desktop",
+    group: "经典",
+    description: "中性黑白配色，输入框聚焦时显示蓝色边线。",
+    light: light("#257de0", "#ffffff", "#191919"),
+    dark: dark("#257de0", "#191919", "#efefef"),
+  },
+  {
+    id: "cage",
+    name: "Cage",
+    group: "经典",
+    description: "灰白面板、橙色选中标记与高对比度按钮。",
+    light: light("#bd420c", "#ffffff", "#18181b"),
+    dark: dark("#ffa477", "#1c1c1f", "#f4f4f5"),
+  },
+  {
     id: "codex",
     name: "Codex",
     group: "经典",
-    description: "中性背景与蓝色强调，保持 Cage 的默认外观。",
+    description: "中性背景与蓝色强调。",
     light: light("#339cff", "#ffffff", "#1a1c1f"),
     dark: dark("#339cff", "#181818", "#ffffff"),
   },
