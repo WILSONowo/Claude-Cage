@@ -526,6 +526,16 @@ func (s *start) ensureRunningLocked() error {
 		return errStop
 	}
 	want, _ := s.shares(wantWritable)
+	if cageWritableGit() && wasRunning && !s.opts.Scratch {
+		currentRoot := false
+		for _, mount := range inst.Mounts {
+			currentRoot = currentRoot || paths.Equal(paths.Host(mount.Location), paths.Host(s.dir)) && mount.MountPoint == paths.Guest(s.dir)
+		}
+		if !currentRoot {
+			s.warnf("下载目录与运行中的文件共享不一致。请先保存工作，运行 cage stop 后重新启动；项目文件、会话和登录状态会保留。")
+			return errStop
+		}
+	}
 	wasProtected := len(inst.Mounts) > 0 && unprotected(inst, nil) == ""
 	gitStale := !o.Scratch && wasProtected != s.protect
 	namesStale := s.protect && wasProtected && unprotected(inst, s.names) != ""

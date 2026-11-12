@@ -1,8 +1,12 @@
 name: Three-platform checks and test packages
 on:
+  # The website and user guides have their own workflow (www.yml) and are in
+  # no package, so changes limited to them skip the three-platform builds.
   push:
     branches: ['**', '!codex/release/**']
+    paths-ignore: ['README*.md', 'www/**', 'docs/guide/**', 'docs/releases/**']
   pull_request:
+    paths-ignore: ['README*.md', 'www/**', 'docs/guide/**', 'docs/releases/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,6 +15,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   workflow-checks:
+    # A branch in this repository is already checked by its push. Run the
+    # pull_request event only for forks, which have no push run here.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -49,6 +56,7 @@ jobs:
       ref: ${{ github.sha }}
       release: false
       artifact_name: cage-windows-amd64-test
+      all_windows_versions: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
   linux:
     needs: workflow-checks
     uses: ./.github/workflows/linux-build.yml

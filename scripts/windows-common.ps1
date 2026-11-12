@@ -161,7 +161,18 @@ function Get-VerifiedDependency {
         New-Item -ItemType Directory -Path $Cache -Force | Out-Null
         $partial = "$path.partial"
         try {
-            Invoke-WebRequest -Uri $Dependency.url -OutFile $partial -TimeoutSec 900 -MaximumRedirection 5
+            # Release hosts and CDNs drop connections now and then. Retry the
+            # transfer; the checksum below still decides what is accepted.
+            for ($attempt = 1; ; $attempt++) {
+                try {
+                    Invoke-WebRequest -Uri $Dependency.url -OutFile $partial -TimeoutSec 900 -MaximumRedirection 5
+                    break
+                } catch {
+                    if ($attempt -ge 4) { throw }
+                    Write-Warning "Download of $($Dependency.file) failed (attempt $attempt): $($_.Exception.Message)"
+                    Start-Sleep -Seconds (5 * $attempt)
+                }
+            }
             Move-Item -LiteralPath $partial -Destination $path -Force
         } finally {
             if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force }

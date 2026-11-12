@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -43,6 +44,38 @@ cage_install_tool gh
 					t.Fatalf("unexpected package installation: installed=%v err=%v", installed, err)
 				}
 			})
+		}
+	}
+}
+
+func TestGeneratedVMPromptMigrationPreservesUserSettings(t *testing.T) {
+	_, script, ok := strings.Cut(guestEnv, "python3 - <<'CAGE_SHELL_PROMPT'\n")
+	if !ok {
+		t.Fatal("missing prompt migration")
+	}
+	script, _, _ = strings.Cut(script, "\nCAGE_SHELL_PROMPT")
+	for _, custom := range []bool{false, true} {
+		dir := t.TempDir()
+		before := "# user settings\nexport PS1=\"vm:%1~%% \"\nexport EDITOR=vi\n"
+		want := strings.ReplaceAll(before, "vm:%1~", "%1~")
+		if custom {
+			before = "export PS1=\"my-vm:%1~%% \"\n"
+			want = before
+		}
+		file := filepath.Join(dir, ".zshrc")
+		if err := os.WriteFile(file, []byte(before), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			cmd := exec.Command("python3", "-c", script)
+			cmd.Env = append(os.Environ(), "HOME="+dir)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("%v: %s", err, out)
+			}
+		}
+		got, err := os.ReadFile(file)
+		if err != nil || string(got) != want {
+			t.Fatalf("prompt migration changed custom settings: %q %v", got, err)
 		}
 	}
 }

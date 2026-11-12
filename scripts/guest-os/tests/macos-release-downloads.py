@@ -29,7 +29,7 @@ class ReleaseDownloads(unittest.TestCase):
             text = (SOURCE / name).read_text()
             text = re.sub(r'(?<![\w])[a-f0-9]{64}(?![\w])', self.digest, text)
             (self.source / name).write_text(text)
-        for name in ('macos-cli.py', 'install-macos-cli.sh', 'cli_channel.py', 'cli_channel.resume.md', 'claude_account_resume.md', 'claude-account.py'):
+        for name in ('macos-cli.py', 'install-macos-cli.sh', 'cli_channel.py', 'cli_channel.resume.md', 'claude_account_resume.md', 'claude-account.py', 'client_runtime.py'):
             (self.source / name).write_text('helper fixture')
         (self.media / 'macfuse.pkg').write_text('already prepared')
         self.helper = self.root / 'host downloader'

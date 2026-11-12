@@ -1,8 +1,12 @@
-import React, { useLayoutEffect, useRef } from "react";
+import React, { useLayoutEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useSelectPopup } from "./select-popup";
 import { TerminalSquare } from "lucide-react";
 
 export function TerminalMenu({ choice, busy, onClose, onSelect }) {
   const menu = useRef(null);
+  const trigger = useMemo(() => ({ current: choice.anchor }), [choice.anchor]);
+  const position = useSelectPopup(true, trigger, menu, 2, true);
   const close = useRef(onClose);
   close.current = onClose;
   useLayoutEffect(() => {
@@ -49,14 +53,14 @@ export function TerminalMenu({ choice, busy, onClose, onSelect }) {
     };
   }, [choice]);
 
-  return (
-    <div ref={menu} id="terminal-create-menu" className="menu terminal-create-menu" role="menu" aria-label="新建终端">
+  return createPortal(
+    <div ref={menu} style={position} id="terminal-create-menu" className="menu terminal-create-menu" role="menu" aria-label="新建终端">
       <button role="menuitem" disabled={busy} onClick={() => onSelect("shell")}>
         <TerminalSquare size={16} />普通终端
       </button>
       <button role="menuitem" disabled={busy} onClick={() => onSelect("claude")}>
         <TerminalSquare size={16} />Claude 终端
       </button>
-    </div>
+    </div>, document.body,
   );
 }

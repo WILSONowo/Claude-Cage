@@ -177,6 +177,7 @@ func nativeComponentTarget(source, system string) string {
 		"register-macos-clipboard.sh":     "/usr/local/libexec/cage-register-clipboard",
 		"register-macos-browser.sh":       "/usr/local/libexec/cage-register-browser",
 		"macos-cli.py":                    "/usr/local/libexec/cage-cli/macos-cli.py",
+		"client_runtime.py":               "/usr/local/libexec/cage-cli/client_runtime.py",
 		"cli_channel.py":                  "/usr/local/libexec/cage-cli/cli_channel.py",
 		"cli_channel.resume.md":           "/usr/local/libexec/cage-cli/cli_channel.resume.md",
 		"claude_account_resume.md":        "/usr/local/libexec/cage-cli/cli_channel.account-resume.md",

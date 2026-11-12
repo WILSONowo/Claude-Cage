@@ -4,7 +4,7 @@ import ApplicationServices
 import ScreenCaptureKit
 import Security
 
-private let appURL = URL(fileURLWithPath: "/Applications/Claude.app")
+private var appURL: URL { claudeApplicationURL() }
 private let requirement = #"anchor apple generic and identifier "com.anthropic.claudefordesktop" and certificate leaf[subject.OU] = "Q6L2SF6YDW" and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"#
 
 struct Request: Decodable {

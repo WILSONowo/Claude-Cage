@@ -60,7 +60,7 @@ class NativeMaintenance(unittest.TestCase):
         os.symlink(self.root / 'usr/local/libexec/cage-cli-2.previous', self.root / 'usr/local/libexec/cage-cli')
         self.write('usr/local/libexec/cage-sshfs', 'previous-project-helper')
         self.write('Applications/Cage Guest Window.app/Contents/MacOS/CageGuestWindow', 'previous-window')
-        helper_sources = ('macos-cli.py', 'cli_channel.py', 'cli_channel.resume.md', 'claude_account_resume.md', 'claude-account.py')
+        helper_sources = ('macos-cli.py', 'cli_channel.py', 'cli_channel.resume.md', 'claude_account_resume.md', 'claude-account.py', 'client_runtime.py')
         files = []
         for name in helper_sources:
             self.write('kit/' + name, '#!fixture\ncurrent-' + name)
@@ -99,6 +99,7 @@ exit "${CAGE_TEST_FAIL_REGISTER:-0}"
         script = script.replace('/usr/libexec/PlistBuddy', str(self.root / 'plist-buddy'))
         script = script.replace('/bin/launchctl', str(self.root / 'launchctl'))
         self.write('kit/maintain-macos-workbench.sh', script)
+        self.write('kit/claude-desktop-macos.sh', self.translate((SOURCE / 'claude-desktop-macos.sh').read_text()))
         self.write('plist-buddy', '#!/bin/sh\necho dev.cage.fixture\n', 0o755)
         self.write('launchctl', '''#!/bin/sh
 if [ -n "${CAGE_TEST_LOGIN_WINDOW:-}" ]; then exit 1; fi
@@ -112,6 +113,7 @@ exit 0
 uname() { if [[ $1 == -s ]]; then printf 'Darwin\\n'; else printf 'Darwin arm64\\n'; fi; }
 sysctl() { printf 'VirtualMac2,1\\n'; }
 id() { if [[ $1 == -u ]]; then echo 501; else echo staff; fi; }
+dscl() { printf 'NFSHomeDirectory: %s\\n' "$3"; }
 stat() {
     if [[ $* == *'/dev/console'* ]]; then if [[ -n ${CAGE_TEST_LOGIN_WINDOW:-} ]]; then echo 0; else echo 501; fi
     elif [[ $* == *'/Users/cage/Library/LaunchAgents/'* ]]; then echo 501

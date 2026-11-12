@@ -140,7 +140,7 @@ export function createNativeBrowserService(options = {}) {
   let activeRequests = 0;
   const events = [], transfers = new Map(), privateContexts = new Set(), editorConnections = new Map(), logins = new Map();
   const clipboardCopies = new Map();
-  let clipboardHelper, copyVersion = 0, pendingCopy, copying;
+  let clipboardHelper, clipboardSourceConnection, clipboardSourceID, copyVersion = 0, pendingCopy, copying;
   let eventSequence = 0, uploads, downloads, clipboard, pointer, composition, clipboardAvailable = false, cookieActions, extensions, controller, internalCreation, vault;
   let stateVersion = 0, snapshotVersion = -1, snapshotAt = 0, snapshotCache;
   let rfbTarget = "", rfbMask = 0, lastClick, rfbPointer;
@@ -177,8 +177,9 @@ export function createNativeBrowserService(options = {}) {
         isolated.on("close", () => { privateContexts.delete(isolated); clipboardHelper = undefined; });
         try {
           const page = await isolated.newPage();
-          await page.route("http://cage-clipboard.localhost/", route => route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Cage clipboard</title>" }));
-          await page.goto("http://cage-clipboard.localhost/", { waitUntil: "domcontentloaded" });
+          const origin = "http://" + token() + ".localhost/";
+          await page.route(origin, route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
+          await page.goto(origin, { waitUntil: "domcontentloaded" });
           return page;
         } catch (error) { await isolated.close(); throw error; }
       })();
@@ -260,6 +261,7 @@ export function createNativeBrowserService(options = {}) {
     tab.copyContext = input.context;
     tab.explicitCopyContext = input.context;
     await clipboard.setContext(tab.id, input.context);
+    if (clipboard.available === false) throw failure("copy_unavailable", "浏览器无法读取本次复制，请更新环境中的浏览器后重试");
     const proof = { id: tab.id, context: input.context, document, version: copyVersion };
     let timeout;
     const completed = new Promise((resolve, reject) => {
@@ -483,7 +485,7 @@ export function createNativeBrowserService(options = {}) {
   }
   async function cdp(method, params = {}, sessionID) {
     if (!sessionID) return browserCDP.send(method, params);
-    const session = sessions.get(sessionID);
+    const session = sessionID === clipboardSourceID ? clipboardSourceConnection : sessions.get(sessionID);
     if (!session) throw failure("target_changed", "Input target changed");
     // Playwright owns out-of-process-frame discovery. It does not expose raw
     // flattened child session transports, so each Frame gets its own CDPSession.
@@ -653,7 +655,16 @@ export function createNativeBrowserService(options = {}) {
       context.setDefaultTimeout(7000); owner = context.browser();
       if (!owner) throw failure("browser_unavailable", "Windows 客机浏览器控制连接未就绪");
       browserCDP = await owner.newBrowserCDPSession();
-      clipboard = new modules.BrowserClipboard(cdp, observeCopy, { includeChanges: mac });
+      clipboard = new modules.BrowserClipboard(cdp, observeCopy, { includeChanges: mac, source: async () => {
+        const page = await privateClipboardPage();
+        const connection = await page.context().newCDPSession(page);
+        const id = token();
+        clipboardSourceID = id;
+        clipboardSourceConnection = connection;
+        connection.on("Runtime.bindingCalled", params => clipboard.event({ sessionId: id, method: "Runtime.bindingCalled", params }));
+        await tabs.get(active)?.page.bringToFront();
+        return id;
+      } });
       clipboardAvailable = true;
       if (modules.BrowserVault) vault = new modules.BrowserVault({ cdp, active: () => active, tab: id => { const tab = tabs.get(id); return tab ? { ...tab, url: tab.page.url() } : undefined; } });
       cookieActions = modules.browserCookies;
@@ -778,7 +789,7 @@ export function createNativeBrowserService(options = {}) {
       for (const id of [split.left, split.right]) try { const h = await cdp("Page.getNavigationHistory", {}, tabs.get(id).session); history[id] = { back: h.currentIndex > 0, forward: h.currentIndex < h.entries.length - 1 }; } catch {}
       panes = { left: split.left, right: split.right, fraction: split.fraction, history };
     }
-    const result = { active, split: panes, back, forward, tabs: list, uploads: uploads.snapshot(), downloads: downloads.snapshot(), capabilities: { nativeClipboard: true, systemClipboard: !mac, copyObserver: clipboardAvailable, files: true, frames: true, cookies: typeof cookieActions === "function", vault: Boolean(vault), login: true, editor: typeof options.editor === "function" || editorConnections.size > 0, split: true, extensions: Boolean(extensions) } };
+    const result = { active, split: panes, back, forward, tabs: list, uploads: uploads.snapshot(), downloads: downloads.snapshot(), capabilities: { nativeClipboard: true, systemClipboard: !mac, copyObserver: clipboardAvailable && clipboard.available !== false, files: true, frames: true, cookies: typeof cookieActions === "function", vault: Boolean(vault), login: true, editor: typeof options.editor === "function" || editorConnections.size > 0, split: true, extensions: Boolean(extensions) } };
     snapshotVersion = version; snapshotAt = Date.now(); snapshotCache = result;
     return result;
   }
@@ -1402,7 +1413,11 @@ export function createNativeBrowserService(options = {}) {
     if (action === "copy-context") {
       if (!tokenPattern.test(input.context || "")) throw failure("invalid_input", "Copy target changed");
       if (tab.copyContext !== input.context) { invalidateCopies(); tab.explicitCopyContext = undefined; }
-      tab.copyContext = input.context; await clipboard.setContext(tab.id, input.context); return { ok: true };
+      tab.copyContext = input.context;
+      const available = clipboard.available;
+      await clipboard.setContext(tab.id, input.context);
+      if (clipboard.available !== available) changed();
+      return { ok: true };
     }
     if (mac && (action === "copy" || action === "cut")) return copyAction(tab, input, action, signal);
     if (action === "insert-text") {

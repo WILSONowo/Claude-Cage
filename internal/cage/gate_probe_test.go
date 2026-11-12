@@ -339,7 +339,7 @@ func exitProbeProxy(t *testing.T, scheme, upstream string) (string, *atomic.Int3
 					return
 				}
 				defer remote.Close()
-				go func() { _, _ = io.Copy(remote, reader); _ = remote.Close() }()
+				go func() { _, _ = io.Copy(remote, reader); _ = remote.(*net.TCPConn).CloseWrite() }()
 				_, _ = io.Copy(connection, remote)
 			}()
 		}

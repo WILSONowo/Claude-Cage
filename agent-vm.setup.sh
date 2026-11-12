@@ -228,7 +228,7 @@ sudo chsh -s /usr/bin/zsh "$(whoami)"
 #
 # PATH additions go in ~/.zshenv only: every zsh reads it, and nothing in
 # Debian 13's /etc/zsh/{zprofile,zshrc} resets PATH afterwards.
-echo 'export PS1="vm:%1~%% "' >> ~/.zshrc
+echo 'export PS1="%1~%% "' >> ~/.zshrc
 
 # Shell history, kept across sessions and restarts: zsh saves none unless told
 # where (#20). It lives on the VM's disk, where the agent can read it, like

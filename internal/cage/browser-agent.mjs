@@ -136,7 +136,27 @@ const browserClipboard = new BrowserClipboard(cdp, ({ id, text, context }) => {
   if (id !== activeId || !targets.has(id)) return;
   const payload = "event: clipboard\ndata: " + JSON.stringify({ id, text, context }) + "\n\n";
   for (const stream of events) stream.write(payload);
-});
+}, { source: clipboardSource });
+async function clipboardSource() {
+  const { browserContextId } = await cdp("Target.createBrowserContext", { disposeOnDetach: true });
+  auditExclusions.add(browserContextId);
+  try {
+    const origin = "http://127.0.0.1:18500";
+    await cdp("Browser.grantPermissions", { browserContextId, origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
+    const { targetId } = await cdp("Target.createTarget", { browserContextId, url: origin, hidden: true, background: true });
+    const { sessionId } = await cdp("Target.attachToTarget", { targetId, flatten: true });
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const ready = await cdp("Runtime.evaluate", { expression: "!!navigator.clipboard", returnByValue: true }, sessionId);
+      if (ready.result?.value) return sessionId;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error("Clipboard source page unavailable");
+  } catch (error) {
+    await cdp("Target.disposeBrowserContext", { browserContextId }).catch(() => {});
+    auditExclusions.delete(browserContextId);
+    throw error;
+  }
+}
 const vault = new BrowserVault({ cdp, active: () => activeId, tab: id => targets.get(id) });
 const downloads = new DownloadManager({
   directory: "/home/cage-browser",

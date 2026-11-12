@@ -12,7 +12,7 @@
 
 ## 下载或安装受阻
 
-**GitHub 显示 404，或看不到安装包。** 仓库与公开发布的附件无需仓库授权。从[项目主页](https://lee-xeo.github.io/Claude-Cage/#download)点击“下载应用”并选择平台，检查网络与链接是否完整。macOS 使用 `.dmg`，Windows 使用 `.exe` 安装器，Debian/Ubuntu Linux 使用 `.deb`。Release 中的源码压缩包用于开发，不能当作安装包使用；尚无公开安装包的平台会提供安装与构建说明。
+**GitHub 显示 404，或看不到安装包。** 仓库与公开发布的附件无需仓库授权。从[项目主页](https://claude-cage.com/#download)点击“下载应用”并选择平台，检查网络与链接是否完整。macOS 使用 `.dmg`，Windows 使用 `.exe` 安装器，Debian/Ubuntu Linux 使用 `.deb`。Release 中的源码压缩包用于开发，不能当作安装包使用；尚无公开安装包的平台会提供安装与构建说明。
 
 **Mac 提示应用损坏、无法验证或不支持。** 确认使用 Apple Silicon、macOS 14+，重新下载对应 Release 的完整安装包，并核对该 Release 的签名、公证说明和校验文件。保留系统提示的原文反馈问题；不要通过关闭 Gatekeeper 或删除隔离属性来掩盖发行问题。
 

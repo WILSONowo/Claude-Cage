@@ -90,7 +90,7 @@ download chrome.dmg https://dl.google.com/chrome/mac/universal/stable/GGRO/googl
 
 # Cached archives may survive several application builds. Refresh first-party
 # CLI source from this bundle without changing downloaded package bytes.
-for name in install-macos-cli.sh macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py; do
+for name in install-macos-cli.sh macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py client_runtime.py; do
     if [[ -f $src/$name ]]; then
         [[ ! -L $media/cli/$name ]]
         cp "$src/$name" "$media/cli/$name"

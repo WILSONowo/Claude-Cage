@@ -416,6 +416,11 @@ func (c *gateConn) Write(b []byte) (int, error) {
 	}
 	return c.Conn.Write(b)
 }
+
+func (c *gateConn) CloseWrite() error {
+	return closeWrite(c.Conn)
+}
+
 func (c *gateConn) Close() error {
 	var err error
 	c.once.Do(func() {
@@ -430,9 +435,6 @@ func (c *gateConn) Close() error {
 
 type unavailableProxy struct{}
 
-func (unavailableProxy) Dial(string, string) (net.Conn, error) {
-	return nil, errors.New("proxy outage drill")
-}
 func (unavailableProxy) DialContext(context.Context, string, string) (net.Conn, error) {
 	return nil, errors.New("proxy outage drill")
 }

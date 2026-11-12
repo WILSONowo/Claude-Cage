@@ -21,6 +21,12 @@
     "url": "https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_windows_amd64.zip",
     "sha256": "98d0cfa794721665d7973dd728c78aff7bd836d58f10f6d7a03568eccb0a22e0"
   },
+  "gh": {
+    "version": "2.103.3",
+    "filename": "gh_2.103.3_windows_amd64.zip",
+    "url": "https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_windows_amd64.zip",
+    "sha256": "98d0cfa794721665d7973dd728c78aff7bd836d58f10f6d7a03568eccb0a22e0"
+  },
   "git": {
     "version": "2.56.0.4",
     "filename": "PortableGit-2.56.0.4-64-bit.7z.exe",

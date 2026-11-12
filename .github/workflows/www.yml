@@ -49,6 +49,8 @@ jobs:
     if: always() && !cancelled() && (needs.verify-release.result == 'success' || needs.verify-release.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PUBLIC_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
     steps:
       - uses: actions/checkout@v4
         with:

@@ -67,7 +67,7 @@ for pid in "$claude_pid" "$uv_pid" "$python_pid" "$git_pid" "$gh_pid"; do wait "
 [[ $failed == 0 ]] || { echo 'Could not download and verify all macOS CLI packages.' >&2; exit 1; }
 codesign --verify --strict --architecture arm64 -R '=anchor apple generic and identifier "com.anthropic.claude-code" and certificate leaf[subject.OU] = "Q6L2SF6YDW"' "$stage/claude"
 rm "$stage/latest"
-for file in internal/cage/claude-account.py internal/workbench/{cli_channel.py,cli_channel.resume.md,claude_account_resume.md}; do
+for file in internal/cage/{claude-account.py,client_runtime.py} internal/workbench/{cli_channel.py,cli_channel.resume.md,claude_account_resume.md}; do
     name=${file##*/}
     if [[ -f "$src/$name" ]]; then cp "$src/$name" "$stage/$name"; else cp "$src/../../$file" "$stage/$name"; fi
 done

@@ -198,7 +198,7 @@ export function ClaudeDesktop({
       setError(status.job.error);
       return;
     }
-    if (status.job.kind === "claude-desktop-install") run("start");
+    if (["claude-desktop-install", "claude-desktop-update"].includes(status.job.kind)) run("start");
     else refresh();
   }, [status.job]);
   return (
@@ -219,7 +219,11 @@ export function ClaudeDesktop({
         }}
       />}
       <DesktopToolbar desktop={desktop} platform={status.guest_system === "windows-11" ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
-        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand} />
+        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
+        {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
+          if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存应用内的工作。更新会关闭 Claude Desktop，从官方软件源安装可用版本，再重新打开；登录资料继续保留。", confirm: "更新应用" })) run("update");
+        }}>更新应用</button>}
+      </DesktopToolbar>
       {(error || statusError || desktop?.failed) && (
         <div className="connection-banner" role="alert">
           <SafetyMessage message={error || statusError || (desktop?.failure_reason === "oom-kill"
@@ -275,7 +279,7 @@ export function ClaudeDesktop({
                   {desktop.installed ? "打开 Claude Desktop" : "下载并安装"}
                 </button>
               )}
-              {desktop?.installed && (
+              {desktop?.installed && !status.guest_system?.startsWith("windows") && (
                 <button
                   className="quiet-button"
                   disabled={busy}
@@ -294,6 +298,9 @@ export function ClaudeDesktop({
                 </button>
               )}
             </div>
+            {desktop?.installed && <p>{status.guest_system?.startsWith("windows")
+              ? "在 Claude Desktop 应用内检查并安装更新。"
+              : "Linux 版通过系统软件源更新。可点击上方“更新应用”，或在 Cage 终端运行 sudo apt update && sudo apt install --only-upgrade claude-desktop。"}</p>}
             <div className="desktop-note">
               <p>关闭应用会释放图形会话资源，登录状态保留在 Cage 中。</p>
               <p>Cowork 需要额外的虚拟机，目前暂不支持。</p>

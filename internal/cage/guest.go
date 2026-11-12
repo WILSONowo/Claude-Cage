@@ -35,8 +35,16 @@ var guestWaitServices string
 //go:embed claude-account.py
 var claudeAccountHelper string
 
+//go:embed client_runtime.py
+var ClientRuntimeHelper string
+
+func clientRuntimeScript() string {
+	return "sudo tee /usr/local/bin/client_runtime.py >/dev/null <<'CLIENT_RUNTIME'\n" + ClientRuntimeHelper + "\nCLIENT_RUNTIME\nsudo chmod 0644 /usr/local/bin/client_runtime.py\n"
+}
+
 func claudeAccountScript() string {
-	return "sudo tee /usr/local/bin/cage-claude-account >/dev/null <<'CAGE_CLAUDE_ACCOUNT'\n" + claudeAccountHelper + "\nCAGE_CLAUDE_ACCOUNT\nsudo chmod 0755 /usr/local/bin/cage-claude-account\n" +
+	return clientRuntimeScript() +
+		"sudo tee /usr/local/bin/cage-claude-account >/dev/null <<'CAGE_CLAUDE_ACCOUNT'\n" + claudeAccountHelper + "\nCAGE_CLAUDE_ACCOUNT\nsudo chmod 0755 /usr/local/bin/cage-claude-account\n" +
 		`sudo install -d -m 0755 /usr/local/lib/cage-claude-bin
 sudo tee /usr/local/lib/cage-claude-bin/claude >/dev/null <<'CAGE_CLAUDE_SHIM'
 #!/bin/sh

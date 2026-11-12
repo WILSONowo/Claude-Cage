@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createWorkbench } from "./workbench-fixture.mjs";
 
 const output = new URL(
-  "../../docs/test-reports/2026-10-31-environment/",
+  process.env.CAGE_ENVIRONMENT_SCREENSHOTS || "../../docs/test-reports/2026-10-31-environment/",
   import.meta.url,
 );
 await fs.mkdir(output, { recursive: true });
@@ -15,10 +15,10 @@ const shot = (name) =>
     animations: "disabled",
   });
 try {
-  assert.equal(
-    await page.getByRole("button", { name: "添加项目", exact: true }).isDisabled(),
-    true,
-  );
+  await page.getByRole("button", { name: "添加项目", exact: true }).click();
+  const projectDialog = page.getByRole("dialog", { name: "打开项目" });
+  assert.ok(await projectDialog.getByRole("button", { name: "打开项目", exact: true }).isDisabled());
+  await projectDialog.getByRole("button", { name: "取消", exact: true }).click();
   assert.equal(
     await page.getByRole("button", { name: /^打开浏览器/ }).isDisabled(),
     true,
@@ -29,7 +29,7 @@ try {
   await page
     .getByRole("button", { name: "启动 Cage 环境", exact: true })
     .click();
-  await page.getByRole("heading", { name: "新建对话" }).waitFor();
+  await page.getByRole("textbox", { name: "消息" }).waitFor();
   assert.equal(await page.locator(".sidebar-status").count(), 0);
   await page.locator('.status-bar button[title="网络与隔离检查"] .environment-shield.healthy').waitFor();
   assert.equal(state.saves.length, 0);
@@ -37,8 +37,8 @@ try {
     .getByRole("navigation", { name: "主导航" })
     .getByRole("button")
     .allTextContents();
-  assert.match(links[0], /工作台/);
-  assert.match(links[1], /浏览器/);
+  assert.match(links[0], /新建对话/);
+  assert.ok(links.includes("浏览器"));
   await shot("running");
   await page.getByRole("button", { name: /^打开浏览器/ }).click();
   await page.getByLabel("网页地址或搜索").waitFor();
@@ -66,7 +66,7 @@ try {
     starts,
   );
   await page.reload();
-  await page.getByRole("heading", { name: "新建对话" }).waitFor();
+  await page.getByRole("textbox", { name: "消息" }).waitFor();
   await page.getByRole("button", { name: /^打开浏览器/ }).click();
   await page.getByRole("button", { name: "新建网页", exact: true }).click();
   await page.waitForFunction(
@@ -75,7 +75,7 @@ try {
       "https://example.com/start",
   );
   state.status.safety.gate.until = new Date(Date.now() - 1000).toISOString();
-  await page.getByText("离线可用", { exact: true }).waitFor();
+  await page.locator(".status-safety").getByText("外网已关闭", { exact: true }).waitFor();
   assert.equal(await page.locator(".environment-shield.healthy").count(), 0);
   await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
   await shot("offline");
@@ -105,7 +105,7 @@ try {
     passed: true,
     checks: [
       "先启动环境，无需选择项目",
-      "浏览器入口紧随工作台",
+      "主导航可打开浏览器",
       "有效放行时显示绿色带对钩盾牌，过期及停止时撤销",
       "默认 Bing、自定义网站保存并刷新读回、下次打开生效",
       "默认网站保存无需重启",

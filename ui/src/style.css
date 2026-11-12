@@ -708,6 +708,11 @@ button.large {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.status-clock {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .status-feedback {
   max-width: 48vw;
   overflow: hidden;
@@ -1689,15 +1694,10 @@ svg {
   cursor: progress;
 }
 .terminal-create-menu {
-  position: static;
-  width: min(100%, 184px);
-  min-width: 0;
-  margin: 3px 0;
+  overflow: auto;
+  border: 1px solid var(--line);
   box-shadow: none;
 }
-.sidebar-project > .terminal-create-menu,
-.chrome > .terminal-create-menu { margin-inline-start: auto; }
-.welcome-shortcuts + .terminal-create-menu { margin-inline: auto; }
 .terminal-create-menu button {
   gap: 10px;
   white-space: nowrap;

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState } from "react";
 
 // Both desktop and mobile mount the list outside scroll/overflow containers.
-export function useSelectPopup(visible, control, list, count) {
+export function useSelectPopup(visible, control, list, count, fitLabels = false) {
   const [position, setPosition] = useState(null);
   useLayoutEffect(() => {
     if (!visible) return;
@@ -16,7 +16,7 @@ export function useSelectPopup(visible, control, list, count) {
       const bottom = y + (viewport?.height || window.innerHeight);
       const below = bottom - rect.bottom - gap - margin, above = rect.top - y - gap - margin;
       const availableWidth = Math.max(1, right - x - 2 * margin);
-      const desktop = list.current.classList.contains("select-surface");
+      const desktop = fitLabels || list.current.classList.contains("select-surface");
       const minimum = Math.min(Math.max(rect.width, 152), availableWidth);
       if (desktop) {
         // Size the list to its labels first, then position the measured box at the anchor.
@@ -51,6 +51,6 @@ export function useSelectPopup(visible, control, list, count) {
       window.visualViewport?.removeEventListener("scroll", place);
       window.removeEventListener("resize", place); document.removeEventListener("scroll", scroll, true);
     };
-  }, [visible, control, list, count]);
+  }, [visible, control, list, count, fitLabels]);
   return position || { position: "fixed", width: "max-content", visibility: "hidden" };
 }

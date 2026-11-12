@@ -222,7 +222,23 @@
 .modal-footer > .save-note { margin-inline-end: auto; min-width: 0; overflow-wrap: anywhere; }
 .modal-footer > button { max-width: 100%; min-height: 2.35em; line-height: 1.35; white-space: normal; }
 .modal-footer > button svg { flex: none; }
-.status-bar { min-height: max(32px, 2.25rem); height: auto; }
+.status-bar {
+  container: status / inline-size;
+  min-height: max(32px, 2.25rem);
+  height: auto;
+  flex-wrap: wrap;
+  gap: .2rem clamp(4px, .75vw, 12px);
+  padding: 2px clamp(8px, 1.4vw, 20px);
+}
+.status-bar > .status-exit { min-width: 0; max-width: 22em; }
+.status-exit span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container status (max-width: 34rem) {
+  .status-bar > .status-region, .status-bar > .status-exit, .status-bar > .status-divider { display: none; }
+}
+@container status (max-width: 22rem) {
+  .status-bar > .status-spacer { display: none; }
+  .status-bar > .status-safety > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
 .settings-sheet .field-help { margin-top: 0; }
 .settings-sheet .toggle-row > span { min-width: 0; }
 .settings-sheet .toggle-row input[role="switch"] { flex: none; }

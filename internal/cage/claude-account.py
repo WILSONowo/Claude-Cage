@@ -16,12 +16,19 @@ import sys
 import tempfile
 import time
 
+_controller_context = {**os.environ, **globals().get("_controller_context", {})}
+runtime_source = Path(__file__).resolve()
+runtime_path = runtime_source.with_name("client_runtime.py")
+if not runtime_path.exists():
+    runtime_path = runtime_source.parent.parent / "client_runtime.py"
+_runtime = runpy.run_path(runtime_path, init_globals={"_controller_context": _controller_context})
+
 
 if os.name == "nt":
     platform_path = Path(__file__).with_name("windows_cli_platform.py")
     if not platform_path.exists():
         platform_path = Path(__file__).parent.parent / "workbench/windows_cli_platform.py"
-    _platform = runpy.run_path(platform_path)
+    _platform = runpy.run_path(platform_path, init_globals={"_controller_context": _controller_context})
     fcntl = _platform["FileLock"]
 else:
     import fcntl
@@ -33,7 +40,7 @@ DEFAULT = "default"
 
 
 def shared_root():
-    return Path(os.environ["CAGE_CLI_SHARED_ROOT"]) if os.name == "nt" else Path.home() / ".local/share/cage/claude-shared"
+    return Path(_controller_context["CAGE_CLI_SHARED_ROOT"]) if os.name == "nt" else Path.home() / ".local/share/cage/claude-shared"
 
 
 class SharedResourceConflict(ValueError):
@@ -43,7 +50,7 @@ class SharedResourceConflict(ValueError):
 def profile(account_id):
     if account_id != DEFAULT and not re.fullmatch("[0-9a-f]{24}", account_id):
         raise ValueError("invalid account ID")
-    root = Path(os.environ["CAGE_CLI_ACCOUNT_ROOT"]) if os.name == "nt" else Path.home() / ".local/share/cage/claude-accounts"
+    root = Path(_controller_context["CAGE_CLI_ACCOUNT_ROOT"]) if os.name == "nt" else Path.home() / ".local/share/cage/claude-accounts"
     return root / account_id
 
 
@@ -62,23 +69,23 @@ def cli_environment(base):
         # Let Claude resolve its normal ~/.claude.json and ~/.claude itself.
         # Preserve provider variables: an API-authenticated shell is not a
         # signed-in default subscription, even if a previous login exists.
-        return env
+        return _runtime["environment"](env)
     env["CLAUDE_CONFIG_DIR"] = str(config_directory(base))
     for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
                  "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
                  "CLAUDE_CODE_USE_FOUNDRY", "CLAUDE_CODE_USE_GATEWAY"):
         env.pop(name, None)
-    return env
+    return _runtime["environment"](env)
 
 
 def identity(binary, env, cwd, settings=(), timeout=10, pass_fds=()):
-    result = subprocess.run([binary, *settings, "auth", "status"], cwd=cwd, env=env, timeout=timeout,
+    result = subprocess.run([_runtime["path"](binary), *settings, "auth", "status"], cwd=cwd, env=env, timeout=timeout,
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, pass_fds=pass_fds)
     # Exit code 1 with JSON is the CLI's documented logged-out response. Any
     # other failure (including missing JSON) must not sign a known user out.
     data = json.loads(result.stdout)
     reported_dir = data.get("configDirectory")
-    correct_dir = isinstance(reported_dir, str) and Path(reported_dir) == Path(env.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    correct_dir = isinstance(reported_dir, str) and Path(reported_dir).resolve() == Path(env.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").resolve()
     if result.returncode not in (0, 1) or not correct_dir:
         raise ValueError("unexpected auth status")
     ok = (result.returncode == 0 and data.get("loggedIn") is True and data.get("authMethod") == "claude.ai"
@@ -254,7 +261,7 @@ def changed_identity():
 
 
 def invoke_usage(binary, env, cwd, options, timeout):
-    command = [binary, *options, "-p", "--input-format", "stream-json", "--verbose", "--output-format", "stream-json",
+    command = [_runtime["path"](binary), *options, "-p", "--input-format", "stream-json", "--verbose", "--output-format", "stream-json",
                "--no-session-persistence", "--strict-mcp-config", "--tools", ""]
     request = {"type": "control_request", "request_id": "quota", "request": {"subtype": "get_usage", "skip_behaviors": True}}
     result = subprocess.run(command, cwd=cwd, env=env, timeout=timeout, input=(json.dumps(request) + "\n").encode(),
@@ -481,7 +488,7 @@ def shared_launch_arguments_locked(base, args, settings_fd):
             _platform["resource_link"](own_memory, memory)
         else:
             own_memory.symlink_to(memory, target_is_directory=True)
-    settings = {"autoMemoryDirectory": str(memory)}
+    settings = {"autoMemoryDirectory": _runtime["path"](memory)}
     # Only local behavior is shared. Never copy env, apiKeyHelper, login/org
     # constraints, OAuth metadata, or account-synced remote configuration.
     common_settings = json_file(Path.home() / ".claude/settings.json")
@@ -534,7 +541,7 @@ def shared_launch_arguments_locked(base, args, settings_fd):
             stream.write(data)
             temporary = stream.name
         os.replace(temporary, path)
-    return ["--settings", str(path), *result]
+    return ["--settings", _runtime["path"](path), *result]
 
 
 def main(args, *, mobile_settings_fd=None, verify_mobile=None):
@@ -562,7 +569,7 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
     if account_id == DEFAULT:
         directory = env.get("CLAUDE_CONFIG_DIR") or str(config_directory(base))
         endpoint = env.get("ANTHROPIC_BASE_URL", "").rstrip("/")
-        if Path(directory) != config_directory(base) or endpoint not in ("", "https://api.anthropic.com"):
+        if Path(directory).resolve() != config_directory(base).resolve() or endpoint not in ("", "https://api.anthropic.com"):
             if mode in ("snapshot", "usage"):
                 print(json.dumps(changed_identity() if mode == "usage" else {"logged_in": False}))
                 return 0
@@ -575,12 +582,12 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
             raise ValueError("usage requires an expected account")
         print(json.dumps(query_usage(binary, env, base, rest[0])))
         return 0
-    expected = env.get("CAGE_CLAUDE_SUBJECT")
+    expected = _controller_context.get("CAGE_CLAUDE_SUBJECT")
     if mode == "statusline":
         raw = sys.stdin.buffer.read((1 << 20) + 1)
         if len(raw) <= 1 << 20:
             save_usage(base, json.loads(raw), expected, lambda: subject(identity(binary, env, Path.cwd())))
-        print("Cage · Claude")
+        print("Claude")
         return 0
     if mode == "snapshot":
         summary = identity(binary, env, Path.home())
@@ -590,9 +597,8 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
         print(json.dumps(summary))
         return 0
     if mode == "login":
-        env.update(CAGE_CLAUDE_LOGIN=account_id)
         if os.name != "nt":
-            env["BROWSER"] = OPEN
+            env["BROWSER"] = _runtime["launcher"](OPEN, executable=True, arguments=["--login-id", account_id])
         # Set the handler before spawning so SSH/window closure also disposes
         # the ephemeral browser and its cookies.
         def interrupted(_signum, _frame):
@@ -602,15 +608,15 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
         signal.signal(signal.SIGTERM, interrupted)
         try:
             (base / "quota.json").unlink(missing_ok=True)
-            return subprocess.call([binary, "auth", "login", *([] if os.name == "nt" else ["--claudeai"])], cwd=Path.home(), env=env)
+            return subprocess.call([_runtime["path"](binary), "auth", "login", *([] if os.name == "nt" else ["--claudeai"])], cwd=Path.home(), env=env)
         finally:
             if os.name != "nt":
-                subprocess.run([OPEN, "--finish-login"], env=env, timeout=8, check=False,
+                subprocess.run([OPEN, "--login-id", account_id, "--finish-login"], env=os.environ, timeout=8, check=False,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if mode == "run":
         shared_profile_resources(base)
         if not settings_flags(rest) and not has_status_line(base):
-            rest = ["--settings", json.dumps({"statusLine": {"type": "command", "command": f"{HELPER} statusline {account_id}"}}), *rest]
+            rest = ["--settings", json.dumps({"statusLine": {"type": "command", "command": _runtime["command_text"](__file__, ["statusline", account_id])}}), *rest]
         rest = shared_launch_arguments(base, rest, mobile_settings_fd)
         # Profile/project settings can override inherited authentication. Check
         # the actual CLI method in the project before launching the conversation.
@@ -629,13 +635,15 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
         # in the shared project using the user's usual umask.
         os.umask(original_umask)
         if os.name == "nt":
-            return subprocess.call([binary, *rest], env=env)
+            return subprocess.call([_runtime["path"](binary), *rest], env=env)
         os.execve(binary, [binary, *rest], env)
     raise ValueError("unknown operation")
 
 
 def macos_open(args):
-    login = os.environ.get("CAGE_CLAUDE_LOGIN", "")
+    login = _controller_context.get("CAGE_CLAUDE_LOGIN", "")
+    if len(args) == 3 and args[0] == "--login-id":
+        login, args = args[1], args[2:]
     if len(args) != 1 or not re.fullmatch("[0-9a-f]{24}", login):
         return 2
     finish = args[0] == "--finish-login"

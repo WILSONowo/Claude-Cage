@@ -662,7 +662,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	view := map[string]any{
 		"projects": projects, "ready": s.ready, "vm_running": running,
-		"workspace": s.workspaceLocked(), "environment_workspace": s.workspaceLocked() == s.environmentDir(), "environment_directory": s.environmentDir(),
+		"workspace": s.workspaceLocked(), "environment_directory": s.environmentDir(),
 		"environment_identity_directory": cage.EnvironmentIdentityDir(s.profile),
 		"local_vm_storage":               s.localVMStorage(), "project_error": projectError, "project_errors": s.projectErrors,
 		"storage_recovery": s.storageRecoveryStatusLocked(),

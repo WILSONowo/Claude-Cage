@@ -102,11 +102,17 @@ async function fixture(t, configured = {}, overrides = {}) {
 integration("interactive browser identity is native in normal and private documents", async t => {
   const f = await fixture(t);
   for (const incognito of [false, true]) {
-    const { page } = await f.open("/identity", incognito);
+    const { id, page } = await f.open("/identity", incognito);
+    const permission = await page.evaluate(() => navigator.permissions.query({ name: "clipboard-read" }).then(value => value.state));
+    await f.call("copy-context", { id, context: "a".repeat(32) });
     assert.deepEqual(await page.evaluate(() => ({
       automated: navigator.webdriver,
       getter: Object.getOwnPropertyDescriptor(Navigator.prototype, "webdriver").get.toString(),
-    })), { automated: false, getter: "function get webdriver() { [native code] }" });
+      globals: Object.getOwnPropertyNames(globalThis).filter(name => /cage/i.test(name)),
+      nativeClipboard: [Clipboard.prototype.writeText, Clipboard.prototype.write, DataTransfer.prototype.setData,
+        DataTransfer.prototype.clearData, Document.prototype.execCommand].every(fn => /\{ \[native code\] \}/.test(Function.prototype.toString.call(fn))),
+    })), { automated: false, getter: "function get webdriver() { [native code] }", globals: [], nativeClipboard: true });
+    assert.equal(await page.evaluate(() => navigator.permissions.query({ name: "clipboard-read" }).then(value => value.state)), permission);
   }
   assert.ok(f.launchOptions().ignoreDefaultArgs.includes("--enable-automation"));
   assert.equal(f.launchOptions().chromiumSandbox, true);
@@ -227,11 +233,9 @@ integration("private window popups are tracked and closing one tab retains its s
 
 integration("native page copy completion carries current context and ignores a synthetic copy", async t => {
   const f = await fixture(t), one = await f.open();
-  await f.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: f.url });
   const context = "c".repeat(32);
   await f.call("copy-context", { id: one.id, context });
   await f.click(one.id, one.page, "#copy");
-  await one.page.waitForFunction(() => navigator.clipboard.readText().then(v => v === "实际复制🙂"));
   let result;
   for (let i = 0; i < 20; i++) {
     result = await f.call("events", {}, "GET");

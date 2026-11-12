@@ -24,7 +24,7 @@ mkdir -p "$base" /usr/local/bin
 work=$(mktemp -d "$base/.cage-cli-install.XXXXXXXX")
 trap 'rm -rf "$work"' EXIT
 cd "$work"
-cp "$kit"/{macos-cli.py,cli_channel.py,cli_channel.resume.md,claude_account_resume.md,claude-account.py} .
+cp "$kit"/{macos-cli.py,cli_channel.py,cli_channel.resume.md,claude_account_resume.md,claude-account.py,client_runtime.py} .
 runtime="$base/cage-cli-runtime-2.1.311-py3.13.18-git2.56.0"
 github="$base/cage-gh-2.103.3"
 current="$base/cage-cli"
@@ -129,11 +129,11 @@ GIT
     chmod -R a+rX,go-w tools
     publish_dir tools "$runtime"
 fi
-revision=$({ shasum -a 256 macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py "$claude"; if [[ -x $github/bin/gh ]]; then echo gh-2.103.3; fi; } | shasum -a 256 | cut -c1-16)
+revision=$({ shasum -a 256 macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py client_runtime.py "$claude"; if [[ -x $github/bin/gh ]]; then echo gh-2.103.3; fi; } | shasum -a 256 | cut -c1-16)
 target="$base/cage-cli-2.$revision"
 if [[ -d $target ]]; then
     intact=yes
-    for name in macos-cli.py cli_channel.py cli_channel.resume.md; do
+    for name in macos-cli.py cli_channel.py cli_channel.resume.md client_runtime.py; do
         if ! cmp -s "$name" "$target/$name"; then intact=no; fi
     done
     if ! cmp -s claude_account_resume.md "$target/cli_channel.account-resume.md" ||
@@ -154,7 +154,7 @@ if [[ ! -d $target ]]; then
     for name in python3 git; do ln -s "$runtime/bin/$name" "helpers/bin/$name"; done
     ln -s "$claude" helpers/bin/claude
     if [[ -x $github/bin/gh ]]; then ln -s "$github/bin/gh" helpers/bin/gh; fi
-    install -m 644 macos-cli.py cli_channel.py cli_channel.resume.md helpers/
+    install -m 644 macos-cli.py cli_channel.py cli_channel.resume.md client_runtime.py helpers/
     install -m 644 claude_account_resume.md helpers/cli_channel.account-resume.md
     sed "1s@.*@#!$runtime/bin/python3 -I@" claude-account.py > helpers/bin/cage-claude-account
     chmod 755 helpers/bin/cage-claude-account

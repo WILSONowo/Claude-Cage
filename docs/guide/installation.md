@@ -7,7 +7,7 @@ keywords: 下载 安装 客机 macOS Windows Debian Apple Silicon Hyper-V WHPX K
 ---
 ## 选择安装包
 
-从[官网下载区](https://lee-xeo.github.io/Claude-Cage/#download)选择平台。公开附件、签名和校验文件以 [GitHub Releases](https://github.com/Lee-xeo/Claude-Cage/releases)为准。源码压缩包用于开发，不能直接安装。
+从[官网下载区](https://claude-cage.com/#download)选择平台。公开附件、签名和校验文件以 [GitHub Releases](https://github.com/Lee-xeo/Claude-Cage/releases)为准。源码压缩包用于开发，不能直接安装。
 
 | 平台 | 要求与安装方式 |
 | --- | --- |
