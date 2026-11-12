@@ -14,6 +14,7 @@ import { browserCookies } from "./browser-cookies.mjs";
 import { BrowserExtensions, extensionUploadLimit } from "./browser-extensions.mjs";
 import { BrowserClipboard } from "./browser-clipboard.mjs";
 import { BrowserVisibility } from "./browser-visibility.mjs";
+import { BrowserWheel, createActivitySignal, createPointerProbe } from "./browser-wheel.mjs";
 import { nativeInput } from "./native-input.mjs";
 import { createDisplaySettings, displayDensity } from "./display-density.mjs";
 import { DownloadManager } from "./browser-downloads.mjs";
@@ -108,6 +109,22 @@ const pending = new Map(),
   targets = new Map(),
   sessions = new Map();
 const closingTargets = new Map();
+// Developer tools share the window with the page they inspect, or cover it.
+const inspectors = new Set();
+const pointerProbe = createPointerProbe();
+const displayActivity = createActivitySignal({ path: "/home/cage-browser/.cache/cage-display/activity.sock" });
+process.on("exit", () => { pointerProbe.close(); displayActivity.close(); });
+// A scrolled distance goes to the one page that fills the window. Two panes,
+// developer tools and a hidden window keep the wheel steps of the display.
+const browserWheel = new BrowserWheel({
+  cdp,
+  pointer: pointerProbe,
+  activity: displayActivity,
+  target: async () => {
+    if (!ready || !targets.has(activeId) || splitView || inspectors.size || !visibility.visible) return null;
+    return session(activeId).catch(() => null);
+  },
+});
 let browserVNCViewers = false;
 function canHideBrowser() {
   // Legacy viewers connect directly to the loopback VNC server. Keep their
@@ -196,6 +213,8 @@ function cdp(method, params = {}, sessionId, timeout = 4500) {
 }
 
 function updateTargetInfo(t) {
+  if (t.url.startsWith("devtools://")) inspectors.add(t.targetId);
+  else inspectors.delete(t.targetId);
   if (!isBrowserTab(t)) return;
   const fresh = !targets.has(t.targetId);
   targets.set(t.targetId, privateBrowser.tab(loginBrowser.tab(t, targets.get(t.targetId))));
@@ -282,6 +301,7 @@ chrome.stdio[4].on("data", (chunk) => {
     if (event.method === "Target.targetDestroyed") {
       auditExclusions.delete(p.targetId);
       deferredTargetInfo.delete(p.targetId);
+      inspectors.delete(p.targetId);
       if (p.targetId === splitTarget) {
         splitTarget = null; splitSession = null;
         if (!shuttingDown) void mutate(async () => {
@@ -301,6 +321,7 @@ chrome.stdio[4].on("data", (chunk) => {
       if (splitView && [splitView.left, splitView.right].includes(p.targetId)) splitView = null;
       uploads.cancelTab(p.targetId);
       for (const [sid, tab] of uploadSessions) if (tab === p.targetId) uploadSessions.delete(sid);
+      sessions.get(p.targetId)?.then(sid => browserWheel.forget(sid), () => {});
       sessions.delete(p.targetId);
       if (wasPrivate) void mutate(() => privateBrowser.prune()).catch(() => {});
       if (activeId === p.targetId) {
@@ -810,6 +831,8 @@ const server = http.createServer(async (req, res) => {
       if (text.length > (req.url === "/paste-image" ? 28 * 1024 * 1024 : req.url === "/paste-text" ? 12 * 1024 * 1024 + 4096 : 65536)) throw new Error("Request too large");
     }
     const input = JSON.parse(text || "{}");
+    // Ahead of the queue below: a scroll does not wait for a tab operation.
+    if (req.url === "/wheel") { res.end(JSON.stringify(await browserWheel.deliver(input))); return; }
     if (req.url === "/tailnet") { res.end(JSON.stringify(await tailnet.request(input))); return; }
     if (["/phone-desktop/open", "/phone-desktop/frame", "/phone-desktop/action", "/phone-desktop/close"].includes(req.url)) {
       const { phoneDesktop } = await import("./browser-phone-desktop.mjs");
@@ -1017,8 +1040,10 @@ server.listen(18500, "127.0.0.1");
   await cdp("Browser.getVersion", {}, undefined, 30000);
   await cdp("Target.setDiscoverTargets", { discover: true });
   const { targetInfos } = await cdp("Target.getTargets");
-  for (const t of targetInfos)
+  for (const t of targetInfos) {
+    if (t.url.startsWith("devtools://")) inspectors.add(t.targetId);
     if (isBrowserTab(t)) targets.set(t.targetId, t);
+  }
   await cdp("Browser.setDownloadBehavior", {
     behavior: "allowAndName",
     downloadPath,

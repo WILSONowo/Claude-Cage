@@ -119,6 +119,9 @@ macOS 和已签名 Windows 版本支持通过所选代理更新；Windows 未签
 | 处理下载、启动、联网和登录问题 | [故障排查](https://claude-cage.com/docs/troubleshooting/) |
 | 了解文件、按键和关闭与退出行为 | [项目、终端与文件](https://claude-cage.com/docs/workbench/) |
 | 报告可复现问题 | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| 提交修复、功能实现或文档改进 | [贡献指南](.github/CONTRIBUTING.md) |
+
+代码与文档贡献采用“`contribution` Issue 审核 → 邀请成为协作者 → 提交 PR → 审查合入”的流程。请先提交[方案贡献 Issue](https://github.com/Lee-xeo/Claude-Cage/issues/new?template=05-contribution.yml)；维护者审核通过并添加 `accepted` 标签后，自动化会发送协作者邀请。接受邀请后再创建 PR，详细步骤与权限说明见[贡献指南](.github/CONTRIBUTING.md)。
 
 本项目仍在快速迭代中，欢迎加入交流群提意见，欢迎社区大佬一起维护
 

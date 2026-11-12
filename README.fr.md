@@ -111,6 +111,7 @@ Pour l'index complet, voir [Index des documents](docs/README.md).
 | Dépanner les téléchargements, le démarrage, la connectivité et la connexion | [FAQ et récupération](docs/troubleshooting.md) |
 | Apprenez les commandes du clavier, l'apparence, la persistance des données et le comportement de sortie | [Utilisation quotidienne](docs/getting-started.md#日常使用) |
 | Signaler un problème reproductible | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| Contribuer un correctif, une fonction ou de la documentation : examen de l’Issue → invitation comme collaborateur → PR | [Guide de contribution (chinois)](.github/CONTRIBUTING.md) |
 
 Le projet évolue rapidement. Rejoignez le groupe communautaire pour partager vos commentaires ; les responsables de la communauté sont les bienvenus.
 

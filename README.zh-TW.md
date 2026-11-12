@@ -111,6 +111,7 @@ macOS 和已簽章 Windows 版本支援透過所選代理更新；Windows 未簽
 | 處理下載、啟動、聯網和登入問題 | [常見問題與恢復](docs/troubleshooting.md) |
 | 瞭解按鍵、外觀、資料儲存和退出行為 | [日常使用](docs/getting-started.md#日常使用) |
 | 報告可復現問題 | [GitHub Issues](https://github.com/Lee-xeo/Claude-Cage/issues) |
+| 貢獻修正、功能或文件：Issue 審核 → 協作者邀請 → PR | [貢獻指南（簡體中文）](.github/CONTRIBUTING.md) |
 
 本專案仍在快速迭代中，歡迎加入交流群提意見，歡迎社群大佬一起維護
 

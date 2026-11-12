@@ -38,7 +38,7 @@ jobs:
         run: |
           node scripts/check-repository-files.mjs
           node scripts/check-version.mjs
-          node --test scripts/release-version.test.mjs scripts/release-control.test.mjs scripts/prepare-release-assets.test.mjs scripts/esigner.test.mjs
+          node --test scripts/release-version.test.mjs scripts/release-control.test.mjs scripts/prepare-release-assets.test.mjs scripts/esigner.test.mjs scripts/contribution-invite.test.mjs
           pwsh -NoProfile -File scripts/test-windows-signing.ps1
       - name: Validate workflow syntax
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -color
