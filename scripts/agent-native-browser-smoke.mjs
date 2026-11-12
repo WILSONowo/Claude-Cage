@@ -3,6 +3,7 @@
 // fixture so the stopped workbench, including its sidebar, can be inspected.
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -85,7 +86,8 @@ try {
   await writeFile(join(profile, 'profile', 'initialization.json'), JSON.stringify({ version: 1, completed: true }), { mode: 0o600 });
   await cli(['service.start']);
   pid = JSON.parse(await readFile(join(profile, 'profile', 'control.json'), 'utf8')).pid;
-  await cli(['call', 'account.create', '--input', '-'], { username: 'Agent browser acceptance', password: 'Ephemeral-Browser-Password-123!', confirm_password: 'Ephemeral-Browser-Password-123!' });
+  const password = randomBytes(24).toString('base64url');
+  await cli(['call', 'account.create', '--input', '-'], { username: 'Agent browser acceptance', password, confirm_password: password });
   browser = await chromium.launch({ headless: true, executablePath: process.env.CAGE_TEST_BROWSER_PATH });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();

@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"encoding/pem"
@@ -19,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -73,6 +75,14 @@ func TestExitProbeChild(t *testing.T) {
 	x509.SetFallbackRoots(roots)
 	cfg := DefaultConfig()
 	cfg.ProxyURL = proxy
+	proxyURL, err := url.Parse(proxy)
+	if err != nil {
+		t.Fatal("invalid proxy fixture URL")
+	}
+	proxyPassword, ok := proxyURL.User.Password()
+	if !ok || proxyPassword == "" {
+		t.Fatal("missing proxy fixture password")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	want := os.Getenv("CAGE_EXIT_PROBE_TEST_IP")
@@ -81,8 +91,8 @@ func TestExitProbeChild(t *testing.T) {
 		if err != nil || ip != want {
 			t.Fatalf("host probe = %q, %v; want %q", ip, err, want)
 		}
-	} else if err == nil || ip != "" || strings.Contains(err.Error(), "private-value") || strings.Contains(err.Error(), "test-password") {
-		t.Fatalf("failed host probe returned an address or leaked a response: %q, %v", ip, err)
+	} else if err == nil || ip != "" || strings.Contains(err.Error(), "private-value") || strings.Contains(err.Error(), proxyPassword) {
+		t.Fatal("failed host probe returned an address or leaked proxy data")
 	}
 	gate, err := NewEgressGate(cfg)
 	if err != nil {
@@ -253,6 +263,9 @@ func exitProbeProxy(t *testing.T, scheme, upstream string) (string, *atomic.Int3
 	if err != nil {
 		t.Fatal(err)
 	}
+	const proxyUser = "test-user"
+	proxyPassword := rand.Text()
+	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(proxyUser+":"+proxyPassword))
 	count := new(atomic.Int32)
 	t.Cleanup(func() { _ = listener.Close() })
 	go func() {
@@ -272,7 +285,7 @@ func exitProbeProxy(t *testing.T, scheme, upstream string) (string, *atomic.Int3
 						t.Error("expected HTTP CONNECT")
 						return
 					}
-					if request.Header.Get("Proxy-Authorization") != "Basic dGVzdC11c2VyOnRlc3QtcGFzc3dvcmQ=" {
+					if request.Header.Get("Proxy-Authorization") != authHeader {
 						t.Error("HTTP proxy authentication was lost")
 						return
 					}
@@ -302,7 +315,7 @@ func exitProbeProxy(t *testing.T, scheme, upstream string) (string, *atomic.Int3
 					if _, err := io.ReadFull(reader, password); err != nil {
 						return
 					}
-					if string(username) != "test-user" || string(password) != "test-password" {
+					if string(username) != proxyUser || string(password) != proxyPassword {
 						t.Error("SOCKS proxy authentication was lost")
 						return
 					}
@@ -344,5 +357,6 @@ func exitProbeProxy(t *testing.T, scheme, upstream string) (string, *atomic.Int3
 			}()
 		}
 	}()
-	return scheme + "://test-user:test-password@" + listener.Addr().String(), count
+	proxyURL := &url.URL{Scheme: scheme, User: url.UserPassword(proxyUser, proxyPassword), Host: listener.Addr().String()}
+	return proxyURL.String(), count
 }
