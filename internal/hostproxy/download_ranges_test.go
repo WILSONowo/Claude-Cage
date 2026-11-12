@@ -107,7 +107,7 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 	interrupted.Store(true)
 	var calls atomic.Int32
 	var resumed atomic.Bool
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var start, end int64
@@ -122,8 +122,25 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 			w.Write(data[start : start+4096])
 			w.(http.Flusher).Flush()
 			if calls.Add(1) == 4 {
-				// Let clients receive the prefix before signaling cancellation.
-				time.AfterFunc(100*time.Millisecond, cancel)
+				// A server flush only reaches the socket. Cancel once each worker
+				// has actually written the prefix that the next attempt will reuse.
+				width := (len(data) + 3) / 4
+				for pos := 0; pos < len(data); pos += width {
+					last := min(pos+width, len(data)) - 1
+					path := filepath.Join(target+".ranges", fmt.Sprintf("%d-%d", pos, last))
+					for {
+						prefix, err := os.ReadFile(path)
+						if err == nil && bytes.Equal(prefix, data[pos:pos+4096]) {
+							break
+						}
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(10 * time.Millisecond):
+						}
+					}
+				}
+				cancel()
 			}
 			<-r.Context().Done()
 			return
@@ -134,7 +151,7 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 		http.ServeContent(w, r, "package", time.Time{}, bytes.NewReader(data))
 	}))
 	defer server.Close()
-	err := downloadRanges(ctx, server.Client(), server.URL, target, "editor.tgz", "", io.Discard, time.Second, 0, int64(len(data)))
+	err := downloadRanges(ctx, server.Client(), server.URL, target, "editor.tgz", "", io.Discard, 10*time.Second, 0, int64(len(data)))
 	if err != context.Canceled {
 		t.Fatalf("cancel=%v", err)
 	}
