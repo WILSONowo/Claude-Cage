@@ -14,7 +14,7 @@ case "${1:-}" in
     set -- /login-finish "" "$login"
     ;;
   claude://*)
-    sudo -u cage /usr/local/bin/cage-claude-open "$1"
+    printf '%s\n' "$1" | sudo -u cage /usr/local/bin/cage-claude-open --stdin
     # Publish focus only after the running application accepted the handoff.
     # The browser service never receives the login URL or its credentials.
     set -- /desktop-focus

@@ -42,7 +42,7 @@ class Broker:
         self.requests = {}
         self.lock = threading.RLock()
 
-    def start(self, kind='paste', multiple=True, **metadata):
+    def start(self, kind='paste', multiple=True, busy=False, **metadata):
         if kind not in ('paste', 'drop', 'image', 'chooser', 'save', 'open'):
             raise ValueError('文件传递方式无效')
         if kind == 'image':
@@ -53,7 +53,7 @@ class Broker:
                 raise ValueError('请先完成已打开的文件窗口')
             key = str(uuid.uuid4())
             self.requests[key] = dict(id=key, kind=kind, multiple=multiple,
-                                      files=[], busy=False, created=time.monotonic(), **metadata)
+                                      files=[], busy=busy, created=time.monotonic(), **metadata)
         return {'id': key}
 
     def snapshot(self):
@@ -108,6 +108,25 @@ class Broker:
         if request.get('handle'):
             self.deliver(request, None if error else [])
         return {'ok': True}
+
+    def open_uri(self, uri, **metadata):
+        if uri.startswith('file:'):
+            return self.open_path(uri, **metadata)['id'], None
+        address = urlsplit(uri)
+        if (len(uri) > 8192 or any(ord(ch) < 32 for ch in uri)
+                or not uri.startswith(('https://', 'http://', 'claude://')) or not address.hostname
+                or address.username is not None or address.password is not None):
+            raise ValueError('不支持打开此链接')
+        key = self.start('open', False, busy=True, **metadata)['id']
+        def launch():
+            try:
+                result = subprocess.run(['/usr/local/bin/cage-open', uri], timeout=45,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                failed = result.returncode != 0
+            except (OSError, subprocess.TimeoutExpired):
+                failed = True
+            self.complete_open(key, '链接未打开' if failed else '')
+        return key, launch
 
     def get(self, key):
         if key not in self.requests:
@@ -323,6 +342,8 @@ class Portal:
         <arg type="a{sv}" direction="in"/><arg type="o" direction="out"/></method>
       </interface><interface name="org.freedesktop.portal.OpenURI">
       <property name="version" type="u" access="read"/>
+      <method name="OpenURI"><arg type="s" direction="in"/><arg type="s" direction="in"/>
+        <arg type="a{sv}" direction="in"/><arg type="o" direction="out"/></method>
       <method name="OpenDirectory"><arg type="s" direction="in"/><arg type="h" direction="in"/>
         <arg type="a{sv}" direction="in"/><arg type="o" direction="out"/></method>
       </interface><interface name="org.freedesktop.FileManager1">
@@ -459,10 +480,12 @@ class Portal:
                 if not object_id:
                     raise ValueError('文件窗口无法打开')
                 self.objects[handle] = object_id
-                key = None
+                key = launch = None
                 try:
                     saving = method == b'SaveFile'
-                    if method == b'OpenDirectory':
+                    if method == b'OpenURI':
+                        key, launch = self.broker.open_uri(self.string(title, None).decode(), handle=handle, sender=sender.decode())
+                    elif method == b'OpenDirectory':
                         # The handle belongs to the caller's D-Bus message, not
                         # to this service's file descriptor table.
                         message = bind(self.gio, 'g_dbus_method_invocation_get_message', C.c_void_p, C.c_void_p)(invocation)
@@ -490,6 +513,8 @@ class Portal:
                         self.broker.cancel(key, respond=False)
                     raise
                 self.reply(invocation, self.tuple(self.new_path(handle.encode())))
+                if launch:
+                    threading.Thread(target=launch, daemon=True).start()
                 if saving:
                     # The user already requested a download. Stage bytes privately;
                     # the host save dialog is offered only after the writer finishes.

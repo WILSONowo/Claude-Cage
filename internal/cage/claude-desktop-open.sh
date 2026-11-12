@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 test "$#" -eq 1
+if [[ "$1" == --stdin ]]; then
+  IFS= read -r url
+  set -- "$url"
+fi
 test "${#1}" -le 8192
 case "$1" in claude://*) ;; *) exit 2;; esac
 systemctl is-active --quiet cage-claude-desktop.service || exit 1

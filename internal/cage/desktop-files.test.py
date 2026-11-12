@@ -182,6 +182,23 @@ class DesktopFileDBusTests(unittest.TestCase):
                 self.assertTrue(received.wait(5))
                 self.assertEqual(responses[-1], (2 if failure else 0, {}))
 
+            for status in (0, 1):
+                received.clear()
+                url = 'https://example.test/authorize?state=fixture'
+                with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], status)) as launch:
+                    result = client.call_sync('org.freedesktop.portal.Desktop', files.ROOT,
+                        'org.freedesktop.portal.OpenURI', 'OpenURI',
+                        GLib.Variant('(ssa{sv})', ('', url, {})), GLib.VariantType.new('(o)'),
+                        Gio.DBusCallFlags.NONE, 5000, None)
+                    self.assertTrue(received.wait(5))
+                    self.assertEqual(responses[-1], (2 if status else 0, {}))
+                    self.assertEqual(launch.call_args.args[0], ['/usr/local/bin/cage-open', url])
+                    self.assertEqual(broker.snapshot()['opens'], [])
+            with self.assertRaises(GLib.Error):
+                client.call_sync('org.freedesktop.portal.Desktop', files.ROOT,
+                    'org.freedesktop.portal.OpenURI', 'OpenURI', GLib.Variant('(ssa{sv})', ('', 'javascript:alert(1)', {})),
+                    None, Gio.DBusCallFlags.NONE, 5000, None)
+
             # Run the actual shell and Python entry points against their private
             # Unix socket. This also exercises Electron's relative `.` fallback.
             socket = Path('/run/cage-desktop/files.sock')

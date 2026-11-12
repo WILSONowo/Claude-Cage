@@ -21,8 +21,28 @@ var guestOpen string
 var browserLogin string
 
 func guestOpenScript() string {
-	return "sudo tee /usr/local/lib/browser-login.mjs >/dev/null <<'CAGE_BROWSER_LOGIN'\n" + browserLogin + "\nCAGE_BROWSER_LOGIN\n" +
-		"sudo tee /usr/local/bin/cage-open >/dev/null <<'CAGE_OPEN_URL'\n" + guestOpen + "\nCAGE_OPEN_URL\nsudo chmod 0755 /usr/local/bin/cage-open\nsudo ln -sf /usr/local/bin/cage-open /usr/local/bin/xdg-open\n"
+	return "sudo tee /usr/local/bin/cage-claude-open >/dev/null <<'CAGE_CLAUDE_OPEN'\n" + claudeDesktopOpen + "\nCAGE_CLAUDE_OPEN\n" +
+		"sudo tee /usr/local/lib/browser-login.mjs >/dev/null <<'CAGE_BROWSER_LOGIN'\n" + browserLogin + "\nCAGE_BROWSER_LOGIN\n" +
+		"sudo tee /usr/local/bin/cage-open >/dev/null <<'CAGE_OPEN_URL'\n" + guestOpen + "\nCAGE_OPEN_URL\nsudo chmod 0755 /usr/local/bin/cage-open /usr/local/bin/cage-claude-open\nsudo ln -sf /usr/local/bin/cage-open /usr/local/bin/xdg-open\n" + `
+if ! command -v gio >/dev/null; then
+  sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get -o DPkg::Lock::Timeout=60 install -y --no-install-recommends libglib2.0-bin </dev/null
+fi
+sudo install -d -m 0755 /usr/local/share/applications
+sudo tee /usr/local/share/applications/cage-open.desktop >/dev/null <<'CAGE_OPEN_DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Cage
+NoDisplay=true
+Terminal=false
+Exec=/usr/local/bin/cage-open %u
+MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/claude;
+CAGE_OPEN_DESKTOP
+for cage_uri_user in cage cage-browser; do
+  for cage_uri_scheme in http https claude; do
+    sudo -Hu "$cage_uri_user" gio mime "x-scheme-handler/$cage_uri_scheme" cage-open.desktop >/dev/null
+  done
+done
+`
 }
 
 func ClaudeDesktopInstallScript() string {
@@ -35,9 +55,8 @@ func ClaudeDesktopProvisionScript() string {
 	return "set -euo pipefail\n" + clientRuntimeScript() + sharedClipboardScript() + nativeInputScript() + fileInputScript() + displayGovernorScript() +
 		"sudo install -d -m 0755 /etc/claude-cage\n" +
 		"sudo tee /usr/local/bin/cage-claude-session >/dev/null <<'CAGE_CLAUDE_SESSION'\n" + claudeDesktopSession + "\nCAGE_CLAUDE_SESSION\n" +
-		"sudo tee /usr/local/bin/cage-claude-open >/dev/null <<'CAGE_CLAUDE_OPEN'\n" + claudeDesktopOpen + "\nCAGE_CLAUDE_OPEN\n" +
 		"sudo tee /usr/local/bin/cage-claude-start >/dev/null <<'CAGE_CLAUDE_START'\n" + claudeDesktopStart + "\nCAGE_CLAUDE_START\n" +
-		"sudo chmod 0755 /usr/local/bin/cage-claude-session /usr/local/bin/cage-claude-open /usr/local/bin/cage-claude-start\n" + guestOpenScript() + `
+		"sudo chmod 0755 /usr/local/bin/cage-claude-session /usr/local/bin/cage-claude-start\n" + guestOpenScript() + `
 printf 'cage-browser ALL=(cage) NOPASSWD: /usr/local/bin/cage-claude-open *\n' | sudo tee /etc/sudoers.d/cage-claude-desktop >/dev/null
 sudo chmod 0440 /etc/sudoers.d/cage-claude-desktop
 sudo python3 - <<'CAGE_DESKTOP_DOWNLOAD_CONFIG'
