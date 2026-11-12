@@ -66,6 +66,14 @@ ExecStart=/usr/local/bin/cage-log-run /usr/bin/Xtigervnc :77 -geometry 2880x1800
 LogNamespace=cage
 Restart=on-failure
 UNIT
+# After= only waits for Xtigervnc to be spawned. Keep the display unit in
+# "activating" until its X server accepts connections from the browser user.
+sudo install -d -m 0755 /etc/systemd/system/cage-display.service.d
+sudo tee /etc/systemd/system/cage-display.service.d/readiness.conf >/dev/null <<'UNIT'
+[Service]
+TimeoutStartSec=15
+ExecStartPost=/bin/sh -c 'until /usr/bin/xrandr --display :77 --current >/dev/null 2>&1; do sleep 0.1; done'
+UNIT
 sudo tee /etc/claude-cage/openbox.xml >/dev/null <<'WINDOW_CONFIG'
 <?xml version="1.0" encoding="UTF-8"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
@@ -106,7 +114,8 @@ UNIT
 sudo tee /etc/systemd/system/cage-browser.service >/dev/null <<'UNIT'
 [Unit]
 Description=Claude Cage persistent browser
-Requires=cage-display.service cage-window-manager.service cage-browser-compositor.service
+Requires=cage-display.service cage-window-manager.service
+Wants=cage-browser-compositor.service
 After=cage-display.service cage-window-manager.service cage-browser-compositor.service
 [Service]
 User=cage-browser

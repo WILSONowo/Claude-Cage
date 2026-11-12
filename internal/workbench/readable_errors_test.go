@@ -10,6 +10,20 @@ import (
 	"testing"
 )
 
+func TestBrowserDependencyFailureIdentifiesGuestService(t *testing.T) {
+	const dependency = "A dependency job for cage-browser.service failed."
+	cause := errors.New("exit status 1")
+	for _, tt := range []struct{ output, want string }{
+		{dependency, "客机浏览器依赖的服务未能启动"},
+		{dependency + "\nCAGE_DISPLAY_UNAVAILABLE", "客机虚拟显示服务未就绪"},
+	} {
+		err := executionFailure("启动环境", cause, tt.output+"\ntoken=unrelated")
+		if !errors.Is(err, cause) || !strings.Contains(err.Error(), tt.want) || strings.Contains(err.Error(), "token=") {
+			t.Fatalf("unexpected user-facing failure: %v", err)
+		}
+	}
+}
+
 func TestWindowsMaintenanceFailureRetainsStageForBothJobs(t *testing.T) {
 	cause := errors.New("synthetic maintenance process failed")
 	for _, action := range []string{"修复 Windows 系统助手", "更新原生客机组件"} {

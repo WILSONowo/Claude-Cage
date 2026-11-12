@@ -55,7 +55,11 @@ p.write_text(json.dumps(d))
 PYCODE
 sudo systemctl reset-failed cage-display cage-browser-compositor cage-window-manager cage-browser cage-vnc cage-webvnc 2>/dev/null || true
 sudo systemctl reset-failed cage-display-governor 2>/dev/null || true
-sudo systemctl restart cage-display cage-window-manager cage-browser cage-vnc cage-webvnc
+if ! sudo systemctl restart cage-display cage-window-manager cage-browser cage-vnc cage-webvnc; then
+  if ! systemctl is-active --quiet cage-display; then echo 'CAGE_DISPLAY_UNAVAILABLE' >&2; fi
+  systemctl show cage-display cage-window-manager cage-browser cage-vnc cage-webvnc -p Id -p ActiveState -p Result >&2
+  exit 1
+fi
 # Seed only appearance settings for a new editor profile. Existing preferences stay intact.
 python3 - <<'PYEDITOR'
 import shutil
