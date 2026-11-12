@@ -59,7 +59,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         super.onRequestPermissionsResult(id,names,results);
         if(id!=PERMISSION)return;
         if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED) start();
-        else finishWithError("相机权限未开启。可返回使用配对码，或在系统设置中允许相机访问。");
+        else finishWithError("未开启相机权限。请返回使用配对码，或在系统设置中允许访问相机。");
     }
     private void finishWithError(String error) {setResult(RESULT_CANCELED,new Intent().putExtra("error",error));finish();}
     private void start() {

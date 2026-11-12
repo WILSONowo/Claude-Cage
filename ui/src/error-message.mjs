@@ -31,28 +31,28 @@ export function httpErrorMessage(path, status, text = "", contentType = "", meth
   const message = text.trim();
   if (contentType.startsWith("text/plain") && message.length <= 2000 && /\p{Script=Han}/u.test(message) && !/<(?:html|body|script|!doctype)\b/i.test(message)) return message;
   if (path === "/settings" && method === "POST" && status === 503) {
-    return "暂时无法确认设置是否已保存（HTTP 503）。请在连接恢复后核对设置和操作详情，再决定是否重新保存。";
+    return "无法确认设置是否已保存（HTTP 503）。恢复连接后，请先核对设置或查看操作详情。";
   }
   const action = operationName(path, method);
   const reasons = {
-    400: "后台没有接受这次请求。请核对填写的内容；仍失败时在设置中导出诊断包。",
-    401: "工作台登录会话已失效。请重新连接 Cage，再发起这次操作。",
-    403: "后台拒绝了这次访问。请从 Cage 应用重新打开工作台。",
-    404: "当前后台没有提供所需功能。请确认应用与后台已完成更新。",
-    409: "环境状态已变化或另一个操作尚未结束。请刷新状态并等待当前操作完成。",
-    413: "文件或请求内容超过允许大小。请缩小文件或分批处理。",
-    423: "Cage 已锁定。请先解锁账户，再发起这次操作。",
-    429: "请求过于频繁。请等待片刻，避免连续点击。",
-    500: "后台处理请求时出错。请在设置中导出诊断包，并附上刚才执行的操作。",
-    502: "后台未能连接环境内的服务。请确认环境已启动，再检查环境组件状态。",
-    503: "后台服务尚未就绪或正在重启。请等待连接恢复后再操作。",
-    504: "等待后台响应超时。请检查环境负载，恢复连接后核对操作是否已生效。",
+    400: "请检查填写的内容。仍然失败时，可在设置中导出诊断包。",
+    401: "登录会话已过期，请重新连接 Cage。",
+    403: "访问被拒绝，请从 Cage 重新打开工作台。",
+    404: "此功能不可用，请检查 Cage 和后台是否已更新。",
+    409: "状态已变化或有操作正在进行。请刷新状态后重试。",
+    413: "内容超过大小限制，请缩小文件或分批处理。",
+    423: "请先解锁 Cage 账户，再重试。",
+    429: "操作太频繁，请稍后重试。",
+    500: "服务出错。请在设置中导出诊断包，并记录刚才的操作。",
+    502: "无法连接环境内的服务。请确认环境已启动，再检查组件状态。",
+    503: "服务尚未就绪，请在连接恢复后重试。",
+    504: "响应超时。恢复连接后，请先核对操作是否已生效。",
   };
-  return `${action}失败（HTTP ${status}）：${reasons[status] || "尚未取得可识别的原因。请在设置中导出诊断包。"}`;
+  return `${action}失败（HTTP ${status}）：${reasons[status] || "原因未知。你可以在设置中导出诊断包。"}`;
 }
 
 export function connectionErrorMessage(path, method = "GET") {
-  return `${operationName(path, method)}失败：工作台与 Cage 后台的连接已中断。请点击重新连接；若刚才正在保存或上传，恢复后先核对结果再重试。`;
+  return `${operationName(path, method)}失败：连接已中断，请重新连接。如果刚才正在保存或上传，请先核对结果再重试。`;
 }
 
 export function nativeFailureMessage(action, message = "") {

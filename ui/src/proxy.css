@@ -1,6 +1,8 @@
 .proxy-manager {
   margin-bottom: 28px;
 }
+.proxy-manager .field-row > .secret-field { flex: 1 1 12rem; min-width: 0; }
+.proxy-manager .field-row > .secret-field > label { width: auto; }
 .proxy-heading {
   display: flex;
   align-items: center;

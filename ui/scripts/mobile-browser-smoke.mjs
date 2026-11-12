@@ -257,7 +257,7 @@ try {
   await page.getByRole("button",{name:"重新加载网页"}).click();
   await address.fill("https://busy.example.org/");
   await address.press("Enter");
-  await page.getByText("上一项操作尚未完成，请稍后再次前往。").waitFor();
+  await page.getByText("上一项操作尚未完成，请稍后再试。").waitFor();
   releaseReload();
   await ready();
   assert.equal(actions.filter(action => action.url === "https://busy.example.org/").length, 0);
@@ -528,7 +528,10 @@ try {
   const saveBookmark = panel.getByRole("button",{name:"保存收藏"});
   const saveTop = (await saveBookmark.boundingBox()).y;
   await destination.focus(); await destination.press("Enter");
-  assert.ok((await saveBookmark.boundingBox()).y >= saveTop + 72);
+  const foldersList = page.getByRole("listbox",{name:"保存到选项"});
+  await foldersList.getByRole("option",{name:"参考资料"}).waitFor();
+  assert.ok((await foldersList.boundingBox()).height > 0,"folder options are visible");
+  assert.ok(Math.abs((await saveBookmark.boundingBox()).y - saveTop) < 1,"folder options moved the save button");
   await destination.press("ArrowDown"); await destination.press("Enter");
   assert.equal(await destination.evaluate(el => document.activeElement === el),true);
   assert.equal((await saveBookmark.boundingBox()).y,saveTop);
@@ -573,7 +576,10 @@ try {
   assert.equal(await legacy.getByRole("dialog").count(),0);
   const headingY = (await newSession.boundingBox()).y;
   await project.focus(); await project.press("Enter");
-  assert.ok((await newSession.boundingBox()).y > headingY + 50);
+  const projectMenu = legacy.getByRole("listbox",{name:"选择项目选项"});
+  await projectMenu.waitFor();
+  assert.ok((await projectMenu.boundingBox()).height > 0,"project options are visible");
+  assert.ok(Math.abs((await newSession.boundingBox()).y - headingY) < 1,"project options moved the new session button");
   await project.press("ArrowDown"); await project.press("Enter");
   assert.equal(await project.getAttribute("aria-expanded"),"false");
   assert.equal(await project.evaluate(el => el === document.activeElement),true);

@@ -325,7 +325,7 @@ export function SettingsPanel({
                   </div>
                 )}
                 <p className="footnote">
-                  代理不可用时，Cage 会停止对外联网。修改表单后需要重新验证。
+                  代理失效会关闭外网。修改后需重新验证。
                 </p>
                 <section className="network-exit-policy" aria-label="IP 变化规则">
                   <ExitPolicyFields
@@ -343,18 +343,18 @@ export function SettingsPanel({
               <>
                 <div className="section-title">
                   <h3>时区与语言</h3>
-                  <p>应用于环境内的系统、CLI 和浏览器。</p>
+                  <p>系统、CLI 和浏览器共用。</p>
                 </div>
                 {!draft.auto_timezone && !draft.auto_language && (
                   <p className="field-help">
-                    时区和语言将使用下方手动选择的值。所有出口仍须查询国家或地区，确认不属于中国大陆；静态 IP 和不限地区也不能跳过此检查。
+                    手动设置时区和语言。所有出口（含静态 IP 和不限地区）仍须验证位于中国大陆以外。
                   </p>
                 )}
                 <label className="toggle-row">
                   <span>
                     <strong>跟随出口 IP 的时区</strong>
                     <small>
-                      在启动或应用设置时重新查询，不会静默重启正在运行的任务。
+                      启动或应用设置时重新查询，运行中的任务会保留。
                     </small>
                   </span>
                   <input
@@ -398,7 +398,7 @@ export function SettingsPanel({
                   <span>
                     <strong>跟随出口地区的语言建议</strong>
                     <small>
-                      启动或应用设置时更新。多语言地区使用内置默认值；没有建议时保留已选语言。
+                      启动或应用设置时更新。多语言地区使用默认语言，无法匹配时保留当前选择。
                     </small>
                   </span>
                   <input
@@ -597,21 +597,21 @@ export function SettingsPanel({
                   </strong>
                 </div>
                 <p className="field-help">
-                  {isRemoteClient() ? "点击侧栏“项目”标题旁的加号，可浏览并选择云端文件夹。" : "点击侧栏“项目”标题旁的加号，可选择其他本地文件夹。"}
+                  {isRemoteClient() ? "用侧栏“项目”旁的 + 添加云端文件夹。" : "用侧栏“项目”旁的 + 添加本地文件夹。"}
                 </p>
                 <div className="project-explanation">
                   <FolderOpen size={22} />
                   <div>
                     <strong>所有项目共用一个 Cage 环境</strong>
                     <p>
-                      明确打开的项目文件夹会共享到同一个环境。主机的 Claude
-                      登录、SSH 密钥和个人配置不会自动导入。浏览器下载统一保存到
-                      独立的下载暂存目录，可从下载面板查看或另存为。
+                      仅共享已打开的文件夹。主机的 Claude
+                      登录、SSH 密钥和个人配置不会自动导入。下载文件可在
+                      下载面板查看或另存为。
                     </p>
                   </div>
                 </div>
                 <p className="footnote">
-                  切换项目只改变新终端和文件编辑器的起始位置；已有终端、网页和登录态会保留。
+                  切换项目会改变新终端和编辑器的起始目录。已有终端、网页和登录状态会保留。
                 </p>
                 {!status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
                 {status.guest_system === "macos" && <section aria-label="客机系统权限">

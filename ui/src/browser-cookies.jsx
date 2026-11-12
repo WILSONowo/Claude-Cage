@@ -59,7 +59,7 @@ export function BrowserCookies({ tab, onClose, autoFocus = true }) {
       </button>
     </div>
     {confirmClear && <div className="cookie-confirm" role="alert">
-      <span>清空{scope === "site" ? data?.hostname : "此" + (tab.incognito ? "无痕" : "普通") + "会话所有网站"}的 Cookie？搜索条件不限制清空范围，网站可能需要重新登录。</span>
+      <span>清空{scope === "site" ? data?.hostname : "此" + (tab.incognito ? "无痕" : "普通") + "会话所有网站"}的 Cookie？清空包括未匹配搜索的 Cookie，网站可能要求重新登录。</span>
       <button disabled={busy} onClick={() => run("clear")}>确认清空</button>
       <button disabled={busy} onClick={() => setConfirmClear(false)}>取消</button>
     </div>}

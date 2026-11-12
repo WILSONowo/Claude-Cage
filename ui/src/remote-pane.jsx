@@ -39,7 +39,7 @@ export default forwardRef(function RemoteView(
     paste: () => input.current?.readAndPaste(),
     pasteText: (text) => input.current?.paste(text),
     transfer: () =>
-      onFallback(input.current?.text() || "", "可在此使用本机复制、粘贴。"),
+      onFallback(input.current?.text() || "", "可使用本机剪贴板复制、粘贴。"),
   }));
   useEffect(() => {
     if (!screenVisible) return;
@@ -243,7 +243,7 @@ export default forwardRef(function RemoteView(
       <div className="remote-canvas" ref={box} />
       {sizeError && connection === "connected" && (
         <div className="remote-size-warning connection-banner" role="alert">
-          画面尺寸未能同步，显示比例可能不准确。
+          画面尺寸未同步，显示比例可能有偏差。
           <button onClick={() => displayResize.current?.retry()}>重试调整</button>
         </div>
       )}

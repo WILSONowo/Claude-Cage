@@ -1,0 +1,74 @@
+/* The account gate, first-run wizard and macOS permission guide share one page frame. */
+.setup-scene {
+  --scene-width: 47rem;
+  --scene-inset: clamp(1rem, 4vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 0 var(--scene-inset);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--paper);
+  color: var(--ink);
+}
+.setup-brand {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: none;
+  gap: .35rem .45rem;
+  width: min(100%, var(--scene-width));
+  margin-inline: auto;
+  padding-block: clamp(1rem, 4vh, 2rem);
+  border-bottom: 1px solid var(--line);
+}
+.setup-brand img { width: clamp(22px, 1.55rem, 32px); height: auto; }
+.setup-brand strong { font: 600 clamp(18px, 1.3rem, 28px)/1.2 var(--display-type); letter-spacing: -.035em; }
+.setup-brand span { margin-inline-start: auto; color: var(--muted); font-size: .86rem; }
+.setup-scene h1 {
+  margin: 0 0 .6rem;
+  font: 500 clamp(1.75rem, 3vw, 2.5rem)/1.25 var(--display-type);
+  letter-spacing: -.035em;
+  color: var(--strong);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.setup-scene :is(p, small, label, button, .field-help) { overflow-wrap: anywhere; }
+.setup-scene :is(.field-help, .account-entry-intro, .initialization-title > p) {
+  color: var(--muted); line-height: 1.55; text-wrap: pretty;
+}
+.setup-scene :is(button.primary, button.quiet-button, .initialization-actions button, .initialization-directory-control button) {
+  min-height: var(--control-height);
+  max-width: 100%;
+  padding: .45em .9em;
+  border-radius: var(--panel-radius);
+  line-height: 1.45;
+  white-space: normal;
+}
+.setup-scene button > svg { flex: none; }
+
+.welcome:has(.start-project-box) .welcome-content {
+  text-align: start;
+  max-width: 47rem;
+}
+.welcome:has(.start-project-box) .onboarding-steps { justify-content: start; }
+.welcome:has(.start-project-box) .welcome-subtitle { margin: .55rem 0 1.4rem; }
+.welcome:has(.start-project-box) .welcome-hint { margin-inline: 0; max-width: 100%; }
+.welcome:has(.start-project-box) .start-project-box {
+  container: startup / inline-size;
+  border-radius: var(--panel-radius);
+  box-shadow: none;
+}
+.welcome .start-project-box .environment-summary { padding: 1.2rem 1.2rem .8rem; }
+.start-project-box .environment-summary > span { min-width: 0; overflow-wrap: anywhere; }
+.welcome .start-project-box .start-project-footer {
+  display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center;
+  padding: .8rem 1.2rem; border-top: 1px solid var(--line);
+}
+.start-project-footer > span { min-width: 0; overflow-wrap: anywhere; }
+.start-project-footer > .primary { margin-inline-start: auto; min-height: var(--control-height); max-width: 100%; white-space: normal; }
+@container startup (max-width: 22rem) {
+  .start-project-footer > span { flex-basis: 100%; }
+  .start-project-footer > .primary { width: 100%; }
+}

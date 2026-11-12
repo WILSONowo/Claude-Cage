@@ -1,6 +1,7 @@
+import { PasswordInput } from "./password-input";
 import { SearchField } from "./search-field";
 import { InlineSelect } from "./inline-select";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import {
   Download,
   Plus,
@@ -51,6 +52,7 @@ const emptyForm = {
   host_download: false,
 };
 export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializing = false }) {
+  const proxyPasswordId = useId();
   const [proxy, setProxy] = useState(null),
     [tab, setTab] = useState("nodes"),
     [search, setSearch] = useState(""),
@@ -311,13 +313,12 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         >
           <h4 id="proxy-help-title">代理使用说明</h4>
           <p className="proxy-help-intro">
-            Cage 自带代理核心，无需另外安装
-            Clash。请先准备你已有的代理订阅或节点信息，Cage 不提供代理节点。
+            Cage 自带代理核心。请准备自己的订阅或节点，无需另装 Clash。
           </p>
           <ol className="proxy-help-steps">
             <li>
               <strong>导入你的代理</strong>
-              <p>在「订阅」中添加来源并命名，然后选择导入方式。</p>
+              <p>在「订阅」中添加来源、命名并选择导入方式。</p>
               <ul>
                 <li>
                   <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
@@ -337,7 +338,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <li>
               <strong>选择节点并启用</strong>
               <p>
-                导入完成后切到「节点」，选择最终出口，再点击「应用代理」。住宅代理无法从国内连接时，选择「链式代理」，在它前面添加可连接的中转节点；节点可以来自不同订阅。首次启用时若环境正在运行，需要重启；后续切换只重建网络连接。
+                在「节点」中选择出口，再点击「应用代理」。住宅代理无法直连时，可用「链式代理」添加中转，节点可跨订阅。首次启用需重启运行中的环境，后续切换只重连网络。
               </p>
             </li>
             <li>
@@ -351,9 +352,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <div className="proxy-help-notes">
             <strong>导入失败或无法联网？</strong>
             <p>
-              确认复制的是订阅地址，而非服务商登录页或管理页。暂不支持单条分享链接、Base64
-              节点列表，以及只引用远程节点列表的配置；请向服务商获取含节点的
-              Clash/Mihomo YAML。
+              请使用含节点的 Clash/Mihomo YAML 订阅地址。登录页、单条分享链接、Base64 列表或仅引用远程节点的配置无法导入。
             </p>
             <p>
               订阅下载失败时，可检查主机是否能访问订阅地址，或改用本地
@@ -994,17 +993,19 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                         }
                       />
                     </label>
-                    <label>
-                      密码
-                      <input
-                        type="password"
+                    <div className="secret-field">
+                      <label htmlFor={proxyPasswordId}>密码</label>
+                      <PasswordInput
+                        id={proxyPasswordId}
+                        label="代理密码"
+                        disabled={busy}
                         value={manual.password}
                         autoComplete="new-password"
                         onChange={(e) =>
                           setManual({ ...manual, password: e.target.value })
                         }
                       />
-                    </label>
+                    </div>
                   </div>
                 </>
               )}
@@ -1046,8 +1047,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </span>
           </div>
           <p className="field-help">
-            显示当前核心的连接与流量，包含 Cage
-            自身检测请求；重启核心后累计值重置。
+            流量统计包含 Cage 检测请求，重启代理核心后清零。
           </p>
           <div className="proxy-node-list">
             {connections.connections.map((c) => (
@@ -1120,8 +1120,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </button>
           </div>
           <p className="field-help">
-            Cage 不设置系统代理或主机 TUN。本机其他代理的 TUN
-            仍可能影响核心出站，需要结合实际路由验证。
+            Cage 不配置系统代理或主机 TUN。其他代理的 TUN 可能影响出口，请核对实际路由。
           </p>
         </>
       )}

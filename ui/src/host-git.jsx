@@ -74,12 +74,10 @@ export function HostGitPreparation({ onClose, onReady }) {
             {state?.can_enable && (
               <>
                 <p>
-                  Claude 可以修改共享文件。启用这项保护后，{machine} Git
-                  会忽略未经你明确指定的裸仓库，避免共享目录里的配置在{machine}
-                  上执行命令。
+                  Claude 可修改共享文件。启用后，{machine} Git 会忽略未经明确指定的裸仓库，防止其配置在{machine}上执行命令。
                 </p>
                 <p>
-                  点击“启用保护并继续”将修改{machine}当前用户的一项全局 Git 设置：
+                  将修改{machine}当前用户的全局 Git 设置
                 </p>
                 <pre>git config --global safe.bareRepository explicit</pre>
                 <p>

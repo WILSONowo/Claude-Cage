@@ -47,7 +47,7 @@ type Appearance struct {
 }
 
 func defaultAppearance() Appearance {
-	return Appearance{Mode: "system", Light: AppearanceTheme{Preset: "claude-desktop", Accent: "#d97757", Surface: "#faf9f5", Ink: "#262624", Contrast: 45}, Dark: AppearanceTheme{Preset: "claude-desktop", Accent: "#d97757", Surface: "#262624", Ink: "#faf9f5", Contrast: 60}, UIFontSize: 14, CodeFontSize: 13, FontSmoothing: true, ReducedMotion: "system"}
+	return Appearance{Mode: "system", Light: AppearanceTheme{Preset: "claude-desktop", Accent: "#257de0", Surface: "#ffffff", Ink: "#191919", Contrast: 45}, Dark: AppearanceTheme{Preset: "claude-desktop", Accent: "#257de0", Surface: "#191919", Ink: "#efefef", Contrast: 60}, UIFontSize: 14, CodeFontSize: 13, FontSmoothing: true, ReducedMotion: "system"}
 }
 
 func (a Appearance) validate() error {

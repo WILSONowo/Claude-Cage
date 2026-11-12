@@ -221,13 +221,13 @@ export function ClaudeDesktop({
       <DesktopToolbar desktop={desktop} platform={status.guest_system === "windows-11" ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
         onConfirm={onConfirm} onStop={() => run("stop")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
         {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
-          if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存应用内的工作。更新会关闭 Claude Desktop，从官方软件源安装可用版本，再重新打开；登录资料继续保留。", confirm: "更新应用" })) run("update");
+          if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存工作。Claude Desktop 会关闭，从官方软件源更新后重新打开。登录资料会保留。", confirm: "更新应用" })) run("update");
         }}>更新应用</button>}
       </DesktopToolbar>
       {(error || statusError || desktop?.failed) && (
         <div className="connection-banner" role="alert">
           <SafetyMessage message={error || statusError || (desktop?.failure_reason === "oom-kill"
-            ? "环境内存不足，Claude Desktop 已被系统关闭。请在设置中检查计算资源后重新打开。"
+            ? "内存不足，系统已关闭 Claude Desktop。请在设置中检查计算资源，再打开应用。"
             : "Claude Desktop 未能启动，可重试打开或修复安装。")} />
           <button onClick={onDetails}>操作详情</button>
         </div>
@@ -261,8 +261,8 @@ export function ClaudeDesktop({
               <h2>{desktop?.installed ? "Claude Desktop" : "在 Cage 中使用 Claude Desktop"}</h2>
             </div>
             <div className="desktop-intro">
-              <p>登录后，可在已打开的项目文件夹中使用 Chat 和 Code。</p>
-              {!desktop?.installed && <p>首次安装将从 Anthropic 官方下载应用。</p>}
+              <p>登录后可在当前项目中使用 Chat 和 Code。</p>
+              {!desktop?.installed && <p>应用将从 Anthropic 官方下载。</p>}
             </div>
             <div className="desktop-actions">
               {desktop && (
@@ -294,7 +294,7 @@ export function ClaudeDesktop({
                   disabled={busy}
                   onClick={refresh}
                 >
-                  重新读取状态
+                  刷新状态
                 </button>
               )}
             </div>
@@ -302,8 +302,8 @@ export function ClaudeDesktop({
               ? "在 Claude Desktop 应用内检查并安装更新。"
               : "Linux 版通过系统软件源更新。可点击上方“更新应用”，或在 Cage 终端运行 sudo apt update && sudo apt install --only-upgrade claude-desktop。"}</p>}
             <div className="desktop-note">
-              <p>关闭应用会释放图形会话资源，登录状态保留在 Cage 中。</p>
-              <p>Cowork 需要额外的虚拟机，目前暂不支持。</p>
+              <p>关闭应用后仍保留登录状态。</p>
+              <p>当前环境暂不支持 Cowork。</p>
             </div>
           </div>
         )}

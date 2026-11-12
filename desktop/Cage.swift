@@ -548,7 +548,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
             guard !nativeFilePanelOpen, let id = body["id"] as? String, UUID(uuidString:id) != nil else { replyHandler(nil,"请先完成当前文件窗口"); return }
             let panel = NSSavePanel(); panel.canCreateDirectories = true
             panel.nameFieldStringValue = ((body["name"] as? String ?? "download") as NSString).lastPathComponent
-            panel.prompt = "保存"; panel.title = "将下载另存为到本机"
+            panel.prompt = "保存"; panel.title = "保存下载文件到本机"
             nativeFilePanelOpen = true
             panel.beginSheetModal(for: window) { response in
                 self.nativeFilePanelOpen = false
@@ -608,7 +608,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
             let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false
             let storage = (body["purpose"] as? String) == "environmentStorage"
             panel.prompt = storage ? "选择文件夹" : "共享此项目"
-            panel.message = storage ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "仅此文件夹会与 Cage 共享。请选择具体项目。"
+            panel.message = storage ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "选择项目文件夹。Cage 只会共享所选文件夹。"
             nativeFilePanelOpen = true
             panel.beginSheetModal(for:window) { response in self.nativeFilePanelOpen = false; replyHandler(response == .OK ? panel.url?.path : "",nil) }
         case "refreshSession":

@@ -160,7 +160,7 @@ export function ArchivedSessions({ request = desktopSessionRequest, ready, onRes
         <button className="archive-restore" disabled={busy || !selectedItems.length || hasDeleting} onClick={() => change(selectedItems, "restore")}>批量取消归档</button>
         <button className="archive-button archive-delete" disabled={busy || !ready || !selectedItems.length} onClick={() => { setConfirming(""); setBulkConfirm(selectedItems); }}>批量删除</button>
       </div>
-      {hasDeleting && <p className="archive-note archive-bulk-note">所选会话包含删除未完成项，请取消选择这些会话后再取消归档。</p>}
+      {hasDeleting && <p className="archive-note archive-bulk-note">请先取消选择正在删除的会话，再取消归档。</p>}
     </div>}
     {progress && <p role="status" className="archive-note">正在处理 {progress.done} / {progress.total} 个会话…</p>}
     {resultMessage && <p role="status" className="archive-note">{resultMessage}</p>}
@@ -174,7 +174,7 @@ export function ArchivedSessions({ request = desktopSessionRequest, ready, onRes
     </div>}
     {!sessions && !readError && <p role="status">正在读取…</p>}
     {sessions?.length === 0 && <p className="archive-note">暂无已归档会话。</p>}
-    {Boolean(sessions?.length) && !groups.size && <p className="archive-note">没有符合筛选条件的已归档会话。</p>}
+    {Boolean(sessions?.length) && !groups.size && <p className="archive-note">没有匹配的会话。</p>}
     {[...groups].map(([path,items]) => <section className="archive-project" key={path} aria-label={projectLabel(path) + "的已归档会话"}>
       <header className="archive-project-heading">
         <ArchiveSelection items={items} selected={selected} onToggle={toggleSelection} disabled={busy} label={`全选项目 ${path} 的当前筛选结果`} />
@@ -203,6 +203,6 @@ export function ArchivedSessions({ request = desktopSessionRequest, ready, onRes
         </article>;
       })}</div>
     </section>)}
-    {!ready && <p className="archive-note">启动主机环境后可以永久删除 Claude Code 原始记录。</p>}
+    {!ready && <p className="archive-note">启动主机环境后可永久删除 Claude Code 原始记录。</p>}
   </section>;
 }

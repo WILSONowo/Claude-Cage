@@ -26,9 +26,9 @@ export const themeCatalog = [
     id: "claude-desktop",
     name: "Claude Desktop",
     group: "经典",
-    description: "暖纸色画布、陶土色强调和柔和的深色表面。",
-    light: light("#d97757", "#faf9f5", "#262624"),
-    dark: dark("#d97757", "#262624", "#faf9f5"),
+    description: "中性黑白配色，输入框聚焦时显示蓝色边线。",
+    light: light("#257de0", "#ffffff", "#191919"),
+    dark: dark("#257de0", "#191919", "#efefef"),
   },
   {
     id: "cage",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { api } from "./api";
 import { InlineSelect } from "./inline-select";
 import { Modal } from "./modal";
@@ -14,6 +14,7 @@ const emptyHost = () => ({
 });
 
 export function HostForm({ initial, platform, onSaved, onClose }) {
+  const formId = useId();
   const [form, setForm] = useState(() =>
     initial ? structuredClone(initial) : emptyHost(),
   );
@@ -47,8 +48,14 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
     <Modal
       title={form.id ? "编辑远程主机" : "添加远程主机"}
       onClose={busy ? undefined : onClose}
+      footer={<>
+        <button type="button" disabled={busy} onClick={onClose}>取消</button>
+        <button className="primary" type="submit" form={formId} disabled={busy}>
+          {busy ? "正在保存…" : "保存主机"}
+        </button>
+      </>}
     >
-      <form className="remote-host-form" onSubmit={save}>
+      <form id={formId} className="modal-body remote-host-form" onSubmit={save}>
         {error && (
           <p className="error-message" role="alert">
             {error}
@@ -61,7 +68,7 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
               required
               value={form.name}
               onChange={(event) => update("name", event.target.value)}
-              placeholder="例如：东京开发机"
+              placeholder="东京开发机"
               maxLength={200}
             />
           </label>
@@ -104,6 +111,7 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
             SSH 登录方式
             <InlineSelect
               aria-label="SSH 登录方式"
+              disabled={busy}
               value={form.auth.kind}
               onValueChange={(kind) =>
                 update("auth", {
@@ -130,15 +138,16 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                     identity_file: event.target.value,
                   })
                 }
-                placeholder={
-                  platform === "windows"
-                    ? "C:\\Users\\你的名字\\.ssh\\id_ed25519"
-                    : "/Users/你的名字/.ssh/id_ed25519"
-                }
+                placeholder="私钥文件的绝对路径"
+                aria-describedby={formId + "-key-help"}
                 autoComplete="off"
                 spellCheck="false"
               />
-              <small>填写绝对路径。密钥留在本机，不上传到云端。</small>
+              <small id={formId + "-key-help"}>
+                密钥保存在本机。路径示例 <code>{platform === "windows"
+                  ? "C:\\Users\\你的名字\\.ssh\\id_ed25519"
+                  : platform === "darwin" ? "/Users/你的名字/.ssh/id_ed25519" : "/home/你的名字/.ssh/id_ed25519"}</code>
+              </small>
             </label>
           )}
           <details>
@@ -152,7 +161,7 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                   placeholder="cage"
                   spellCheck="false"
                 />
-                <small>默认使用 cage，也可填写云端程序的绝对路径。</small>
+                <small>留空使用 cage，或填写云端程序的绝对路径。</small>
               </label>
               <label>
                 Cage 配置文件
@@ -161,21 +170,13 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                   onChange={(event) =>
                     update("config_path", event.target.value)
                   }
-                  placeholder="默认使用云端账户的 ~/.claude-cage/config.json"
+                  placeholder="可选"
                   spellCheck="false"
                 />
-                <small>自定义时填写云端绝对路径。</small>
+                <small>留空使用 <code>~/.claude-cage/config.json</code>。自定义配置请填写云端绝对路径。</small>
               </label>
             </div>
           </details>
-          <div className="remote-button-row">
-            <button className="primary" type="submit">
-              保存主机
-            </button>
-            <button type="button" onClick={onClose}>
-              取消
-            </button>
-          </div>
         </fieldset>
       </form>
     </Modal>

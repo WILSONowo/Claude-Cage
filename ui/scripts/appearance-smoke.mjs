@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chooseInline, createWorkbench } from "./workbench-fixture.mjs";
 const output = fileURLToPath(
-  new URL("../../docs/test-reports/2026-10-31-appearance/", import.meta.url),
+  new URL(process.env.CAGE_APPEARANCE_SCREENSHOTS || "../../docs/test-reports/2026-10-31-appearance/", import.meta.url),
 );
 await fs.mkdir(output, { recursive: true });
 const { browser, page, state, errors } = await createWorkbench();
@@ -100,7 +100,7 @@ try {
   await page.getByLabel("代码字号", { exact: true }).fill("15");
   await page
     .getByRole("alert")
-    .filter({ hasText: "外观设置未能保存" })
+    .filter({ hasText: "HTTP 500" })
     .waitFor();
   assert.equal(
     await page.getByLabel("代码字号", { exact: true }).inputValue(),
@@ -146,6 +146,10 @@ try {
     .click();
   await page.getByRole("menuitem", { name: "普通终端", exact: true }).click();
   await page.getByRole("tab", { name: "终端 1", exact: true }).waitFor();
+  await page.locator(".xterm-screen").first().waitFor();
+  for (let attempt = 0; state.terminalConnections === 0 && attempt < 100; attempt++)
+    await new Promise(resolve => setTimeout(resolve, 25));
+  assert.ok(state.terminalConnections > 0, "the terminal is connected before changing its appearance");
   const count = state.terminalConnections;
   await showAppearance();
   await page.getByRole("button", { name: "浅色", exact: true }).click();

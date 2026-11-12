@@ -51,8 +51,8 @@ export function EnvironmentVersions({ status, onConfirm }) {
         <button disabled={busy || !data?.tools_update_allowed} onClick={() => update(true)}>更新环境工具</button>
       </div>
       <p className="field-help">{data?.maintenance?.native
-        ? "原生组件更新前需结束运行中的终端与 Claude Code 轮次。系统磁盘、项目和账户资料保留，已暂停的外网继续保持暂停。工具包由主机准备并校验后传入客机。"
-        : "组件更新保留虚拟磁盘与终端。工具更新需先启动环境并同步组件，依赖通过已选代理下载；无需放行业务网络，也不会自动恢复已暂停的外网。"}</p>
+        ? "更新前请结束终端和 Claude Code 任务。系统磁盘、项目和账户资料会保留，外网暂停状态不变。主机校验工具包后将其传入客机。"
+        : "组件更新会保留虚拟磁盘与终端。更新工具前需启动环境并同步组件。依赖经已选代理下载，业务外网可保持关闭。"}</p>
     </section>
   );
 }

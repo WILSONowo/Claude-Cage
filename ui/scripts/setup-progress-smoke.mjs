@@ -126,13 +126,13 @@ try {
     for (const [operation, phase, label] of [["media", "image", "正在下载并校验客机开发组件"], ["tools", "tools", "正在安装客机应用和开发工具"], ["services", "services", "正在完成客机配置"]]) {
       state.status.job.setup_progress = { system: "windows-11", phase, operation, label };
       await panel.getByRole("heading", { name: label }).waitFor();
-      await panel.getByText(/请保持 PowerShell 安装窗口开启/).waitFor();
+      await panel.getByText(/请保持 PowerShell 窗口开启/).waitFor();
     }
     await page.setViewportSize({ width: 600, height: 650 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     if (process.env.CAGE_SETUP_WINDOWS_SCREENSHOT) await page.screenshot({ path: process.env.CAGE_SETUP_WINDOWS_SCREENSHOT, animations: "disabled" });
     state.status.job.setup_progress = { system: "macos", phase: "tools", label: "正在安装客机应用和开发工具" };
-    await panel.getByText(/请保持 PowerShell 安装窗口开启/).waitFor({ state: "hidden" });
+    await panel.getByText(/请保持 PowerShell 窗口开启/).waitFor({ state: "hidden" });
     assert.deepEqual(errors, []);
     console.log("PASS: Windows OOBE resume, refresh, guest credentials, component phases and platform-specific guidance.");
   } finally { await browser.close(); }

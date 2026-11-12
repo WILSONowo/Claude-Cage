@@ -22,7 +22,7 @@ export function InitializationStorage({ value, onChange, disabled }) {
   }
   return <section className="initialization-storage" aria-label="环境存储目录">
     <label htmlFor="initialization-directory">存储目录</label>
-    <p>镜像、下载缓存和虚拟磁盘保存在此处。更改时请选择本地空文件夹。</p>
+    <p>镜像、缓存和虚拟磁盘保存在此处。更改位置需选择本地空文件夹。</p>
     <p>更新、重装和卸载均保留此目录。手动删除将丢失环境数据。</p>
     <div className="initialization-directory-control">
       <input id="initialization-directory" value={value?.directory || ""} disabled={locked} spellCheck={false} placeholder={value ? "请输入存储目录的完整路径" : "正在读取默认目录…"} onChange={event => onChange({ ...value, directory: event.target.value })} />

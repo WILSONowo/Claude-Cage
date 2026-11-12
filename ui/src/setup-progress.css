@@ -1,9 +1,10 @@
 .setup-progress {
-  margin: 24px auto 0;
-  padding: 20px 24px 16px;
+  container: transfer / inline-size;
+  margin: 1.3rem auto 0;
+  padding: 1.15rem;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--panel-radius);
   text-align: left;
   min-width: 0;
 }
@@ -16,7 +17,7 @@
   font-size: .8571rem; line-height: 1.4; color: var(--muted);
 }
 .setup-stages li[aria-current="step"] { color: var(--strong); font-weight: 600; border-color: var(--accent); }
-.setup-transfer { margin: 28px 0 20px; }
+.setup-transfer { margin: 1.3rem 0; }
 .setup-transfer-heading { display: flex; align-items: center; gap: 12px; }
 .setup-transfer-icon {
   width: 36px; height: 36px; display: grid; place-items: center; flex: none;
@@ -34,7 +35,7 @@
 .setup-meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .25s ease-out; }
 .setup-meter-active span { width: 28%; animation: setup-meter-scan 1.8s ease-in-out infinite alternate; }
 @keyframes setup-meter-scan { from { transform: translateX(0); } to { transform: translateX(257%); } }
-.setup-transfer-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.setup-transfer-actions { display: flex; align-items: center; justify-content: space-between; gap: .6rem 1rem; flex-wrap: wrap; }
 .setup-transfer-actions button { font-size: .8571rem; }
 .setup-transfer-error { color: var(--danger); font-size: .9286rem; line-height: 1.6; overflow-wrap: anywhere; margin: 12px 0 0; }
 .setup-transfer-hint { color: var(--muted); font-size: .8571rem; line-height: 1.6; margin: 8px 0 0; }
@@ -47,4 +48,12 @@
   .setup-progress { padding: 16px; }
   .setup-transfer-heading { gap: 8px; }
   .setup-transfer-icon { width: 28px; height: 28px; }
+}
+
+.setup-transfer-actions > button { max-width: 100%; min-height: var(--control-height); white-space: normal; }
+.setup-transfer-actions > button:last-child { margin-inline-start: auto; }
+@container transfer (max-width: 21rem) {
+  .setup-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setup-transfer-heading { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .setup-transfer-number { grid-column: 2; }
 }

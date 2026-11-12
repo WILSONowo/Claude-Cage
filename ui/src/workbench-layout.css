@@ -2,22 +2,24 @@
 :root {
   --page-gutter: clamp(16px, 4vw, 56px);
   --panel-radius: 8px;
+  --control-height: max(34px, 2.5rem);
+  --scene-gap: 1rem;
+  --field-gap: .4rem;
   --sidebar-width: 244px;
   --display-type: "Anthropic Serif", Georgia, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", SimSun, serif;
   --workbench-ease: cubic-bezier(.32,.72,0,1);
   --surface-shadow: 0 1px 3px #0000000a, 0 4px 12px #00000005;
 }
 :root:not([data-theme]) {
-  color-scheme: light; --paper: #faf9f5; --input: #fff; --chrome: #f3f2ee; --sidebar: #f3f2ee;
-  --ink: #262624; --strong: #242421; --line: #dddbd5; --muted: #706e67;
-  --accent: #d97757; --focus: #b46243; --hover: #efeee9; --selected: #e7e6e0;
+  color-scheme: light; --paper: #fff; --input: #fff; --chrome: #fff; --sidebar: #f9f9f9;
+  --ink: #191919; --strong: #191919; --line: #e0e0e0; --muted: #666;
+  --accent: #257de0; --focus: #257de0; --hover: #ececec; --selected: #ebebeb;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    color-scheme: dark; --paper: #262624; --input: #30302e; --chrome: #2d2d2b; --sidebar: #2d2d2b;
-    --ink: #faf9f5; --strong: #faf9f5; --muted: #b2b0a8; --line: #434340;
-    --accent: #d97757; --focus: #d97757; --hover: #353532; --selected: #3c3c39;
-    --button: #faf9f5; --button-ink: #262624;
+    color-scheme: dark; --paper: #191919; --input: #252525; --chrome: #1f1f1f; --sidebar: #0b0b0b;
+    --ink: #efefef; --strong: #efefef; --muted: #9c9c9c; --line: #303030;
+    --hover: #2a2a2a; --selected: #373737; --button: #efefef; --button-ink: #191919;
   }
 }
 .client-shell :is(.modal, .inline-select-trigger, .primary) { border-radius: var(--panel-radius); }
@@ -71,19 +73,35 @@
 }
 .welcome .welcome-subtitle { line-height: 1.65; margin: 10px 0 22px; color: var(--muted); }
 .welcome .onboarding-steps { flex-wrap: wrap; justify-content: center; margin: 0 0 16px; gap: 8px 18px; }
-.welcome .start-project-box, .home-composer {
+.welcome .start-project-box {
   background: var(--input); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--surface-shadow);
 }
 .welcome .start-project-box .environment-summary { padding: 18px 20px 12px; }
 .welcome .start-project-footer { padding: 5px 16px 14px 20px; }
-.greeting-mark { color: var(--accent); font: 1em/1 Georgia, serif; margin-inline-end: .25em; vertical-align: -.04em; }
-.welcome .welcome-heading:has(.greeting-mark) { margin-bottom: 23px; }
+.greeting-mark { inline-size: .9em; block-size: .9em; margin-inline-end: .28em; vertical-align: -.04em; }
+.welcome .welcome-heading:has(.greeting-mark) {
+  margin-bottom: 23px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.greeting-mark { pointer-events: none; }
 .welcome .welcome-shortcuts { margin-top: 14px; gap: 7px; flex-wrap: wrap; }
 .welcome .welcome-shortcuts button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
 .welcome .welcome-hint { max-width: 55ch; margin-inline: auto; }
 .welcome .welcome-shortcuts button { border-radius: 7px; }
 .home-composer { padding: 15px 16px 10px; text-align: start; }
-.home-composer:focus-within { border-color: color-mix(in srgb, var(--ink) 30%, var(--input)); }
+.home-composer, .desktop-conversation .composer-field {
+  background: var(--composer-bg); border: 0; border-radius: 12px; box-shadow: var(--composer-shadow);
+}
+.home-composer:focus-within:not(:hover), .desktop-conversation .composer-field:focus-within:not(:hover) {
+  outline: none; box-shadow: var(--composer-shadow-focus);
+}
+@media (forced-colors: active) {
+  .home-composer, .desktop-conversation .composer-field { border: 1px solid CanvasText; }
+  .home-composer:focus-within, .desktop-conversation .composer-field:focus-within {
+    outline: 2px solid Highlight; outline-offset: 1px;
+  }
+}
 .home-composer textarea, .desktop-conversation textarea {
   width: 100%; resize: none; field-sizing: content; min-height: 48px; max-height: 180px; border: 0; outline: 0;
   padding: 0; font: inherit; line-height: 1.55; background: transparent; color: var(--ink);
@@ -103,7 +121,7 @@
 .desktop-conversation .transcript { flex: 1 1 140px; overflow: auto; min-height: 0; padding-block: 15px; }
 .desktop-conversation .message { margin: 12px 0; padding: 8px 12px; overflow-wrap: anywhere; }
 .desktop-conversation .message.user { border-radius: 12px; background: var(--chrome); width: fit-content; max-width: 88%; margin-left: auto; }
-.desktop-conversation .composer-field { border: 1px solid var(--line); border-radius: 16px; background: var(--input); padding: 12px; }
+.desktop-conversation .composer-field { padding: 12px; }
 .desktop-conversation .composer-field textarea { flex: 1; min-height: 28px; resize: none; }
 
 .settings-page .settings-sidebar { width: clamp(12.5rem, 23vw, max(244px, 12.5rem)); padding: 16px 10px; background: var(--sidebar); min-height: 0; }
@@ -119,31 +137,6 @@
 .settings-page .settings-sheet, .initialization .initialization-stage { animation: pane-reveal 180ms var(--workbench-ease); }
 @keyframes pane-reveal { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
-.client-workbench .account-gate {
-  display: flex; flex-direction: column; align-items: center; justify-content: safe center;
-  gap: 0; padding: 30px 20px; background: var(--paper);
-}
-.account-gate .account-brand { align-self: center; display: flex; flex-direction: row; align-items: center; gap: 8px; background: transparent; padding: 0; margin: 0 0 25px; }
-.account-brand img { width: 26px; height: 26px; }
-.account-brand strong { font: 600 1.6rem/1.3 var(--display-type); letter-spacing: -.04em; }
-.account-brand > span { font-size: .86rem; font-weight: 400; color: var(--muted); }
-.account-gate .account-entry { width: min(100%, 388px); padding: 0; margin: 0; border: 0; text-align: center; }
-.account-gate .account-entry h1 { margin: 0 0 10px; font-size: clamp(2rem, 3vw, 2.6rem); }
-.account-entry-intro { text-wrap: pretty; }
-.account-entry .account-field input { background: var(--input); border-radius: 9px; }
-.account-entry .account-submit { border-radius: 9px; }
-.account-entry .check-line { text-align: start; }
-.initialization { background: var(--paper); }
-.initialization .initialization-brand { padding: 14px 24px; min-height: 48px; background: transparent; border: 0; }
-.initialization-brand strong { font-family: var(--display-type); }
-.initialization .initialization-content { width: min(100% - 40px, 660px); margin: clamp(20px, 5vh, 56px) auto 42px; padding: 0; border: 0; }
-.initialization .initialization-title h1 { font-size: clamp(2rem, 3vw, 2.65rem); }
-.initialization .initialization-steps { gap: 8px 18px; flex-wrap: wrap; font-size: .86rem; margin-bottom: 18px; }
-.initialization .initialization-stage { padding: clamp(14px, 2.4vw, 24px); border: 1px solid var(--line); border-radius: 14px; background: var(--input); }
-.initialization .initialization-stage .guest-system-picker { padding-inline: 0; }
-.initialization-content .initialization-actions { margin-top: 18px; }
-.client-stage .environment-picker { padding-inline: var(--page-gutter); background: var(--paper); }
-.environment-picker > div { max-width: 460px; }
 @media (max-width: 650px) {
   .workspace-sidebar { width: min(var(--expanded-sidebar), 43vw); padding-inline: 6px; }
   .workspace-modes button { font-size: .8rem; }
@@ -196,6 +189,10 @@
 }
 .settings-content .field-row { display: flex; flex-flow: row wrap; gap: .65rem 1rem; }
 .settings-content .field-row > label { width: auto; min-width: 0; flex: 1 1 12rem; }
+.settings-content .secret-field { align-content: start; margin-block-end: 17px; }
+.settings-content :is(.secret-field, .account-field) > label:not(.check-line):not(.choice):not(.toggle-row),
+.settings-content label.account-field:not(.check-line):not(.choice):not(.toggle-row) { margin-block: 0; }
+.remote-relay-settings > .secret-field { margin-block-start: 24px; }
 .settings-page .settings-footer { padding-inline: max(var(--page-gutter), calc((100% - 740px) / 2)); gap: .5rem .75rem; }
 .settings-footer .save-note { min-width: 0; line-height: 1.45; }
 .settings-sidebar nav button svg, .settings-sidebar .back-to-workspace svg,

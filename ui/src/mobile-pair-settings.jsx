@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import { PasswordInput } from "./password-input";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { api, writeClipboard } from "./api";
 import { QrCode } from "lucide-react";
 
 export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
+  const tokenId = useId();
   const [custom, setCustom] = useState(Boolean(relay));
   const [token, setToken] = useState("");
   const [code, setCode] = useState(null);
@@ -89,7 +91,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
       <div className="section-title">
         <h3>远程连接</h3>
         <p>
-          手机配对后可以打开远程浏览器和 Claude Desktop，也可以继续 Claude Code 会话、处理工具审批。
+          配对后，可用手机操作浏览器和 Claude Desktop，也可继续 Claude Code 会话、审批工具请求。
         </p>
       </div>
       <section className="remote-pair-card" aria-label="手机配对">
@@ -102,18 +104,18 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
                 <span>{device.platform === "ios" ? "iOS" : "Android"}</span>
               </>
             ) : (
-              <span>型号待获取，请更新手机端 Cage 后重新连接。</span>
+              <span>未能读取型号，请更新手机端 Cage 后重连。</span>
             )}
           </p>
         )}
         {paired ? (
-          <p role="status">在手机上点「重新连接」即可打开工作台。</p>
+          <p role="status">在手机上选择「重新连接」打开工作台。</p>
         ) : (
           <p className="remote-pair-instruction">
-            打开手机 Cage，选择「连接电脑」，用「扫码连接」扫描二维码，或选择「使用配对码」粘贴电脑上复制的配对码。
+            在手机 Cage 的「连接电脑」中选择「扫码连接」，或在「使用配对码」中粘贴配对码。
           </p>
         )}
-        {paired && power?.active && <p className="note">远程待机已请求主机保持运行，屏幕可正常熄灭。移除配对或结束后台服务后恢复原系统休眠策略。</p>}
+        {paired && power?.active && <p className="note">远程待机已请求防止电脑休眠，屏幕仍可熄灭。移除配对或停止后台服务后恢复原休眠设置。</p>}
         {paired && power?.error && <p role="alert">主机防休眠未生效：{power.error}</p>}
         {code && (
           <div className="remote-pair-code">
@@ -123,7 +125,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
               width="320"
               height="320"
             />
-            <p className="field-help">二维码约两分钟有效，过期后可刷新。</p>
+            <p className="field-help">二维码约 2 分钟有效。</p>
           </div>
         )}
         {!code && !paired && (
@@ -153,7 +155,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
               onClick={async () => {
                 try {
                   await writeClipboard(code.manual);
-                  setNotice("一次性配对码已复制，可在手机上粘贴。");
+                  setNotice("已复制一次性配对码。");
                 } catch {
                   setNotice("复制失败，请使用二维码。");
                 }
@@ -165,7 +167,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
         </div>
         {!paired && (
           <p className="remote-pair-privacy">
-            只将二维码或配对码交给你希望授权的手机。
+            仅向受信任的手机提供二维码或配对码。
           </p>
         )}
         {notice && <p role="status">{notice}</p>}
@@ -174,9 +176,6 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
         <div className="remote-relay-row">
           <div>
             <h4>中继服务</h4>
-            <p className="field-help">
-              通过中继连接手机与电脑，可使用官方或自建服务。
-            </p>
           </div>
           <div
             className="remote-relay-options"
@@ -218,19 +217,21 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
                 }}
               />
             </label>
-            <label>
-              管理令牌（可选）
-              <input
-                type="password"
+            <div className="secret-field">
+              <label htmlFor={tokenId}>管理令牌（可选）</label>
+              <PasswordInput
+                id={tokenId}
+                label="管理令牌"
+                disabled={busy}
                 autoComplete="off"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
               />
-            </label>
+            </div>
           </>
         )}
         {relay !== savedRelay && (
-          <small>保存设置后，可使用新中继生成配对码。</small>
+          <small>保存后可用新中继生成配对码。</small>
         )}
       </section>
     </section>

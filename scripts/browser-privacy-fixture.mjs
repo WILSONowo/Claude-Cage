@@ -81,7 +81,7 @@ export async function createPrivacyController({ preferences, headless = true } =
     const windows = process.platform === 'win32';
     if (windows) {
       const modulePath = join(directory, 'browser-extensions.mjs');
-      const source = (await readFile(modulePath, 'utf8')).replace("run('/usr/bin/python3'", "run('python'")
+      const source = (await readFile(modulePath, 'utf8')).replace("run('/usr/bin/python3', [", "run('python', ['-X', 'utf8', ")
         .replace(".update(value).digest(", ".update(value, 'utf16le').digest(");
       await writeFile(modulePath, source);
     }

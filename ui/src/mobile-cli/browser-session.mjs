@@ -257,13 +257,13 @@ export function connectDisplay(stage, update, id, start, tool, initialURL) {
       if (awaitingResizeFrame && !pendingAddress) {
         return new Promise(resolve => {pendingAddress = {url, resolve};});
       }
-      if (writing || !frame || pendingAddress) throw new Error("上一项操作尚未完成，请稍后再次前往。");
+      if (writing || !frame || pendingAddress) throw new Error("上一项操作尚未完成，请稍后再试。");
       return send({type: "navigate", url}, frame);
     },
     offline() {
       if (!alive) return;
       generation++; cancelRead(); clearTimeout(resizeTimer);
-      failure(new Error("网络已断开，恢复后请重新读取画面。"), writing && writeType !== "resize" ? "action" : "frame");
+      failure(new Error("网络已断开，重连后请刷新画面。"), writing && writeType !== "resize" ? "action" : "frame");
     },
     refresh() {
       if (!opened || !alive || !visible) return;

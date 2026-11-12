@@ -142,7 +142,7 @@ export async function createWorkbench({
         state.account.unlocked = true;
         state.account.require_authentication = false;
       } else if (action === "profile") {
-        if (state.failAccountSave) return route.fulfill({ status: 400, body: "资料未能保存，请重试" });
+        if (state.failAccountSave) return route.fulfill({ status: 400, contentType: "text/plain; charset=utf-8", body: "资料未能保存，请重试" });
         Object.assign(state.account, { username: body.username.trim(), avatar: body.avatar });
       } else if (action === "password") {
         if (body.old_password !== state.accountPassword) return route.fulfill({ status: 400, body: "密码不正确" });
@@ -181,7 +181,7 @@ export async function createWorkbench({
           return route.fulfill({ status: 400, body: "请先确认启用保护" });
         if (state.failHostGit)
           return route.fulfill({
-            status: 500,
+            status: 500, contentType: "text/plain; charset=utf-8",
             body: "未能保存 Git 安全设置，请检查写入权限后重试。",
           });
         state.hostGit = {

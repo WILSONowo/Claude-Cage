@@ -109,7 +109,7 @@ static void setError(NSError **error, NSString *text) {
     if (!device) return nil;
     NSError *failure = nil;
     NSString *result = CagemobilePair(code, relay, device, &failure);
-    if (failure || !result.length) {setError(error, @"配对未完成。请确认两端使用同一中继，再扫描新二维码。"); return nil;}
+    if (failure || !result.length) {setError(error, @"配对失败。请确认手机和电脑使用同一中继，再扫描新的二维码。"); return nil;}
     return result;
 }
 + (BOOL)usesSimulatorIdentity { return simulatorIdentity; }
@@ -138,7 +138,7 @@ static void setError(NSError **error, NSString *text) {
     if (!device) return nil;
     NSError *failure = nil;
     CagemobileClient *client = CagemobileOpenSaved(relay, lookup, pin, device, &failure);
-    if (!client || failure) { setError(error, @"连接未完成。请确认电脑上的连接服务正在运行，再点重新连接。若已更换凭据，请导入新的连接文件。"); return nil; }
+    if (!client || failure) { setError(error, @"连接失败。请确认电脑的连接服务已启动，再重新连接。凭据已更换时，请导入新的连接文件。"); return nil; }
     struct utsname hardware;
     NSString *model = uname(&hardware) == 0 ? [NSString stringWithUTF8String:hardware.machine] : nil;
 #if TARGET_OS_SIMULATOR

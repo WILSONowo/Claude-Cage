@@ -130,7 +130,7 @@ public final class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (generation != attempt) return;
                     setConnecting(false);
-                    status.setText("配对未完成。请确认两端使用同一中继，再用电脑上新生成的二维码或配对码重试。");
+                    status.setText("配对失败。请确认手机和电脑使用同一中继，再用新的二维码或配对码重试。");
                 });
             }
         });
@@ -379,7 +379,7 @@ public final class MainActivity extends Activity {
             button(form, "扫码连接", true, v -> startActivityForResult(new Intent(this, ScanActivity.class), SCAN));
             button(form, "使用配对码", false, v -> showPair(true));
         } else {
-            label("粘贴电脑上复制的一次性配对码。", 15);
+            label("粘贴电脑上的一次性配对码。", 15);
             EditText manualCode = field("一次性配对码", "");
             button(form, "连接电脑", true, v -> {
                 String value = manualCode.getText().toString().trim();
@@ -521,9 +521,9 @@ public final class MainActivity extends Activity {
             .setMessage("移除这台电脑的地址、指纹和重连凭据？")
             .setNegativeButton("取消", null).setPositiveButton("忘记主机", (dialog, which) -> forget()).show());
         forgetHost.setVisibility(trust.contains("pin") ? View.VISIBLE : View.GONE);
-        inviteStatus = label(imported != null ? "请与电脑独立显示的指纹核对，再保存主机。" :
-            invitation != null ? "已导入本次临时邀请。" :
-            credentials.saved() ? "这台电脑已保存，可以直接重新连接。" : "导入电脑生成的连接文件或临时邀请。", 14);
+        inviteStatus = label(imported != null ? "请核对电脑上显示的指纹，再保存主机。" :
+            invitation != null ? "已导入临时邀请。" :
+            credentials.saved() ? "已保存电脑，可重新连接。" : "导入电脑生成的连接文件或临时邀请。", 14);
         button(form, "导入连接文件", false, v -> {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
             startActivityForResult(intent, PICK_INVITATION);
@@ -538,7 +538,7 @@ public final class MainActivity extends Activity {
         try { relay = selectedRelay(); pin = Invitation.pin(pinField.getText().toString()); }
         catch (Exception e) { status.setText("中继地址或电脑指纹格式无效。"); return; }
         Invitation.Saved record = imported;
-        if (record != null && (!record.relay.equals(relay) || !record.pin.equals(pin))) { status.setText("填写内容与导入的连接文件不一致，请重新核对。"); return; }
+        if (record != null && (!record.relay.equals(relay) || !record.pin.equals(pin))) { status.setText("输入内容与连接文件不一致，请核对。"); return; }
         int attempt = ++generation;
         setConnecting(true);
         worker.execute(() -> {
@@ -547,8 +547,8 @@ public final class MainActivity extends Activity {
                 runOnUiThread(() -> { if (generation == attempt) {
                     imported = null; verified.setChecked(false); setConnecting(false); forgetHost.setVisibility(View.VISIBLE);
                     connect.setText(credentials.saved() && invitation == null ? "重新连接" : "连接工作台");
-                    if (credentials.saved() && invitation == null) inviteStatus.setText("这台电脑已保存，可以直接重新连接。");
-                    status.setText(credentials.saved() ? "已保存这台电脑，可以重新连接。" : "已保存主机指纹。");
+                    if (credentials.saved() && invitation == null) inviteStatus.setText("已保存电脑，可重新连接。");
+                    status.setText(credentials.saved() ? "已保存电脑，可重新连接。" : "已保存主机指纹。");
                 } });
             } catch (Exception e) { runOnUiThread(() -> { if (generation == attempt) { setConnecting(false); status.setText("无法安全保存主机，请解锁手机后重试。"); } }); }
         });
@@ -584,8 +584,8 @@ public final class MainActivity extends Activity {
                     setConnecting(false); invitation = item; imported = saved; status.setText("");
                     if (saved != null) {
                         displayRelay(saved.relay); pinField.setText(saved.pin); verified.setChecked(false);
-                        inviteStatus.setText("请与电脑独立显示的指纹核对，再保存主机。");
-                    } else { inviteStatus.setText("已导入本次临时邀请。"); }
+                        inviteStatus.setText("请核对电脑上显示的指纹，再保存主机。");
+                    } else { inviteStatus.setText("已导入临时邀请。"); }
                     connect.setText("连接工作台");
                 } });
             } catch (Exception e) {
@@ -617,8 +617,8 @@ public final class MainActivity extends Activity {
         }
         if (device == null) { status.setText("设备密钥尚未就绪。"); return; }
         Invitation item = page == Page.HOST ? invitation : null;
-        if (item == null && !credentials.saved()) { status.setText("请导入连接文件或有效的临时邀请。"); return; }
-        if (item != null && !item.expiry.isAfter(Instant.now())) { invitation=null; status.setText("临时邀请已过期，请重新连接或导入新邀请。"); return; }
+        if (item == null && !credentials.saved()) { status.setText("请导入连接文件或临时邀请。"); return; }
+        if (item != null && !item.expiry.isAfter(Instant.now())) { invitation=null; status.setText("邀请已过期，请重新连接或导入新邀请。"); return; }
         invitation = null;
         if (item != null) inviteStatus.setText("本次邀请已用于连接。");
         int attempt = ++generation; setConnecting(true); status.setText("正在验证电脑并连接…");
@@ -648,7 +648,7 @@ public final class MainActivity extends Activity {
                 close(opened);
                 runOnUiThread(() -> { if (attempt == generation) {
                     setConnecting(false); if (page == Page.HOST) connect.setText(credentials.saved() ? "重新连接" : "连接工作台");
-                    status.setText(item == null ? "连接未完成。请确认电脑上的连接服务正在运行，再点重新连接。若已更换凭据，请导入新的连接文件。" : "连接未完成。请核对双方指纹与网络，再导入新邀请。");
+                    status.setText(item == null ? "连接失败。请确认电脑的连接服务已启动，再重新连接。凭据已更换时，请导入新的连接文件。" : "连接未完成。请核对双方指纹与网络，再导入新邀请。");
                 } });
             }
         });
@@ -792,7 +792,7 @@ public final class MainActivity extends Activity {
         panel.setBackground(surface(palette.panel,26,false));
         TextView title = text("取消与“" + selected.name + "”的连接？",20,palette.ink);
         title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); panel.addView(title);
-        TextView explanation = text("设备将从当前连接列表移除，已保存的配对信息仍然保留。",14,palette.muted);
+        TextView explanation = text("将从连接列表移除设备，保留配对信息。",14,palette.muted);
         explanation.setPadding(0,dp(12),0,dp(12)); panel.addView(explanation);
         button(panel,"取消连接",true,v -> {dialog.dismiss(); disconnectDevice(selected);});
         button(panel,"继续连接",false,v -> dialog.dismiss());

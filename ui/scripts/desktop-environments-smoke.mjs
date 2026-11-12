@@ -128,7 +128,10 @@ const { browser, page, state, errors } = await createWorkbench({
   },
 });
 page.setDefaultTimeout(7000);
-const click = (name) => page.getByRole("button", { name, exact: true }).click();
+const click = (name) => {
+  const surface = name === "SSH 主机" ? page.getByRole("navigation", { name: "主导航" }) : page;
+  return surface.getByRole("button", { name, exact: true }).click();
+};
 const visible = (name) =>
   page.getByText(name, { exact: true }).first().waitFor();
 try {
@@ -172,7 +175,7 @@ try {
   await click("停止本机环境");
   staleStop = true;
   await click("确认停止本机");
-  await visible("本机环境已锁定。请先返回本机解锁，再停止本机环境。");
+  await visible("本机已锁定，请返回本机解锁后再停止环境。");
   assert.equal(view.mode, "remote");
   assert.equal(state.account.unlocked, true);
   await click("返回本机解锁");
@@ -226,6 +229,7 @@ try {
   });
   await click("停止本机环境");
   await click("确认停止本机");
+  await page.getByRole("dialog", { name: "停止本机环境？" }).waitFor({ state: "hidden" });
   await visible("SSH · 云端运行");
   assert.equal(view.mode, "remote");
   assert.equal(local.running, false);

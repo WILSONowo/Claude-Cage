@@ -70,7 +70,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
       if (snapshot) accept(snapshot, generation);
       if (snapshot && checking && checkApproval.current === checking && latest.current?.turns?.at(-1)?.approval?.id === checking.id) {
         checkApproval.current = null;
-        setApprovalFeedback({ id: checking.id, message: "主机仍在等待这次审批。请核对参数后再次选择。" });
+        setApprovalFeedback({ id: checking.id, message: "主机仍在等待审批，请核对参数后再选择。" });
       }
       setReadError("");
       readFailures.current = 0; setReadProgress("");
@@ -83,7 +83,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
         return sessionRetryDelay(readFailures.current);
       } else {
         setReadProgress("");
-        setReadError(sessionFailureMessage(error) + (retryableSessionError(error) ? " 已自动重连5次，仍未恢复。可以稍后再次连接。" : ""));
+        setReadError(sessionFailureMessage(error) + (retryableSessionError(error) ? " 已重连 5 次，请稍后再试。" : ""));
       }
       return null;
     }
@@ -120,7 +120,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
       },
     });
     void recovering.then(confirmed => {
-      if (!controller.signal.aborted && !confirmed) setActionError("消息是否送达仍未确认。已自动重连5次，原消息已保留。再次连接后会继续确认，避免重复执行。");
+      if (!controller.signal.aborted && !confirmed) setActionError("已重连 5 次，仍未确认消息送达。原消息已保留，重连后会继续确认。请勿重复发送。");
     }).catch(error => {
       if (controller.signal.aborted) return;
       if (accessDenied(error)) onDenied(error); else if ([404,410].includes(error.status)) onMissing(); else setActionError(sessionFailureMessage(error));
@@ -157,7 +157,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
           delay = sessionRetryDelay(failures);
         } else if (error.status !== 409 || Date.now() - started > 60000) {
           setConnectionProgress("");
-          setConnectionError(sessionFailureMessage(error) + (retryableSessionError(error) ? " 已自动重连5次，可以稍后再次连接。" : "")); return;
+          setConnectionError(sessionFailureMessage(error) + (retryableSessionError(error) ? " 已重连 5 次，请稍后再试。" : "")); return;
         }
       }
       timer = setTimeout(connect, delay);
@@ -221,7 +221,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
       if (!live.current) return;
       if (accessDenied(error)) onDenied(error);
       else if (latest.current?.turns?.at(-1)?.approval?.id === approvalId) {
-        const checking = { id: approvalId, checking: true, message: error.status === 409 ? "这次请求的状态已变化，正在重新读取。" : "审批结果尚未确认，正在重新读取主机状态。" };
+        const checking = { id: approvalId, checking: true, message: error.status === 409 ? "请求状态已变更，正在刷新…" : "审批结果待确认，正在刷新主机状态…" };
         checkApproval.current = checking; setApprovalFeedback(checking); retry();
       }
     } finally { actionBusy.current = false; if (live.current) setBusy(false); }
@@ -235,7 +235,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
     {session && <SessionAccount id={id} request={request} onChanged={()=>setReload(n=>n+1)} compact />}
     {(sendProgress || connectionProgress || readProgress) && <p className="note" role="status">{sendProgress || connectionProgress || readProgress}</p>}
     {session?.connection_notice && <Notice>{session.connection_notice}</Notice>}
-    {session?.history_truncated && <p className="note">手机显示的历史已截断，完整内容保存在电脑 Claude Code 中。</p>}
+    {session?.history_truncated && <p className="note">当前仅显示部分历史。完整记录可在电脑的 Claude Code 中查看。</p>}
     <section className="transcript" ref={transcript} aria-label="会话消息" onScroll={(e) => {
       const box = e.currentTarget; follow.current = box.scrollHeight - box.scrollTop - box.clientHeight < 64;
     }}>
@@ -246,7 +246,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
         <article className="message" aria-label="回复">
           <ToolActivity tools={turn.tools} />
           {turn.text && <MessageBody text={turn.text} />}
-          {turn.truncated && <p className="note">本轮输出超过记录上限，仅显示已保存的部分。</p>}
+          {turn.truncated && <p className="note">本轮输出超过记录上限，仅显示已保存的内容。</p>}
           {!turn.text && !turn.approval && active(turn.status) && <p className="note">等待输出…</p>}
           {turn.id === last.id && turn.status === "running" && turn.approval?.id && <Approval
             key={turn.approval.id} approval={turn.approval} busy={busy} feedback={approvalFeedback?.id === turn.approval.id ? approvalFeedback : null}
@@ -259,7 +259,7 @@ export default function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, o
     </section>
     <form className="compose" onSubmit={send}>
       {actionError && <Notice onRetry={uncertain ? retry : undefined} label="再次连接">{actionError}</Notice>}
-      {session?.single_turn && <p className="note">当前凭据或路由只能验证本轮。请返回会话列表，新建会话后继续。</p>}
+      {session?.single_turn && <p className="note">当前凭据或路由仅能验证本轮。请返回列表，新建会话后继续。</p>}
       {!ready && <p className="note">请在电脑上启动 Cage 环境。</p>}
       <div className="composer-field">
         <textarea ref={composerInput} aria-label="消息" rows="1" placeholder="给 Claude Code 发消息" value={draft} disabled={!session || session.single_turn || !ready || uncertain || busy}
@@ -289,7 +289,7 @@ function Approval({ approval, busy, feedback, onDecide }) {
     <h2>允许使用 {approval.tool}？</h2>
     {input === null ? <p className="note">无法显示完整参数，请拒绝或重新读取。</p>
       : <pre tabIndex={0} aria-label={approval.preview ? "工具参数预览" : "完整工具参数"}>{input}</pre>}
-    {approval.preview && <p className="note">参数预览由 Claude Code 提供。若显示省略内容，请在电脑查看完整参数后处理。</p>}
+    {approval.preview && <p className="note">若参数预览有省略，请先在电脑查看完整参数再审批。</p>}
     {feedback && <p className="note" role="status">{feedback.message}</p>}
     <div className="approval-actions">
       <button type="button" className="action secondary" disabled={busy || feedback?.checking} onClick={() => onDecide(false)}>拒绝</button>

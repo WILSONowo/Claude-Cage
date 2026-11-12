@@ -1,5 +1,6 @@
+import { PasswordInput } from "./password-input";
 import { SearchField } from "./search-field";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { KeyRound, Plus, ShieldCheck } from "lucide-react";
 import { api, writeClipboard } from "./api";
 import "./password-vault.css";
@@ -64,7 +65,7 @@ export function BrowserVaultBar({ tab, vault, onManage, ready, menu = false }) {
     {candidate && <div className="vault-save" role="region" aria-label="保存网站密码">
       <div><strong>{candidate.update ? "更新此账号的密码？" : "保存此账号密码？"}</strong>
         <span>{candidate.origin} · {candidate.username || "未填写用户名"}</span>
-        <small>请确认网站登录成功后保存。</small></div>
+        <small>登录成功后再保存。</small></div>
       <div className="vault-actions">
         <button className="primary" disabled={busy} onClick={() => run({ action: "save", candidate: candidate.id }, "密码已保存")}>{candidate.update ? "更新密码" : "保存密码"}</button>
         <button disabled={busy} onClick={() => run({ action: "dismiss", candidate: candidate.id }, "")}>暂不保存</button>
@@ -85,6 +86,7 @@ export function BrowserVaultBar({ tab, vault, onManage, ready, menu = false }) {
 
 const newEntry = () => ({ origin: "", username: "", password: "" });
 export function PasswordVaultSettings({ onConfirm, onDirty }) {
+  const draftPasswordId = useId(), accountPasswordId = useId();
   const [store, setStore] = useState({ entries: [], blocked: [] });
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
   const [search, setSearch] = useState(""), [draft, setDraft] = useState(null);
@@ -126,7 +128,7 @@ export function PasswordVaultSettings({ onConfirm, onDirty }) {
   const entries = store.entries.filter(entry => `${entry.origin} ${entry.username}`.toLowerCase().includes(search.toLowerCase()));
   return <section className="vault-settings">
     <div className="section-title"><h3>密码保险箱</h3><p>密码在本机加密保存，随 Cage 锁定和解锁。</p></div>
-    <div className="vault-note"><ShieldCheck size={17} /><span>查看或复制密码需要再次验证 Cage 账户密码。填充后由你提交登录。</span></div>
+    <div className="vault-note"><ShieldCheck size={17} /><span>查看或复制时需验证 Cage 账户密码。自动填写后，请在网页上提交登录。</span></div>
     {error && <p className="account-error" role="alert">{error}</p>}
     {message && <p role="status">{message}</p>}
     <div className="vault-toolbar"><SearchField type="search" label="搜索网站或账号" value={search} onValueChange={setSearch} />
@@ -136,17 +138,25 @@ export function PasswordVaultSettings({ onConfirm, onDirty }) {
       <fieldset disabled={busy}>
         <label>网站地址<input type="url" required autoFocus placeholder="https://mail.example.com" value={draft.origin} onChange={event => setDraft({ ...draft, origin: event.target.value })} /></label>
         <label>账号或邮箱<input autoComplete="off" maxLength={1024} value={draft.username} onChange={event => setDraft({ ...draft, username: event.target.value })} /></label>
-        <label>{draft.id ? "新密码（留空保留原密码）" : "网站密码"}<input type="password" autoComplete="new-password" required={!draft.id} maxLength={8192} value={draft.password || ""} onChange={event => setDraft({ ...draft, password: event.target.value })} /></label>
+        <div className="secret-field">
+          <label htmlFor={draftPasswordId}>{draft.id ? "新密码（留空保留原密码）" : "网站密码"}</label>
+          <PasswordInput id={draftPasswordId} label="网站密码" autoComplete="new-password" required={!draft.id}
+            disabled={busy} maxLength={8192} value={draft.password || ""} onChange={event => setDraft({ ...draft, password: event.target.value })} />
+        </div>
         <div className="vault-actions"><button className="primary" type="submit">保存记录</button><button type="button" onClick={() => setDraft(null)}>取消</button></div>
       </fieldset>
     </form>}
     {verify && <form className="vault-editor" onSubmit={event => { event.preventDefault(); void run({ action: "reveal", id: verify.entry.id, account_password: accountPassword }); }}>
       <h4>{verify.mode === "copy" ? "验证后复制密码" : "验证后查看密码"}</h4><p>{verify.entry.origin} · {verify.entry.username}</p>
-      <label>Cage 账户密码<input type="password" autoComplete="off" autoFocus required maxLength={1024} value={accountPassword} onChange={event => setAccountPassword(event.target.value)} /></label>
+      <div className="secret-field">
+        <label htmlFor={accountPasswordId}>Cage 账户密码</label>
+        <PasswordInput id={accountPasswordId} label="Cage 账户密码" autoComplete="off" autoFocus required
+          disabled={busy} maxLength={1024} value={accountPassword} onChange={event => setAccountPassword(event.target.value)} />
+      </div>
       <div className="vault-actions"><button className="primary" disabled={busy} type="submit">验证并{verify.mode === "copy" ? "复制" : "查看"}</button>
         <button type="button" disabled={busy} onClick={() => { setVerify(null); setAccountPassword(""); }}>取消验证</button></div>
     </form>}
-    {loading ? <p>正在读取密码保险箱…</p> : !entries.length ? <div className="vault-empty"><KeyRound size={24} /><p>{search ? "没有找到匹配的账号" : "还没有保存密码"}</p><small>网页登录后可保存密码，也可手动添加。</small></div> :
+    {loading ? <p>正在读取密码保险箱…</p> : !entries.length ? <div className="vault-empty"><KeyRound size={24} /><p>{search ? "没有找到匹配的账号" : "还没有保存密码"}</p></div> :
       <div className="vault-list">{entries.map(entry => <article className="vault-entry" key={entry.id}>
         <div><strong>{entry.origin}</strong><span>{entry.username || "未填写用户名"}</span></div>
         {revealed?.id === entry.id && <div className="vault-revealed"><output aria-label="已保存的网站密码">{revealed.password}</output><button onClick={() => setRevealed(null)}>隐藏密码</button></div>}
@@ -158,6 +168,6 @@ export function PasswordVaultSettings({ onConfirm, onDirty }) {
         </div>
       </article>)}</div>}
     {store.blocked.length > 0 && <section className="vault-blocked"><h4>不再提示保存的网站</h4>{store.blocked.map(origin => <div key={origin}><span>{origin}</span><button disabled={busy} onClick={() => run({ action: "unblock", origin }, "已恢复此网站的保存提示")}>恢复提示</button></div>)}</section>}
-    <p className="footnote">目前支持 HTTPS 顶层网页的常见登录表单。密码不会同步到其他设备；备份时需同时保留本地账户文件与密码库。</p>
+    <p className="footnote">支持 HTTPS 顶层网页的常见登录表单。密码仅保存在本机，备份时请同时保留账户文件和密码库。</p>
   </section>;
 }

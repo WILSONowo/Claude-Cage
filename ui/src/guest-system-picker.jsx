@@ -30,7 +30,7 @@ export function HostCloneSummary({ pending, onChange }) {
   const cached = Boolean(plan.path || result.download_bytes === 0 && plan.bytes > 0);
   return <div className="guest-install-fields host-clone-summary" aria-live="polite">
     <strong>将安装：{names[host.system]} {host.system === "windows-11" ? `${host.version} · ${editions[host.edition] || host.edition} · ${languages[host.language] || host.language}` : host.system === "macos" ? host.version : ""}</strong>
-    <small>{pending ? "沿用首次选择的系统镜像，继续安装独立客机。" : "根据本机系统版本匹配官方镜像，安装到独立客机中。"}</small>
+    <small>{pending ? "沿用首次选择的系统镜像，继续安装独立客机。" : "官方镜像按本机系统版本匹配，安装到独立客机。"}</small>
     {host.build && <small>{pending ? "首次检测的本机构建号" : "本机构建号"} {host.build} · 镜像构建号 {plan.build}</small>}
     {host.system === "windows-11" && host.build !== plan.build && <small>Windows 的发行版本、版本类型和语言与本机一致，补丁版本有所不同。</small>}
     <small>本机的应用、个人文件和登录状态不会复制；客机中的工具、账户和文件会持续保存。</small>
@@ -99,12 +99,12 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
         <option value="macos" disabled={view.system !== "macos" || !view.available}>macOS{view.system === "macos" ? view.available ? "" : "（暂不可用）" : "（需要 Apple Silicon Mac）"}</option>
         <option value="windows-11" disabled={view.system !== "windows-11" || !view.available}>Windows 11{view.system === "windows-11" ? view.available ? "" : "（暂不可用）" : "（需要 Windows 11 与 Hyper-V）"}</option>
       </InlineSelect>
-      {system.clone && !system.activate && (deferMatch ? <small className="guest-install-fields">Cage 会检测本机系统版本，在下一步显示匹配的官方镜像、下载量与空间要求。</small> : <HostCloneSummary pending={system.pending} onChange={onChange} />)}
-      {!system.activate && <small className="guest-install-fields">系统镜像通过主机网络下载，遵循主机系统代理或 TUN 设置，不使用 Cage 的客机代理。使用 Clash 等软件时，请先开启系统代理或 TUN；代理规则决定镜像网站的实际出口。</small>}
+      {system.clone && !system.activate && (deferMatch ? <small className="guest-install-fields">下一步将按本机系统版本匹配官方镜像，并显示下载量和空间要求。</small> : <HostCloneSummary pending={system.pending} onChange={onChange} />)}
+      {!system.activate && <small className="guest-install-fields">系统镜像使用主机网络，出口由主机代理规则决定。使用 Clash 等代理时，请开启系统代理或 TUN。</small>}
       {!system.clone && os !== "debian-13" && !system.activate && <div className="guest-install-fields">
         {os === "ubuntu-22.04" ? <>
           <small>从 Ubuntu 官方源下载 Ubuntu 22.04 LTS 镜像，并校验 SHA-256。Cage 按主机架构选择 ARM64 或 x86_64。</small>
-          <small>自动安装开发工具、浏览器和编辑器。客机账户、文件和登录状态保存在独立的持久虚拟磁盘中。</small>
+          <small>开发工具、浏览器和编辑器将自动安装。账户、文件和登录状态保存在客机磁盘中。</small>
           <small>至少需要 17 GiB 可用空间。失败后可继续原安装，不会改用其他系统或覆盖已有环境。</small>
         </> : os === "macos" ? <>
           <small>{system.media || "将从 Apple 下载 macOS 26.5.2（19.77 GB），并创建 64 GiB 稀疏虚拟磁盘。"}</small>

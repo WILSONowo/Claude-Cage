@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { createWorkbench } from "./workbench-fixture.mjs";
 
+async function waitForWorkspace(page) {
+  await page.locator(".workbench-shell").waitFor();
+  const expand = page.getByRole("button", { name: "展开侧栏", exact: true }).first();
+  if (await expand.isVisible()) await expand.click();
+  await page.getByRole("complementary", { name: "项目与终端" }).waitFor();
+}
+
 const evidence = process.env.CAGE_INITIALIZATION_EVIDENCE;
 if (evidence) await fs.mkdir(evidence, { recursive: true });
 
@@ -122,7 +129,7 @@ if (evidence) await fs.mkdir(evidence, { recursive: true });
     assert.equal(await restart().count(), 0, "a lost start response must not hide a later verified open gate");
     await page.reload();
     await page.getByRole("button", { name: "进入工作台", exact: true }).click();
-    await page.getByRole("complementary", { name: "项目与终端" }).waitFor();
+    await waitForWorkspace(page);
     assert.deepEqual(f.errors, []);
     console.log("PASS macOS exit: explicit binding, cancellation, save failures, stop-before-start, disconnect recovery, lost start response and network completion gate");
   } finally { await f.browser.close(); }
@@ -174,12 +181,12 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     const storage = page.getByRole("region", { name: "环境存储目录" });
     await storage.getByLabel("存储目录", { exact: true }).waitFor();
     assert.equal(await storage.getByLabel("存储目录", { exact: true }).inputValue(), initialDirectory);
-    await storage.getByText("这是 Cage 的环境数据目录。更新、重装或卸载应用会保留这里的数据；请勿手动删除。").waitFor();
+    await storage.getByText("更新、重装和卸载均保留此目录。手动删除将丢失环境数据。").waitFor();
     assert.equal(await storage.getByText("当前环境目录", { exact: true }).count(), 0);
     assert.equal(await storage.getByText("新存储位置", { exact: true }).count(), 0);
     await page.locator(".initialization-content").evaluate(async element => {
       await Promise.all(element.getAnimations({ subtree: true })
-        .filter(animation => animation.animationName === "initialization-enter")
+        .filter(animation => Number.isFinite(animation.effect?.getComputedTiming().endTime))
         .map(animation => animation.finished));
     });
     const before = await storage.boundingBox();
@@ -188,18 +195,18 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     await option.waitFor();
     for (const name of [/^Debian/, /^Ubuntu/, /^macOS/, /^Windows/]) assert.equal(await page.getByRole("option", { name }).count(), 1);
     const expanded = await storage.boundingBox();
-    assert.ok(Math.abs(expanded.y - before.y) < 1, "floating system choices must not move storage");
+    assert.ok(Math.abs(expanded.y - before.y) < 1, `floating system choices moved storage from ${before.y} to ${expanded.y}`);
     const menu = await page.getByRole("listbox").boundingBox();
     assert.ok(menu.x >= 0 && menu.y >= 0 && menu.x + menu.width <= 1280 && menu.y + menu.height <= 850, "floating menu must stay inside the viewport");
     if (evidence) await page.screenshot({ path: `${evidence}/${platform}-systems-floating.png`, fullPage: true });
     await picker.press("Home"); await picker.press("Enter");
-    await page.getByText("Cage 会检测本机系统版本，在下一步显示匹配的官方镜像、下载量与空间要求。").waitFor();
-    await page.getByText(/系统镜像通过主机网络下载.*系统代理或 TUN/).waitFor();
+    await page.getByText("下一步将按本机系统版本匹配官方镜像，并显示下载量和空间要求。").waitFor();
+    await page.getByText(/系统镜像使用主机网络.*系统代理或 TUN/).waitFor();
     if (system === "windows-11") await page.getByRole("checkbox").check();
     if (evidence) await page.screenshot({ path: `${evidence}/${platform}-system.png`, fullPage: true });
     await page.getByRole("button", { name: "下一步" }).click();
     await page.getByRole("heading", { name: "连接网络代理" }).waitFor();
-    await page.getByText("根据本机系统版本匹配官方镜像，安装到独立客机中。").waitFor();
+    await page.getByText("官方镜像按本机系统版本匹配，安装到独立客机。").waitFor();
     await page.getByRole("button", { name: "上一步", exact: true }).click();
     await page.getByRole("combobox", { name: "客户机系统" }).getByText("自动匹配本机系统版本").waitFor();
     await page.getByRole("button", { name: "下一步" }).click();
@@ -241,11 +248,11 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     assert.equal(await page.getByRole("complementary", { name: "项目与终端" }).count(), 0, "server completion rejection must keep initialization visible");
     rejectComplete = false;
     await page.getByRole("button", { name: "进入工作台", exact: true }).click();
-    await page.getByRole("complementary", { name: "项目与终端" }).waitFor();
+    await waitForWorkspace(page);
     await page.evaluate(() => window.cageNativeAction("settings"));
     await page.getByRole("region", { name: "设置", exact: true }).waitFor();
     await page.reload();
-    await page.getByRole("complementary", { name: "项目与终端" }).waitFor();
+    await waitForWorkspace(page);
     await page.evaluate(() => window.cageNativeAction("quit"));
     const quitDialog = page.getByRole("dialog", { name: "退出 Cage", exact: true });
     await quitDialog.getByRole("button", { name: "取消", exact: true }).click();

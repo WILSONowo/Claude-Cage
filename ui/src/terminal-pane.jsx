@@ -351,7 +351,7 @@ export default function TerminalView({ session, visible, focused = true, onStatu
       {!connected && (
         <div className="terminal-note">
           {session.closed
-            ? "终端会话已结束。可点击项目右侧的终端图标新建终端。"
+            ? "会话已结束。点击项目旁的终端图标可新建终端。"
             : "正在连接终端…"}
           {!session.closed && (
             <button onClick={() => setAttempt((v) => v + 1)}>

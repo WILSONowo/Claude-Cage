@@ -31,9 +31,9 @@ internal sealed class MainWindow : Form
         var lightApps = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1);
         bool darkStartup = lightApps is int preference && preference == 0;
         BackColor = SystemInformation.HighContrast ? SystemColors.Window :
-            darkStartup ? Color.FromArgb(38, 38, 36) : Color.FromArgb(250, 249, 245);
+            darkStartup ? Color.FromArgb(25, 25, 25) : Color.White;
         ForeColor = SystemInformation.HighContrast ? SystemColors.WindowText :
-            darkStartup ? Color.FromArgb(250, 249, 245) : Color.FromArgb(38, 38, 36);
+            darkStartup ? Color.FromArgb(239, 239, 239) : Color.FromArgb(25, 25, 25);
         web.DefaultBackgroundColor = BackColor;
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
         status.Controls.AddRange([message, retry, existing, complete]);
@@ -411,7 +411,7 @@ internal sealed class MainWindow : Form
                     result = response.Data; break;
                 }
                 case "chooseFolder":
-                    using (var picker = new FolderBrowserDialog { Description = request.Text("purpose") == "environmentStorage" ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "仅此文件夹会与 Cage 共享。请选择具体项目。", UseDescriptionForTitle = true, ShowNewFolderButton = true })
+                    using (var picker = new FolderBrowserDialog { Description = request.Text("purpose") == "environmentStorage" ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "选择项目文件夹。Cage 只会共享所选文件夹。", UseDescriptionForTitle = true, ShowNewFolderButton = true })
                         result = picker.ShowDialog(this) == DialogResult.OK ? picker.SelectedPath : "";
                     break;
                 case "clipboardRead": result = Clipboard.ContainsText() ? Clipboard.GetText() : ""; break;
@@ -442,7 +442,7 @@ internal sealed class MainWindow : Form
                     {
                         var fileName = Path.GetFileName(request.Text("name"));
                         foreach (var character in Path.GetInvalidFileNameChars()) fileName = fileName.Replace(character, '_');
-                        using var picker = new SaveFileDialog { Title = "将下载另存为到本机", FileName = fileName, OverwritePrompt = true, AddExtension = false };
+                        using var picker = new SaveFileDialog { Title = "保存下载文件到本机", FileName = fileName, OverwritePrompt = true, AddExtension = false };
                         if (picker.ShowDialog(this) != DialogResult.OK) { result = new { canceled = true }; break; }
                         arguments.Add(picker.FileName);
                     }

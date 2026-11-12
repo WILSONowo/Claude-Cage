@@ -144,11 +144,9 @@ export function ProjectDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <span className="save-note">
-            {busy
-              ? submitting ? removeTarget ? "正在移除项目…" : "正在连接项目…" : status.job?.message
-              : adding ? "添加到 Cage 项目列表" : "使用已授权的 Cage 项目"}
-          </span>
+          {busy && <span className="save-note" role="status">
+            {submitting ? removeTarget ? "正在移除项目…" : "正在连接项目…" : status.job?.message}
+          </span>}
           <button disabled={busy} onClick={onClose}>
             取消
           </button>
@@ -173,14 +171,13 @@ export function ProjectDialog({
         className="modal-body project-form"
         onSubmit={open}
       >
-        <p>{activate ? remote ? "选择项目或添加云端文件夹。" : "选择项目或添加本机文件夹。" : "从 Cage 项目列表选择工作目录。新项目由 Cage 授权并共享。"}</p>
         {canShare && <>
           <button type="button" className="quiet-button project-picker-add" onClick={() => { setSharing(!sharing); setWriteAccess(false); }} disabled={busy} aria-expanded={sharing}>
             <FolderOpen size={16} />共享本机项目…
           </button>
           {sharing && <fieldset className="project-picker-list project-permissions" disabled={busy}>
             <legend>共享给{context.name || "当前云端 Cage"}</legend>
-            <p className="field-help">云端按需读取项目。凭据、Git 元数据和链接受限。断开连接后共享结束。</p>
+            <p className="field-help">共享随连接结束。云端按需读取文件，凭据、Git 元数据和链接受限。</p>
             <label><input type="checkbox" checked={writeAccess} onChange={(e) => setWriteAccess(e.target.checked)} />允许云端修改和删除本机项目文件</label>
             <button type="button" onClick={share}>选择本机文件夹…</button>
           </fieldset>}
@@ -201,8 +198,8 @@ export function ProjectDialog({
           {selectedShare && <button type="button" disabled={submitting} onClick={() => revoke(selectedShare)}>停止共享本机项目（{selectedShare.readonly ? "只读" : "读写"}）</button>}
           {activate && !selectedShare && path && !removeTarget && <button type="button" className="quiet-button" disabled={busy} onClick={() => { setRemoveTarget(path); setError(""); setRecovery(""); }}>从 Cage 移除此项目</button>}
           {removeTarget && <section className="project-picker-list" aria-label="确认移除项目">
-            <p>移除“{projectName(removeTarget)}”将解除目录共享。原文件和会话历史保留，重新添加相同目录后可继续使用历史。</p>
-            <p className="field-help">请先保存文件，并关闭此项目的终端、运行中会话和编辑器。移除当前项目后选中剩余项目；移除最后一个项目后，可重新添加文件夹。</p>
+            <p>解除“{projectName(removeTarget)}”的目录共享？文件和会话历史会保留，重新添加此文件夹即可继续。</p>
+            <p className="field-help">请先保存文件，关闭此项目的终端、会话和编辑器。</p>
             <button type="button" disabled={busy} onClick={() => { setRemoveTarget(""); setError(""); }}>取消移除</button>
             <button type="button" disabled={busy} onClick={remove}>确认移除项目</button>
           </section>}
@@ -236,15 +233,15 @@ export function ProjectDialog({
             <div className="remote-directory-list">
               {directories.parent && <button type="button" disabled={browsing} onClick={() => browse(directories.parent)}>返回上级文件夹</button>}
               {directories.directories?.map((directory) => <button type="button" key={directory.path} disabled={browsing} onClick={() => browse(directory.path)}><FolderOpen size={16} />{directory.name}</button>)}
-              {directories.directories?.length === 0 && <p className="field-help">这个目录下没有可浏览的文件夹。</p>}
+              {directories.directories?.length === 0 && <p className="field-help">此目录没有子文件夹。</p>}
             </div>
             <button type="button" disabled={browsing || !directories.selectable} onClick={() => { setPath(directories.path); setDirectories(null); }}>选择此云端文件夹</button>
           </section>}
         </>}
         <p className="field-help">
-          {remote ? "云端项目保存在服务器上。" : "这个文件夹中的改动会同步到本机。"}所有项目共用 Cage 环境，已有终端和网页会保持运行。
+          {remote ? "云端项目保存在服务器上。" : "文件改动会同步到本机。"}切换项目后，已有终端和网页继续运行。
         </p>
-        {!status.ready && <p className="field-help">环境就绪后可添加或打开项目。已有项目仍可从列表移除。</p>}
+        {!status.ready && <p className="field-help">启动环境后可添加或打开项目。现在仍可移除项目。</p>}
         {error && (
           <div className="error-message" role="alert">
             <SafetyMessage message={error} />

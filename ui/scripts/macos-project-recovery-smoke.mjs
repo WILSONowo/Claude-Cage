@@ -13,7 +13,7 @@ const { page, browser, state, errors } = await createWorkbench({
     state.status.projects = [project];
     state.status.workspace = state.settings.workspace = project;
     state.status.project_error = "部分项目文件夹尚未连接，环境和浏览器可继续使用。";
-    state.status.project_errors = [{ path: project, recovery: "guest-login", message: "请先登录虚拟 Mac 的客机账户。登录完成后，Cage 会自动连接项目。" }];
+    state.status.project_errors = [{ path: project, recovery: "guest-login", message: "请登录虚拟 Mac，Cage 会自动连接项目。" }];
     images = await page.evaluate(() => {
       const make = (width, height, color) => {
         const canvas = document.createElement("canvas");

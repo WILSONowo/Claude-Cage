@@ -10,8 +10,6 @@ import {
   Camera,
   Check,
   ChevronDown,
-  Eye,
-  EyeOff,
   Fingerprint,
   LockKeyhole,
   LogOut,
@@ -19,7 +17,8 @@ import {
 } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
 import { getClientContext, isRemoteClient } from "./client-context.mjs";
-import logo from "./logo.png";
+import { PasswordInput } from "./password-input";
+import { SetupBrand } from "./setup-brand";
 import "./account.css";
 
 const AccountContext = createContext(null);
@@ -157,9 +156,9 @@ export function MacOSAccountGate({ children }) {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
-  return <main className="account-gate"><AccountBrand /><section className="account-entry">
+  return <main className="setup-scene account-gate"><SetupBrand context={isRemoteClient() ? "远程工作台" : "本机工作台"} /><section className="account-entry">
     <h1>设置 Cage 与 macOS 共用账密</h1>
-    <p className="account-entry-intro">{account.trusted_local ? "先设置 Cage 用户名和密码，再继续客机安装。已有账户、文件和登录状态会保留。" : "输入当前 Cage 密码，确认用于 macOS 客机。已有客机保留用户名和用户目录。"}</p>
+    <p className="account-entry-intro">{account.trusted_local ? "先设置 Cage 用户名和密码。原账户、文件和登录状态会保留。" : "输入当前 Cage 密码供客机使用。原客机用户名和用户目录会保留。"}</p>
     <form onSubmit={submit}><fieldset disabled={busy}>
       <label className="account-field">用户名<input required value={name} onChange={event => setName(event.target.value)} maxLength={31} pattern="[a-z][a-z0-9_]{0,30}" readOnly={Boolean(account.macos_guest_user)} autoComplete="username" /></label>
       <p className="field-help">小写字母开头，1–31 个小写字母、数字或下划线。密码使用 8–256 个英文键盘可输入的字符。</p>
@@ -177,40 +176,12 @@ function PasswordField({
   onChange,
   autoComplete = "current-password",
 }) {
-  const [visible, setVisible] = useState(false);
   const id = useId();
-  return (
-    <div className="account-field">
-      <label htmlFor={id}>{label}</label>
-      <span className="password-input">
-        <input
-          id={id}
-          type={visible ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete={autoComplete}
-          required
-          maxLength={1024}
-        />
-        <button
-          type="button"
-          className="icon-button"
-          aria-label={`${visible ? "隐藏" : "显示"}${label}`}
-          onClick={() => setVisible(!visible)}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </span>
-    </div>
-  );
-}
-
-function AccountBrand() {
-  return <header className="account-brand">
-    <img src={logo} alt="" />
-    <strong>Claude Cage</strong>
-    <span>{isRemoteClient() ? "远程工作台" : "本机工作台"}</span>
-  </header>;
+  return <div className="account-field">
+    <label htmlFor={id}>{label}</label>
+    <PasswordInput id={id} label={label} value={value} onChange={e => onChange(e.target.value)}
+      autoComplete={autoComplete} required maxLength={1024} />
+  </div>;
 }
 
 export function AccountGate({ children }) {
@@ -291,8 +262,8 @@ export function AccountGate({ children }) {
     }
   };
   return (
-    <main className="account-gate">
-      <AccountBrand />
+    <main className="setup-scene account-gate">
+      <SetupBrand context={isRemoteClient() ? "远程工作台" : "本机工作台"} />
       <section
         className="account-entry"
         aria-label={creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 Cage"}
@@ -307,7 +278,7 @@ export function AccountGate({ children }) {
         </h1>
         <p className="account-entry-intro">
           {creating
-            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "用本地账户保护你的项目和登录信息。选择 macOS 时，客机将共用这组凭据。"
+            ? isRemoteClient() ? "用此账户解锁云端工作台。" : account?.macos_account_host ? "macOS 客机将共用此用户名和密码。" : "用此账户解锁本机工作台。"
             : account
               ? account.trusted_local ? "本机工作区" : "输入密码解锁工作台。"
               : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…"}
@@ -320,7 +291,7 @@ export function AccountGate({ children }) {
         )}
         {account?.trusted_local && <div className="account-trust-choice">
           <p>{localDesktop() ? "使用本机系统账户凭据进入工作区。" : "请先在受信任的桌面设置密码，再登录。"}</p>
-          {localDesktop() && <button className="quiet-button" disabled={busy} onClick={() => enterTrusted("resume")}>{busy ? "正在进入…" : "重新进入本机工作区"}</button>}
+          {localDesktop() && <button className="primary account-submit" disabled={busy} onClick={() => enterTrusted("resume")}>{busy ? "正在进入…" : "重新进入本机工作区"}</button>}
         </div>}
         {account?.trusted_local && error && <p className="account-error" role="alert">{error}</p>}
         {account && !account.trusted_local && (
@@ -356,14 +327,14 @@ export function AccountGate({ children }) {
                   autoComplete="new-password"
                 />
               )}
-              {creating && account.macos_account_host && <p className="field-help">密码使用 8–256 个英文键盘可输入的字母、数字、空格或符号。安装中断后继续使用这套账密。</p>}
+              {creating && account.macos_account_host && <p className="field-help">密码支持 8–256 个英文键盘字符（含空格）。续装时使用同一账户。</p>}
               {(error || connectionError) && (
                 <p className="account-error" role="alert">
                   {error || connectionError}
                 </p>
               )}
               {!creating && Object.values(deviceSupport?.device_status || {}).includes("missing") && (
-                <p className="field-help" role="status">当前目录的快捷登录凭据缺失或已失效。请用密码解锁，再到「设置 → 账户 → 登录与解锁」重新开启。</p>
+                <p className="field-help" role="status">快捷登录凭据缺失或已失效。用密码解锁后，可在「设置 → 账户 → 登录与解锁」重新开启。</p>
               )}
               {!creating && Object.values(deviceSupport?.device_status || {}).includes("unavailable") && (
                 <p className="field-help" role="status">暂时无法检查系统钥匙串，请先用密码解锁。快捷登录授权记录已保留。</p>
@@ -392,7 +363,7 @@ export function AccountGate({ children }) {
                 className="primary account-submit"
                 disabled={busy || !password || (creating && (!username.trim() || (!localDesktop() && nativeAvailable() && deviceSupport === null)))}
               >
-                {busy ? "正在解锁…" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 Cage"}
+                {busy ? creating ? "正在创建…" : "正在解锁…" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 Cage"}
               </button>
             </fieldset>
           </form>
@@ -402,7 +373,7 @@ export function AccountGate({ children }) {
             <p role="alert" className="account-error">
               {connectionError}
             </p>
-            <button onClick={() => refresh().catch(() => {})}>重新连接</button>
+            <button className="primary account-submit" onClick={() => refresh().catch(() => {})}>重新连接</button>
           </>
         )}
         <p className="account-local-note">
@@ -411,7 +382,7 @@ export function AccountGate({ children }) {
         </p>
         {!account?.trusted_local && <p className="account-recovery-note">
           {creating
-            ? "密码至少 8 个字符，用于保护应用登录凭据。请妥善保存，当前不支持在线找回。"
+            ? "请保存好密码，账户暂不支持在线找回。"
             : "账户密码暂不支持在线找回。"}
         </p>}
       </section>
@@ -694,7 +665,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
         <fieldset disabled={busy || environmentBusy}>
           <h4>账户密码</h4>
           <p className="field-help">
-            修改密码不会清除 Claude 的登录状态。{account.macos_credentials_ready ? "Cage 与 macOS 客机共用密码；客机关闭时会在下次启动后同步。" : isRemoteClient() ? "密码用于解锁当前云端 Cage，没有在线找回。" : "密码用于本机解锁，没有在线找回。"}
+            Claude 将保持登录。{account.macos_credentials_ready ? "密码与 macOS 客机共用。客机关机时，下次启动后同步。" : isRemoteClient() ? "密码用于解锁当前云端 Cage，没有在线找回。" : "密码用于本机解锁，没有在线找回。"}
           </p>
           {!account.trusted_local && <PasswordField
             label="当前密码"
@@ -727,7 +698,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
       {!account.trusted_local && <AccountDeviceSettings />}
       <p className="account-settings-note">
         <LockKeyhole size={15} />
-        {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : "一个本地账户，一个持久工作环境。资料与凭据不上传到 Cage 服务器。"}
+        {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : "账户资料和登录凭据仅保存在本机。"}
       </p>
     </div>
   );

@@ -398,6 +398,8 @@ button.large {
 }
 .address-bar:focus-within {
   border-color: var(--focus);
+  outline: 1px solid var(--focus);
+  outline-offset: 0;
   background: var(--paper);
 }
 .address-bar input {
@@ -802,15 +804,15 @@ button.large {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  animation: appear 0.14s ease-out;
 }
 .modal {
   width: min(500px, 100%);
-  max-height: calc(100dvh - 40px);
+  max-height: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
-  background: var(--paper);
+  background: var(--panel-bg, var(--paper));
   color: var(--ink);
   border-radius: 13px;
   box-shadow: 0 30px 100px #00000012;
@@ -820,11 +822,11 @@ button.large {
   width: min(760px, 100%);
 }
 .modal-head {
-  height: 62px;
+  min-height: var(--control-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 23px;
+  padding: .8rem clamp(12px, 3vw, 22px);
   border-bottom: 1px solid var(--line);
   flex: none;
 }
@@ -834,10 +836,12 @@ button.large {
   margin: 0;
   letter-spacing: -0.3px;
 }
-.close-modal {
-  font-size: 1.6429rem;
-  font-weight: 300;
-  color: var(--ink);
+.modal-head .close-modal {
+  flex: none;
+  width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  color: var(--muted);
 }
 .modal .icon-button:hover:not(:disabled) {
   background: var(--hover);
@@ -924,7 +928,7 @@ button.large {
   margin-bottom: 17px;
   color: var(--ink);
 }
-.settings-content input:where(:not(.search-field > input)):not([type="checkbox"]):not([type="radio"]),
+.settings-content input:where(:not(.search-field > input, .password-input > input)):not([type="checkbox"]):not([type="radio"]),
 .settings-content .inline-select-trigger {
   height: 36px;
   border: 1px solid var(--line);
@@ -1197,22 +1201,6 @@ button.large {
   color: var(--ink);
   line-height: 1.7;
 }
-.job-log {
-  font:
-    11px/1.7 "SF Mono",
-    Menlo,
-    monospace;
-  color: var(--ink);
-  background: var(--chrome);
-  border-radius: 7px;
-  padding: 15px;
-  margin: 15px 0 0;
-  height: 60dvh;
-  max-height: 640px;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .spin {
   animation: spin 1s linear infinite;
 }
@@ -1244,12 +1232,10 @@ button.large {
   transition: none !important;
 }
 
-.modal {
-}
 
 /* Reading sizes remain comfortable at a normal 1280px workbench window. */
 .settings-content label:not(.check-line):not(.choice):not(.toggle-row),
-.settings-content input:where(:not(.search-field > input)):not([type="checkbox"]):not([type="radio"]),
+.settings-content input:where(:not(.search-field > input, .password-input > input)):not([type="checkbox"]):not([type="radio"]),
 .settings-content .inline-select-trigger,
 .choice strong,
 .toggle-row strong,
@@ -1258,7 +1244,7 @@ button.large {
 .modal-footer button {
   font-size: 1rem;
 }
-.settings-content input:where(:not(.search-field > input)):not([type="checkbox"]):not([type="radio"]),
+.settings-content input:where(:not(.search-field > input, .password-input > input)):not([type="checkbox"]):not([type="radio"]),
 .settings-content .inline-select-trigger {
   height: 39px;
 }
@@ -2146,7 +2132,7 @@ svg {
   font-weight: 500;
   margin: 28px 0 14px;
 }
-.settings-content input:where(:not(.search-field > input)):not([type="checkbox"]):not([type="radio"]),
+.settings-content input:where(:not(.search-field > input, .password-input > input)):not([type="checkbox"]):not([type="radio"]),
 .settings-content .inline-select-trigger {
   border-color: var(--line);
   background: var(--paper);

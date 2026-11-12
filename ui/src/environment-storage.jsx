@@ -78,7 +78,7 @@ export function EnvironmentStorage({ status, onConfirm }) {
       </div>
       {recovery.repair_allowed && <p className="field-help storage-repair-help">修复系统助手需要 Windows 系统授权。完成后会继续恢复原环境。</p>}
     </> : <>
-    <p className="field-help">系统镜像、下载缓存和虚拟磁盘可以放在另一块本地磁盘。项目文件保存在各自的项目文件夹。</p>
+    <p className="field-help">镜像、缓存和虚拟磁盘可迁至其他本地磁盘。项目文件保留在原文件夹。</p>
     <div className="setting-summary-row"><span>当前环境目录</span><strong>{location?.directory || "正在读取…"}</strong></div>
     {status.environment_identity_directory && status.environment_identity_directory !== status.environment_directory &&
       <p className="field-help">原工作目录中的文件保留在 <code>{status.environment_identity_directory}</code>。需要使用时可从工作台添加该文件夹；位于 Cage 私有配置目录中的项目需先移到配置目录之外。</p>}

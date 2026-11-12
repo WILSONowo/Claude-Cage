@@ -42,7 +42,7 @@ export function SessionAccount({ id, request, onChanged, compact = false }) {
       {session.account_label || "Claude 账号"} · {session.account_failure?"需要处理":switching?"正在交接":"会话绑定"}
     </button>
     {open && <div className="session-account-options">
-      <p>当前账号：{session.account_label || session.account_id}。会话重连会保持此账号。</p>
+      <p>当前账号：{session.account_label || session.account_id}。重连后仍用此账号。</p>
       {session.account_failure && <p role="status">{failures[session.account_failure] || "本轮发生错误，原会话已保留"}</p>}
       {sw && <p role="status">{sw.phase==="completed"?"已接续至":"接续目标："}{sw.target_label}{sw.error && ` · ${sw.error}`}</p>}
       <label>此会话切换授权<InlineSelect aria-label="此会话切换授权" disabled={busy || switching} value={view.switch_policy} onValueChange={policy=>change({action:"policy",policy})}>
@@ -53,7 +53,7 @@ export function SessionAccount({ id, request, onChanged, compact = false }) {
           {view.candidates.length?view.candidates.map(a=><option key={a.id} value={a.id}>{a.label}</option>):<option value="">无可用账号</option>}
         </InlineSelect></label>
         {!view.candidates.length && <p>在账号设置中，将允许共享会话历史的账号设为同一接续分组。</p>}
-        <p>历史将由目标账号继续处理，缓存可能重建。执行中的工具、后台任务和未确认结果会阻止切换。</p>
+        <p>新账号会接续历史，可能需要重建缓存。请等待工具、后台任务和待确认的结果完成后再切换。</p>
         <label className="check-line"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} />允许将此会话历史交给所选账号</label>
         <label className="check-line"><input type="checkbox" checked={continueTask} onChange={e=>{setContinueTask(e.target.checked);pending.current=null;}} />恢复后继续未完成的任务</label>
         <button type="button" disabled={busy || !target || !confirmed} onClick={()=>{
@@ -63,7 +63,7 @@ export function SessionAccount({ id, request, onChanged, compact = false }) {
       </>}
       {switching && sw.phase!=="starting" && <button disabled={busy} onClick={()=>change({action:"switch",request_id:sw.id,source_id:view.source_id,target,confirm:true})}>重试账号交接</button>}
       {switching && sw.phase==="preparing" && <button disabled={busy} onClick={()=>change({action:"cancel",request_id:sw.id})}>取消交接，保留原账号</button>}
-      {switching && sw.phase==="starting" && <p>等待目标账号连接。可稍后从会话列表重新打开。</p>}
+      {switching && sw.phase==="starting" && <p>正在连接新账号。可稍后从列表重开会话。</p>}
       {error && <p role="alert">{error}</p>}
     </div>}
   </section>;

@@ -10,7 +10,7 @@ for (const mode of ["project-approval", "legacy", "guest-login", "filesystem-per
   const fixture = await createWorkbench({ initialization: { required: true, tracked: true, started: true, prepared: true }, beforeNavigate: async (page, state) => {
     Object.assign(state.account, { guest_system: "macos" });
     state.settings.workspace = workspace;
-    Object.assign(state.status, { guest_system: "macos", ready: true, vm_running: true, workspace, environment_directory: "/preview/other-directory", safety: { gate: { mode: "closed" }, error: "工作区访问尚未允许", report: { checks: [{ id: "filesystem_boundary", title: "共享文件与宿主私有目录", state: "unknown", evidence: "客机文件夹授权未完成", remedy: "允许访问工作区后继续" }] } }, network_error: "内置代理未就绪；外网保持关闭", job: { id: "failed-check", kind: "safety", running: false, message: "检查联网条件失败", error: "请在 Cage 显示的客机授权窗口中允许此项目，然后验证授权。", ...(mode === "legacy" ? {} : { recovery: mode === "restart" ? "environment-restart" : mode, workspace }) }, project_errors: [] });
+    Object.assign(state.status, { guest_system: "macos", ready: true, vm_running: true, workspace, environment_directory: "/preview/other-directory", safety: { gate: { mode: "closed" }, error: "工作区访问尚未允许", report: { checks: [{ id: "filesystem_boundary", title: "共享文件与宿主私有目录", state: "unknown", evidence: "客机文件夹授权未完成", remedy: "允许访问工作区后继续" }] } }, network_error: "内置代理未就绪；外网保持关闭", job: { id: "failed-check", kind: "safety", running: false, message: "检查联网条件失败", error: "在客机授权窗口允许访问项目，再验证授权。", ...(mode === "legacy" ? {} : { recovery: mode === "restart" ? "environment-restart" : mode, workspace }) }, project_errors: [] });
     if (mode === "project-approval") state.status.project_errors = [{ path: workspace, recovery: "project-approval", message: "请允许工作区访问" }];
     await page.route("**/api/projects/open", route => {
       assert.equal(route.request().postDataJSON().workspace, workspace);
@@ -41,7 +41,7 @@ for (const mode of ["project-approval", "legacy", "guest-login", "filesystem-per
     await page.getByRole("heading", { name: "环境已启动，等待联网检查", exact: true }).waitFor();
     await page.getByRole("button", { name: "查看操作详情", exact: true }).click();
     const details = page.getByRole("dialog", { name: "初始化操作详情" });
-    await details.getByText("请在 Cage 显示的客机授权窗口中允许此项目，然后验证授权。", { exact: true }).waitFor();
+    await details.getByText("在客机授权窗口允许访问项目，再验证授权。", { exact: true }).waitFor();
     await details.getByText("客机文件夹授权未完成", { exact: true }).waitFor();
     await details.getByRole("button", { name: "关闭面板" }).click();
     if (mode === "guest-login") await page.getByRole("button", { name: "登录客机账户", exact: true }).waitFor();

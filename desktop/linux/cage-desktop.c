@@ -786,7 +786,7 @@ static gboolean bridge_received(WebKitUserContentManager *manager, JSCValue *val
             char *path = NULL;
             if (!strcmp(operation,"save")) {
                 app.picker_open = TRUE;
-                GtkWidget *dialog = gtk_file_chooser_dialog_new("将下载另存为到本机", GTK_WINDOW(app.window), GTK_FILE_CHOOSER_ACTION_SAVE,
+                GtkWidget *dialog = gtk_file_chooser_dialog_new("保存下载文件到本机", GTK_WINDOW(app.window), GTK_FILE_CHOOSER_ACTION_SAVE,
                     "取消", GTK_RESPONSE_CANCEL, "保存", GTK_RESPONSE_ACCEPT, NULL);
                 char *base = g_path_get_basename(text_member(request,"name"));
                 gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), *base ? base : "download");
@@ -819,7 +819,7 @@ static gboolean bridge_received(WebKitUserContentManager *manager, JSCValue *val
         if (app.picker_open) reply_error(reply, "请先完成当前文件选择。");
         else {
             const char *prompt = !strcmp(text_member(request, "purpose"), "environmentStorage")
-                ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "仅此文件夹会与 Cage 共享。请选择具体项目。";
+                ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "选择项目文件夹。Cage 只会共享所选文件夹。";
             char *path = choose_file(GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER, prompt, NULL);
             reply_string(reply, context, path ? path : "");
             g_free(path);

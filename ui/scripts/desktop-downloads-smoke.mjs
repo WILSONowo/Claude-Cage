@@ -47,7 +47,7 @@ try {
   const openError = "文件打开关联未能完成，请在 Cage 下载列表中打开文件。";
   downloads = [{ ...item, openError }];
   await dialog.getByText(openError, { exact: true }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "下载文件", exact: true }).getAttribute("title"), "有下载需要处理，点击查看");
+  assert.equal(await page.getByRole("button", { name: "下载文件", exact: true }).getAttribute("title"), "查看下载或打开文件时的错误");
   await dialog.getByText(item.path, { exact: true }).waitFor();
   downloads = [item];
   await dialog.getByText(openError, { exact: true }).waitFor({ state: "hidden" });

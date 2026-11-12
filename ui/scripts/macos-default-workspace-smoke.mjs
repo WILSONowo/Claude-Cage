@@ -147,7 +147,7 @@ try {
     assert.equal(await dialog.count(), 0);
     assert.equal(generation, 0, "polling must not open the guest dialog");
     await open.click();
-    await dialog.getByText("当前客机操作结束后，会显示项目授权窗口。").waitFor();
+    await dialog.getByText("当前操作结束后会显示授权窗口。").waitFor();
     assert.equal(generation, 0);
     f.state.status.job.running = false;
     await dialog.getByRole("img").waitFor();

@@ -485,10 +485,7 @@ function ThemeLibrary({ appearance, update, saving, onError }) {
   return (
     <section className="theme-library" aria-label="我的主题">
       <div className="theme-library-heading">
-        <div>
-          <h4>我的主题</h4>
-          <p>保存或分享明暗配色与字体。</p>
-        </div>
+        <h4>我的主题</h4>
         <div className="theme-file-actions">
           <button disabled={busy || saving} onClick={importFile}>
             <Upload size={14} />
@@ -693,7 +690,7 @@ export function AppearanceSettings() {
         <h4>显示与交互</h4>
         <SettingRow
           label="使用指针光标"
-          description="鼠标移到可点击的控件上时显示手形。"
+          description="悬停时显示手形指针。"
         >
           <label className="appearance-switch">
             <input
@@ -754,7 +751,7 @@ export function AppearanceSettings() {
         <div className="appearance-import">
           <div>
             <strong>沿用 Codex 的外观</strong>
-            <p>导入本机 Codex 当前的主题、配色与字体偏好。</p>
+            <p>导入本机 Codex 的配色与字体。</p>
           </div>
           <button onClick={sync}>
             {syncing ? (

@@ -16,6 +16,32 @@ try {
     await page.evaluate(size => document.documentElement.style.setProperty("--ui-font-size", size + "px"), font);
     if (width <= 680 && await page.getByRole("button", { name: "收起侧栏" }).isVisible())
       await page.getByRole("button", { name: "收起侧栏" }).click();
+    const greeting = page.locator(".welcome-heading:has(.greeting-mark)");
+    const rect = await greeting.evaluate(node => {
+      const text = node.lastChild;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      return range.getClientRects()[0].toJSON();
+    });
+    await page.mouse.move(rect.left + 1, rect.top + rect.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(rect.right - 1, rect.top + rect.height / 2, { steps: 10 });
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => getSelection().toString()), "");
+    assert.equal(await greeting.locator("img").evaluate(img => img.draggable), false);
+
+    const composer = page.locator(".home-composer");
+    const input = composer.getByRole("textbox");
+    const start = await composer.boundingBox();
+    await input.fill("可选的消息");
+    await input.press("Control+a");
+    assert.equal(await input.evaluate(el => el.value.slice(el.selectionStart, el.selectionEnd)), "可选的消息");
+    assert.equal(await input.evaluate(el => getComputedStyle(el).borderTopWidth), "0px");
+    assert.equal(await input.evaluate(el => getComputedStyle(el).outlineStyle), "none");
+    assert.ok(await composer.evaluate(el => getComputedStyle(el).boxShadow.includes("20px") && getComputedStyle(el).outlineStyle === "none"));
+    assert.deepEqual(await composer.boundingBox(), start);
+    await input.fill("");
+
     assert.equal(await page.locator(".sidebar-status").count(), 0);
     const stop = page.locator(".status-bar").getByRole("button", { name: "停止环境", exact: true });
     const bounds = await stop.boundingBox();
