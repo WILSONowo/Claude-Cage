@@ -297,4 +297,3 @@ function Approval({ approval, busy, feedback, onDecide }) {
     </div>
   </section>;
 }
-
