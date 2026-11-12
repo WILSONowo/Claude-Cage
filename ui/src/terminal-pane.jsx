@@ -1,3 +1,4 @@
+import { installTerminalIME } from "./terminal-ime.mjs";
 import { isMac, terminalModifier } from "./platform.mjs";
 import React, { useEffect, useRef, useState } from "react";
 import { useAppearance } from "./appearance";
@@ -187,6 +188,7 @@ export default function TerminalView({ session, visible, focused = true, onStatu
       }).catch((error) => { if (!disposed) onStatus(error.message); });
     };
     const host = box.current;
+    const disposeIME = isMac ? installTerminalIME(host, terminal) : () => {};
     const onPaste = (event) => {
       if (!visibleRef.current || !focusedRef.current) return;
       event.preventDefault(); event.stopImmediatePropagation();
@@ -308,6 +310,7 @@ export default function TerminalView({ session, visible, focused = true, onStatu
       revealStartup.current = null;
       startupRender.dispose();
       clipboardHandler.dispose();
+      disposeIME();
       host.removeEventListener("paste", onPaste, true);
       host.removeEventListener("copy", onCopy, true);
       host.removeEventListener("dragover", onDragOver);
