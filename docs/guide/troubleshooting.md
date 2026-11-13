@@ -33,6 +33,7 @@ keywords: 错误 失败 白屏 断网 137 OOM 代理 账号 配对 SSH 损坏 �
 | `Guest DNS could not resolve` | 检查节点及 DNS 配置，应用后重试。 |
 | NodeSource / APT 失败 | 查看失败来源，检查代理访问；保存具体错误与诊断。 |
 | APT 重复 `Tried to start delayed item` | 更新到包含 APT 修正的构建，旧版依赖管理器升级失败时先修复网络，不能继续依赖安装。 |
+| Debian 客机更新环境组件时报 `chromium-l10n` 依赖冲突 | 检查操作详情中的 Chromium 版本和 Debian 安全仓库索引。若索引为空，使用包含索引修复的构建重试“更新环境组件”，让 APT 重新下载索引并安装兼容的语言包。 |
 
 Git 前置检查未通过时，按提示更新本机 Git 至 2.38+、检查全局配置写入权限或重新检查；不必重配节点。启用保护会影响主机全局 Git，先阅读确认卡片。
 

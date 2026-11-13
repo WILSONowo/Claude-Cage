@@ -17,8 +17,12 @@ sudo systemctl stop cage-browser || true
 # Existing images may predate the explicit locale dependency. The scoped
 # maintenance channel can install it while business networking stays closed.
 if ! cage_is_ubuntu && ! dpkg-query -W -f='${Status}' chromium-l10n 2>/dev/null | grep -qx 'install ok installed'; then
-  sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get update </dev/null
-  sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get install -y --no-install-recommends chromium-l10n </dev/null
+  # APT can reuse an empty Packages file after an InRelease cache hit. Clear
+  # empty package indexes under APT's lists lock so they are fetched again.
+  sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get \
+    -o 'APT::Update::Pre-Invoke::=find /var/lib/apt/lists -maxdepth 1 -type f -name "*_Packages*" -empty -delete' \
+    -o APT::Update::Error-Mode=any update </dev/null
+  sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get install -y --no-install-recommends --no-remove chromium-l10n </dev/null
 fi
 # Publish per-VM control credentials for the browser process and SSH owner only.
 sudo env CAGE_DISPLAY_SCALE="${CAGE_DISPLAY_SCALE:-2}" CAGE_WORKSPACE="$PWD" CAGE_USER_HOME="$HOME" python3 - <<'PYCONTROL'
