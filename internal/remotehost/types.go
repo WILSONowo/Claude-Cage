@@ -11,6 +11,7 @@ import (
 const APIProtocol = 1
 
 type AuthConfig struct {
+	AgentSocket  string `json:"agent_socket,omitempty"`
 	Kind         string `json:"kind"`
 	IdentityFile string `json:"identity_file,omitempty"`
 }

@@ -216,6 +216,9 @@ func (s *Server) clientProjectRoot(path string) (string, error) {
 		if host.Auth.IdentityFile != "" {
 			private = append(private, host.Auth.IdentityFile)
 		}
+		if socket := host.Auth.AgentSocket; socket != "" && !(runtime.GOOS == "windows" && strings.HasPrefix(strings.ToLower(filepath.FromSlash(socket)), `\\.\pipe\`)) {
+			private = append(private, socket)
+		}
 	}
 	for _, p := range private {
 		if cage.StoragePathsOverlap(root, p) {

@@ -150,6 +150,19 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
               </small>
             </label>
           )}
+          {form.auth.kind === "agent" && (
+            <label>
+              本机 agent 套接字（可选）
+              <input
+                value={form.auth.agent_socket || ""}
+                onChange={(event) => update("auth", { ...form.auth, agent_socket: event.target.value })}
+                placeholder={platform === "windows" ? "本机命名管道或套接字路径" : "套接字的绝对路径"}
+                autoComplete="off"
+                spellCheck="false"
+              />
+              <small>留空使用系统默认的 SSH agent。</small>
+            </label>
+          )}
           <section className="remote-paths">
             <h4>云端安装路径</h4>
             <div className="remote-advanced">

@@ -66,7 +66,7 @@ func ValidateManifest(m ServerManifest) error {
 
 func authentication(ctx context.Context, p HostProfile, secrets ConnectSecrets) (ssh.AuthMethod, func(), error) {
 	if p.Auth.Kind == "agent" {
-		conn, err := dialAgent(ctx)
+		conn, err := dialAgent(ctx, p.Auth.AgentSocket)
 		if err != nil {
 			return nil, nil, failure("agent_unavailable", "无法连接本机 SSH agent，请启动 agent 或选择密钥文件")
 		}
@@ -76,6 +76,9 @@ func authentication(ctx context.Context, p HostProfile, secrets ConnectSecrets) 
 		if err != nil || len(signers) == 0 {
 			stop()
 			conn.Close()
+			if err != nil {
+				return nil, nil, failure("agent_unavailable", "无法读取 SSH agent 的密钥列表，请检查 agent 是否已解锁")
+			}
 			return nil, nil, failure("agent_unavailable", "SSH agent 中没有可用密钥")
 		}
 		return ssh.PublicKeys(signers...), func() { stop(); conn.Close() }, nil

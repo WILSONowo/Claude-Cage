@@ -88,6 +88,11 @@ func normalizeProfile(p HostProfile) (HostProfile, error) {
 	}
 	if p.Auth.Kind == "agent" {
 		p.Auth.IdentityFile = ""
+		if socket := p.Auth.AgentSocket; socket != "" && (hasControl(socket) || !validAgentSocket(socket)) {
+			return p, failure("invalid_profile", "请填写本机 SSH agent 套接字的绝对路径或本机命名管道")
+		}
+	} else {
+		p.Auth.AgentSocket = ""
 	}
 	if (p.Executable != "cage" && !path.IsAbs(p.Executable)) || hasControl(p.Executable) || len(p.Executable) > 4096 {
 		return p, failure("invalid_profile", "云端 Cage 程序需要使用绝对路径或 cage")
