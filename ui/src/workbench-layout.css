@@ -112,7 +112,8 @@
 }
 .welcome .welcome-shortcuts > button svg { flex: none; width: 14px; height: 14px; }
 .welcome .welcome-hint { max-width: 55ch; margin-inline: auto; }
-.home-composer { padding: 15px 16px 10px; text-align: start; }
+.home-composer { padding: 15px 13px 13px; text-align: start; }
+.home-composer textarea { display: block; }
 .home-composer, .desktop-conversation .composer-field {
   background: var(--composer-bg); border: 0; border-radius: 12px; box-shadow: var(--composer-shadow);
 }
@@ -129,20 +130,39 @@
   width: 100%; resize: none; field-sizing: content; min-height: 48px; max-height: 180px; border: 0; outline: 0;
   padding: 0; font: inherit; line-height: 1.55; background: transparent; color: var(--ink);
 }
-.composer-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.composer-tools {
+  display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+  margin: 4px calc(-1 * var(--composer-hit-inset)) calc(-1 * var(--composer-hit-inset)) 0;
+}
 .home-composer, .desktop-conversation { --composer-button-size: 26px; --composer-hit-inset: 0px; }
+.home-composer { --composer-button-size: 30px; }
 @media (any-pointer: coarse) {
   .home-composer, .desktop-conversation { --composer-hit-inset: 9px; }
+  .home-composer { --composer-hit-inset: 7px; }
+  .home-composer .composer-tools { margin-top: -3px; }
   .welcome .welcome-shortcuts > button { min-height: 44px; }
 }
 .composer-project {
   display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
-  min-height: calc(var(--composer-button-size) + 2 * var(--composer-hit-inset)); gap: 4px; padding: 0 5px;
-  border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: .86rem;
+  min-height: calc(var(--composer-button-size) + 2 * var(--composer-hit-inset)); gap: 5px; padding: 0 7px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: .95rem;
 }
 .composer-project span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .composer-project svg { flex: none; }
 .composer-project:hover:not(:disabled), .composer-project[aria-expanded="true"] { background: var(--hover); color: var(--strong); }
+.anchored-modal-scrim .composer-project-popup { padding: 4px; width: min(258px, calc(100vw - 16px)); }
+.composer-project-popup .modal-head { display: none; }
+.composer-project-options { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.composer-project-popup button { width: 100%; border: 0; background: transparent; justify-content: flex-start; padding: 6px 8px; text-align: start; }
+.composer-project-options button { justify-content: space-between; }
+.composer-project-options button > span { min-width: 0; }
+.composer-project-options :is(strong, small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-project-options strong { font-weight: 500; }
+.composer-project-options small { color: var(--muted); }
+.composer-project-options svg { flex: none; }
+.composer-project-options [aria-pressed="true"] { background: var(--selected); }
+.composer-project-more { flex: none; margin-top: 3px; padding-top: 3px; border-top: 1px solid var(--line); }
+.composer-project-notice { padding: 6px 8px; font-size: .9rem; }
 .composer-tools .composer-send, .desktop-conversation .composer-action {
   display: grid; place-items: center; flex: none;
   box-sizing: content-box; width: var(--composer-button-size); height: var(--composer-button-size); min-height: 0;
@@ -153,6 +173,12 @@
   background: color-mix(in srgb, var(--composer-action-bg) 90%, var(--ink)) padding-box; border-color: transparent;
 }
 .composer-tools .composer-send svg, .desktop-conversation .composer-action svg { width: 15px; height: 15px; }
+.home-composer .composer-send { border-radius: calc(8px + var(--composer-hit-inset)); }
+.home-composer .composer-send svg { width: 17px; height: 17px; }
+.home-composer .composer-send:disabled {
+  opacity: 1; color: var(--accent-ink);
+  background: color-mix(in srgb, var(--composer-action-bg) 57%, var(--composer-bg)) padding-box;
+}
 @media (forced-colors: active) {
   .composer-tools .composer-send, .desktop-conversation .composer-action { outline: 1px solid ButtonText; outline-offset: -1px; }
   .composer-tools .composer-send:disabled, .desktop-conversation .composer-action:disabled { outline-color: GrayText; }

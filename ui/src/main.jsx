@@ -1620,7 +1620,7 @@ function App() {
                   )}
                   {running && status.ready && <HomeComposer workspace={conversationWorkspace || contentWorkspace}
                     hidden={busy} disabled={busy || Boolean(connectionError)} drafts={conversationDrafts}
-                    onChooseProject={() => setProjectDialog({ forConversation: true })}
+                    onChooseProject={event => setProjectDialog({ forConversation: true, anchor: event.currentTarget })}
                     onCreated={id => { sessionsChanged(); setConversation(id); }} />}
                   {!busy && (!running || !status.ready) && <div className="start-project-box">
                     <div className="environment-summary">
@@ -1838,6 +1838,7 @@ function App() {
           current={settings}
           status={status}
           initialPath={projectDialog.path}
+          anchor={projectDialog.anchor}
           selectedWorkspace={projectDialog.forConversation ? conversationWorkspace || contentWorkspace : undefined}
           activate={!projectDialog.forConversation}
           onClose={() => setProjectDialog(null)}

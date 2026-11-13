@@ -38,12 +38,12 @@ for (const remote of [false, true]) {
     const apply = dialog.getByRole("button", { name: "使用此项目" });
     const choose = async path => {
       await picker.click();
-      await dialog.locator('input[type="radio"]').nth(state.status.projects.indexOf(path)).check();
-      await apply.click();
+      await dialog.getByRole("button").and(page.getByTitle(path, { exact: true })).click();
     };
     await text.fill("项目切换后的消息");
     await picker.click();
-    await dialog.getByRole("button", { name: "取消" }).click();
+    await page.keyboard.press("Escape");
+    assert.ok(await picker.evaluate(el => el === document.activeElement));
     assert.equal(await picker.getAttribute("title"), first);
     assert.equal(await text.inputValue(), "项目切换后的消息");
 
@@ -92,7 +92,7 @@ for (const remote of [false, true]) {
     assert.equal(state.settings.workspace, first);
     assert.ok(state.requests.filter(r => r.path === "/projects/open").every(r => r.body.activate === false));
     await picker.click();
-    assert.equal(await dialog.locator('input[type="radio"]:checked').inputValue(), third);
+    assert.equal(await dialog.getByRole("button", { pressed: true }).getAttribute("title"), third);
     await page.keyboard.press("Escape");
     if (!remote) {
       await page.getByRole("button", { name: "打开项目", exact: true }).click();

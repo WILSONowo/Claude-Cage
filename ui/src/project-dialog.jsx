@@ -1,6 +1,6 @@
 import { isWindows, isMac } from "./platform.mjs";
-import React, { useEffect, useState } from "react";
-import { FolderOpen, LoaderCircle, Plus } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Check, FolderOpen, LoaderCircle, Plus } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
 import { SafetyMessage } from "./safety-message";
 import { Modal } from "./modal";
@@ -13,6 +13,7 @@ export function ProjectDialog({
   status,
   initialPath = "",
   selectedWorkspace,
+  anchor,
   activate = true,
   onClose,
   onOpened,
@@ -36,6 +37,8 @@ export function ProjectDialog({
   const [shares, setShares] = useState([]);
   const [writeAccess, setWriteAccess] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const selectedOption = useRef(null);
   useEffect(() => {
     if (!canShare) return;
     let current = true;
@@ -110,15 +113,15 @@ export function ProjectDialog({
     if (remote) void browse("");
     else if (nativeAvailable()) void choose();
   };
-  const open = async (event) => {
+  const open = async (event, workspace = path) => {
     event?.preventDefault();
-    if (busy || sharing || removeTarget || !status.ready || !path.trim()) return;
+    if (busy || sharing || removeTarget || !status.ready || !workspace.trim()) return;
     setSubmitting(true);
     setError("");
     setRecovery("");
     try {
       const result = await api("/projects/open", {
-        workspace: path.trim(),
+        workspace: workspace.trim(),
         add: adding,
         activate,
       });
@@ -139,6 +142,29 @@ export function ProjectDialog({
     }
     await onOpened(result.workspace);
   }} />;
+  if (anchor && !expanded && !adding) {
+    return <Modal key="quick" title="选择工作项目" anchor={anchor} initialFocusRef={selectedOption}
+      className="composer-project-popup" onClose={busy ? undefined : onClose}>
+      <div className="composer-project-options">
+        {projectList.map(project => <button type="button" key={project} title={project}
+          ref={project === selectedWorkspace ? selectedOption : undefined}
+          aria-pressed={project === selectedWorkspace} disabled={busy || !status.ready}
+          onClick={event => { setPath(project); void open(event, project); }}>
+          <span><strong>{projectName(project)}</strong><small>{shares.find(s => s.guest_path === project)?.path || project}</small></span>
+          {project === selectedWorkspace && <Check size={15} aria-hidden="true" />}
+        </button>)}
+      </div>
+      {(error || submitting) && <div className="composer-project-notice" role={error ? "alert" : "status"}>
+        {error ? <SafetyMessage message={error} /> : "正在连接项目…"}
+        {recovery && <ProjectRecovery recovery={recovery} disabled={busy} onRetry={() => void open()}
+          onSettings={onSettings} onSessionClosed={() => void open()} />}
+      </div>}
+      <div className="composer-project-more">
+        <button type="button" disabled={busy} onClick={add}><Plus size={15} />{remote ? "添加云端项目…" : "添加本机项目…"}</button>
+        {(canShare || selectedShare) && <button type="button" disabled={busy} onClick={() => setExpanded(true)}>项目共享…</button>}
+      </div>
+    </Modal>;
+  }
   return (
     <Modal
       title={activate ? "打开项目" : "选择工作项目"}

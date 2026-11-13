@@ -33,8 +33,10 @@ try {
     const composer = page.locator(".home-composer");
     const send = composer.getByRole("button", { name: "发送", exact: true });
     const sendBounds = await send.boundingBox();
-    assert.equal(sendBounds.width, 26);
-    assert.equal(sendBounds.height, 26);
+    assert.equal(sendBounds.width, 30);
+    assert.equal(sendBounds.height, 30);
+    const folderBounds = await composer.locator(".composer-project").boundingBox();
+    assert.ok(Math.abs(sendBounds.x - folderBounds.x - folderBounds.width - 8) < 1);
     if (font === 14) {
       const heights = await page.locator(".welcome-shortcuts > button").evaluateAll(items => items.map(el => el.offsetHeight));
       assert.deepEqual(heights, [28, 28, 28]);
@@ -88,7 +90,7 @@ try {
     const style = getComputedStyle(el);
     return [el.offsetWidth, el.offsetHeight, style.width, style.height, style.backgroundClip];
   });
-  assert.deepEqual(touch, [44, 44, "26px", "26px", "padding-box"]);
+  assert.deepEqual(touch, [44, 44, "30px", "30px", "padding-box"]);
   assert.deepEqual(errors, []);
 } finally {
   await browser.close();
