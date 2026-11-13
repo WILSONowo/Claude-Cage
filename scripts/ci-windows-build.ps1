@@ -141,6 +141,7 @@ try {
     $version = Get-CageVersion $repository
     $suffix = if ($Release) { '' } else { '-unsigned' }
     Enter-CiPhase 'Install, update and uninstall with isolated data'
+    & (Join-Path $PSScriptRoot 'test-windows-bound-vm-install.ps1') -OutputDirectory (Join-Path $env:RUNNER_TEMP 'cage-bound-vm-upgrade')
     & (Join-Path $PSScriptRoot 'test-windows-install.ps1') -Installer "$repository/_output/releases/$version/windows/Cage-$version-windows-amd64-setup$suffix.exe"
     if ($Release) {
         Invoke-BuildTool 'node' @('scripts/release-version.mjs', 'metadata', 'windows', "_output/releases/$version/windows/build-metadata.json")
