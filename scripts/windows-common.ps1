@@ -50,6 +50,7 @@ function Assert-WindowsWorkbenchReport {
     $safe = @{ phase = ConvertTo-SmokeSafeText $result['phase']; nativeStatus = ConvertTo-SmokeSafeText $result['nativeStatus']; jsErrors = @() }
     if ($result['prepareExit'] -is [int] -or $result['prepareExit'] -is [long]) { $safe.prepareExit = $result['prepareExit'] }
     if ($result['prepareStatus'] -in @('prepared', 'stop_required', 'error', 'unexpected')) { $safe.prepareStatus = $result['prepareStatus'] }
+    if ($result['prepareMessage'] -is [string]) { $safe.prepareMessage = ConvertTo-SmokeSafeText $result['prepareMessage'] }
     if ($result['page'] -is [System.Collections.IDictionary] -and $result['page']['errors']) {
         $safe.jsErrors = @($result['page']['errors'] | Select-Object -First 8 | ForEach-Object {
             if ($_ -isnot [System.Collections.IDictionary]) { return }

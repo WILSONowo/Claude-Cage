@@ -54,6 +54,10 @@ keywords: 更新 升级 卸载 备份 迁移 存储 D盘 内存 CPU OOM 资源 �
 
 macOS 自动安装要求相同发布者的 Developer ID 签名与 Apple 验证；Windows 需可信 Authenticode 签名和相同发布者公钥。未签名 Windows 预览版与 Linux 使用完整安装包手动更新。自动更新下载失败可在原入口重试。
 
+Windows 自动安装失败时，会先核对原程序是否完整；原程序完整时直接重新打开，已经替换且新版无法就绪时尝试恢复原程序。恢复会保留项目的最新内容、账户、配置、登录凭据和持久磁盘。若个人文件的迁移或恢复尚未完成，程序会保留备份与事务回执并停止自动启动；此时不要删除这些材料或重复覆盖安装。
+
+Windows 从可能锁住安装目录的旧版本升级时，请先处理待恢复的事务，再保存工作、停止环境并退出 Cage。用同一 Windows 用户运行完整安装包。如果旧安装目录内存放着已绑定的客机磁盘，请按安装器提示选择独立的程序目录，保留原目录和磁盘。启动后核对账户、项目与环境。
+
 <figure class="guide-shot">
   <a href="../../www/public/docs/screenshots/windows-native-storage.png" target="_blank" rel="noopener" aria-label="查看原图：Windows 原生应用的版本与环境维护"><img src="../../www/public/docs/screenshots/windows-native-storage.png" alt="Windows 原生应用的版本与环境维护" width="1259" height="759" loading="lazy" decoding="async" /></a>
   <figcaption>Windows 原生应用的版本与环境维护。截图版本：0.1.5-alpha.2（测试构建） · Windows 11 x64 原生应用 · 2026-11-06。<a href="../../www/public/docs/screenshots/windows-native-storage.png" target="_blank" rel="noopener">查看原图（1259 × 759） ↗</a></figcaption>

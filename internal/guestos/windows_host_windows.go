@@ -77,7 +77,7 @@ function Unavailable([string]$reason) { Write-Output $reason; exit 2 }
 
 $edition = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name EditionID).EditionID
 if ($edition -like 'Core*') {
-    Unavailable 'Windows 家庭版未提供完整的 Hyper-V 角色。此原型支持专业版、企业版和教育版。'
+    Unavailable 'Windows 家庭版可运行 Debian 或 Ubuntu 客机。在 Windows 功能中启用“Windows 虚拟机监控程序平台”，然后重启电脑。要运行 Windows 11 客机，请使用支持 Hyper-V 的专业版、企业版或教育版。'
 }
 $service = Get-Service -Name vmms -ErrorAction SilentlyContinue
 if (!$service) {

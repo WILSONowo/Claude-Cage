@@ -22,6 +22,8 @@ keywords: 客机 客户机 克隆 本机 系统选择 macOS Windows Debian Ubunt
 
 选择与主机同类的系统，可以继续使用对应平台的应用、路径习惯和工具链。Debian 适合希望减少系统安装负担、主要使用命令行与 Linux 服务的用户；三个受支持的桌面平台都可以选择它。Intel Mac、Windows ARM64 和 Linux ARM64 暂不支持。
 
+Windows 家庭版用户可在“启用或关闭 Windows 功能”中勾选“Windows 虚拟机监控程序平台”，重启后选择 Debian 或 Ubuntu。要创建 Windows 11 客机，请使用 Windows 11 x64 专业版、企业版或教育版，并启用 Hyper-V 平台和管理工具。
+
 客机系统决定项目中的程序实际在哪里运行。需要额外虚拟机的应用功能还受嵌套虚拟化等条件限制，Claude Desktop 的 Cowork 暂不支持。
 
 ## 当前开发构建的验证范围

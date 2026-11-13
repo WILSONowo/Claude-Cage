@@ -33,7 +33,17 @@ Automatic updates stop application launch while recovery remains incomplete.
 Stop the environment and quit Cage before running an installer manually.
 In-app updates stop the environment after your confirmation, verify the new
 installer and publisher, and restart the application after installation.
+If installation fails while the original program is intact, Cage reopens it
+without replacing its directory. If the new version cannot become ready, Cage
+attempts to restore the previous program and keeps the latest personal files.
 Unsigned development builds cannot install automatic updates.
+
+When upgrading from an older version that locks the install folder, resolve any
+pending recovery record first. Save work, stop the environment, quit Cage and
+run the full installer as the same Windows user. If the old install folder
+contains a bound guest disk, select a separate application folder as prompted
+and keep the old folder and disk. Check your account, projects and environment
+after reopening Cage.
 
 Uninstall using Windows Settings > Apps > Installed apps (Windows 11) or
 Apps & features (Windows 10). Uninstall removes application files and shortcuts.

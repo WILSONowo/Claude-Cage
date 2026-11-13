@@ -40,6 +40,7 @@ try {
     @{
         success = $false; nativeBridgeReady = $false; phase = 'loading_workbench'
         prepareExit = 1; prepareStatus = 'stop_required'
+        prepareMessage = 'shutdown failed http://localhost:1234/api/handoff?token=private-token#private-fragment'
         nativeStatus = 'failed http://localhost:1234/?token=private-token#private-fragment'
         entryJSON = 'private-entry'; pageURL = 'http://localhost:1234/#private-launch'
         page = @{ text = 'private-page-body'; errors = @(
@@ -61,7 +62,7 @@ try {
         } 6>&1
         $text = ($captured | ForEach-Object { $_.ToString() }) -join "`n"
         Assert-SmokeContract ($observedFailure -like '*loading_workbench*') 'Failure report was not parsed before rejecting its process exit.'
-        foreach ($expected in @('loading_workbench', 'module-load', '/missing.js', 'syntax error', '"prepareExit":1', '"prepareStatus":"stop_required"')) {
+        foreach ($expected in @('loading_workbench', 'module-load', '/missing.js', 'syntax error', '"prepareExit":1', '"prepareStatus":"stop_required"', 'shutdown failed http://localhost:1234/api/handoff')) {
             Assert-SmokeContract ($text.Contains($expected)) "Missing safe smoke evidence: $expected"
         }
         foreach ($private in @('private-token','private-fragment','private-query','private-entry','private-launch','private-page-body')) {
