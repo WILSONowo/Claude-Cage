@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('prepare', 'move', 'restore', 'cleanup', 'complete', 'uninstall')][string]$Operation,
+    [Parameter(Mandatory)][ValidateSet('check-vm-location', 'prepare', 'move', 'restore', 'cleanup', 'complete', 'uninstall')][string]$Operation,
     [Parameter(Mandatory)][string]$Target,
     [string]$Source,
     [string]$Receipt,
@@ -165,7 +165,32 @@ foreach ($rootPath in @($Target, $Source)) {
         throw ('安装目录本身是文件系统链接，原文件已保留。请选择实际程序目录：' + $rootPath)
     }
 }
-if ($Operation -eq 'prepare') {
+if ($Operation -eq 'check-vm-location') {
+    # A bound Hyper-V instance must stay registered at its original path even
+    # while stopped. This also covers a profile state junction into CageData.
+    $profileDirectory = if ($env:CLAUDE_CAGE_CONFIG) {
+        Split-Path ([IO.Path]::GetFullPath($env:CLAUDE_CAGE_CONFIG)) -Parent
+    } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.claude-cage' }
+    $bindingPath = Join-Path $profileDirectory 'windows-guest.json'
+    if (![IO.File]::Exists($bindingPath)) { return }
+    $diagnosticStep = 'checking_bound_vm_directory'
+    $binding = Get-Content -LiteralPath $bindingPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (!$binding.instance_directory -or ![IO.Path]::IsPathRooted($binding.instance_directory)) {
+        throw '无法核对 Windows 客机绑定；请将新程序安装到独立的空目录。'
+    }
+    $instance = [IO.Path]::GetFullPath($binding.instance_directory).TrimEnd('\')
+    $inside = $instance.Equals($Target, [StringComparison]::OrdinalIgnoreCase) -or
+        $instance.StartsWith($Target + '\', [StringComparison]::OrdinalIgnoreCase)
+    if (!$inside) {
+        Initialize-VerifiedDeletion
+        $physicalRoot = [CageVerifiedFile]::DirectoryLocation($Target)
+        $physicalInstance = [CageVerifiedFile]::DirectoryLocation($instance)
+        $inside = $physicalInstance.Equals($physicalRoot, [StringComparison]::OrdinalIgnoreCase) -or
+            $physicalInstance.StartsWith($physicalRoot + '\', [StringComparison]::OrdinalIgnoreCase)
+    }
+    if ($inside) { exit 108 }
+    return
+} elseif ($Operation -eq 'prepare') {
     $diagnosticStep = 'reading_new_manifest'
     if (Test-Path -LiteralPath $Receipt) { throw ('仍有未完成的安装事务，请保留并检查回执：' + $Receipt) }
     $current = Read-FileManifest (Join-Path $Target $manifestName)

@@ -106,6 +106,19 @@ try
     var snapshotSource = Path.Combine(integration, "snapshot source");
     var snapshotTarget = Path.Combine(integration, "snapshot target");
     Directory.CreateDirectory(Path.Combine(snapshotSource, "my-project"));
+    if (OperatingSystem.IsWindows())
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(selectedProfile)!);
+        var binding = Path.Combine(Path.GetDirectoryName(selectedProfile)!, "windows-guest.json");
+        var registered = Path.Combine(snapshotSource, "my-project");
+        File.WriteAllText(binding, System.Text.Json.JsonSerializer.Serialize(new { instance_directory = registered }));
+        await UpdateInstaller.CheckGuestLocation(candidate);
+        bool refused = false;
+        try { await UpdateInstaller.CheckGuestLocation(snapshotSource); }
+        catch (IOException error) { refused = error.Message.Contains("另一个空目录"); }
+        Check(refused, "updater did not guide a bound VM to an independent application directory before backup");
+        File.Delete(binding);
+    }
     File.WriteAllText(Path.Combine(snapshotSource, "program.txt"), "program");
     File.WriteAllText(Path.Combine(snapshotSource, "my-project", "work.txt"), "personal data");
     File.WriteAllText(Path.Combine(snapshotSource, "Cage.install-files.json"), System.Text.Json.JsonSerializer.Serialize(new {

@@ -138,6 +138,7 @@ internal sealed class AppUpdater : IDisposable
         {
             // Validate the destination before stopping a running environment.
             UpdatePolicy.PlainPath(prepared.Target);
+            await UpdateInstaller.CheckGuestLocation(prepared.Target);
             Directory.CreateDirectory(Root); UpdatePolicy.PlainPath(Root);
             File.Copy(Environment.ProcessPath!, helperPath);
             await Task.Run(() => Authenticode.SamePublisher(helperPath, prepared.Publisher), token);

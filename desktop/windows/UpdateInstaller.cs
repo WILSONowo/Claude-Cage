@@ -219,6 +219,9 @@ internal static class UpdateInstaller
         throw new IOException(message);
     }
 
+    public static Task CheckGuestLocation(string target) =>
+        PreserveFiles("check-vm-location", "", target, target + ".cage-installation.json");
+
     private static async Task PreserveFiles(string operation, string source, string target, string receipt, string? backupPath = null)
     {
         var directory = receipt + ".helper-" + Guid.NewGuid().ToString("N");
@@ -245,6 +248,10 @@ internal static class UpdateInstaller
             await process.WaitForExitAsync(deadline.Token);
             await outputText;
             var error = await errorText;
+            if (operation == "check-vm-location" && process.ExitCode != 0)
+                throw new IOException(process.ExitCode == 108
+                    ? "程序目录中有已绑定的 Windows 虚拟机。请用完整安装包将新版安装到另一个空目录，保留原目录和虚拟磁盘，勿运行旧卸载程序。"
+                    : "无法确认 Windows 虚拟机的位置。请用完整安装包将新版安装到另一个空目录，并保留原目录。");
             if (process.ExitCode != 0) throw new IOException("安装文件保留未完成：" + error.Trim());
         }
         finally

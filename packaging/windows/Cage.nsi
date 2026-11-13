@@ -399,6 +399,29 @@ Section "Cage" Main
   ${EndIf}
   !insertmacro InstallPhase "checking_destination"
   Call CheckDestination
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=installation-files.ps1 "installation-files.ps1"
+  File /oname=verified-file-deletion.cs "verified-file-deletion.cs"
+  SetOutPath "$TEMP"
+  ${If} $ExistingInstall == "1"
+    !insertmacro InstallPhase "checking_bound_vm_location"
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation check-vm-location -Target "$INSTDIR" $DiagnosticArguments'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
+      StrCpy $HelperExit $0
+      Call WriteInstallDiagnostic
+      DetailPrint "$1"
+      SetErrorLevel 2
+      ${If} $0 == 108
+        MessageBox MB_OK|MB_ICONEXCLAMATION "此程序目录中有已绑定的 Windows 虚拟机。请重新运行安装包，选择另一个空目录安装 Cage。保留原目录和虚拟磁盘，勿运行旧卸载程序。" /SD IDOK
+      ${Else}
+        MessageBox MB_OK|MB_ICONEXCLAMATION "无法确认现有 Windows 虚拟机的位置。请将新版 Cage 安装到另一个空目录，并保留原目录。" /SD IDOK
+      ${EndIf}
+      Abort "请保留原目录，并将新程序安装到另一个空目录。"
+    ${EndIf}
+  ${EndIf}
   ${GetParent} "$INSTDIR" $0
   CreateDirectory "$0"
   GetTempFileName $StageDir "$0"
@@ -451,10 +474,6 @@ Section "Cage" Main
     GetTempFileName $BackupDir "$0"
     Delete "$BackupDir"
   ${EndIf}
-  InitPluginsDir
-  SetOutPath "$PLUGINSDIR"
-  File /oname=installation-files.ps1 "installation-files.ps1"
-  File /oname=verified-file-deletion.cs "verified-file-deletion.cs"
   DetailPrint "正在检查并保留已有项目和修改文件…"
   !insertmacro InstallPhase "preparing_file_transaction"
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation prepare -Target "$StageDir" -Source "$INSTDIR" -Backup "$BackupDir" -Receipt "$TransactionRecord" $DiagnosticArguments'
@@ -472,15 +491,17 @@ Section "Cage" Main
   SetOutPath "$TEMP"
   ${If} $ExistingInstall == "1"
     !insertmacro InstallPhase "moving_previous_application"
-    ClearErrors
-    Rename "$INSTDIR" "$BackupDir"
-    ${If} ${Errors}
+    System::Call 'kernel32::MoveFileW(w "$INSTDIR", w "$BackupDir") i.r0 ?e'
+    Pop $1
+    ${If} $0 == 0
+      StrCpy $HelperExit "win32_$1"
+      Call WriteInstallDiagnostic
       nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation complete -Target "$INSTDIR" -Receipt "$TransactionRecord" $DiagnosticArguments'
       Pop $0
       Pop $1
       RMDir /r "$StageDir"
       SetErrorLevel 2
-      Abort "Could not move the installed application. Quit Cage and retry."
+      Abort "无法移动旧程序目录（$HelperExit）。请退出占用目录的程序后重试，或把新版安装到另一个空目录。"
     ${EndIf}
     DetailPrint "正在迁入个人文件并保留原有链接…"
     !insertmacro InstallPhase "moving_personal_files"
@@ -625,11 +646,14 @@ Section "Uninstall"
     Abort "部分程序文件正在使用或无法读取，卸载未完成。个人文件已保留，请关闭占用程序后重试。"
   ${EndIf}
   !insertmacro UninstallPhase "removing_shortcuts_and_registration"
-  Delete "$DESKTOP\Cage.lnk"
-  Delete "$SMPROGRAMS\Cage\Cage.lnk"
-  Delete "$SMPROGRAMS\Cage\Uninstall Cage.lnk"
-  RMDir "$SMPROGRAMS\Cage"
-  DeleteRegKey HKCU "${UNINSTALL_KEY}"
+  ReadRegStr $0 HKCU "${UNINSTALL_KEY}" "InstallLocation"
+  ${If} $0 == $INSTDIR
+    Delete "$DESKTOP\Cage.lnk"
+    Delete "$SMPROGRAMS\Cage\Cage.lnk"
+    Delete "$SMPROGRAMS\Cage\Uninstall Cage.lnk"
+    RMDir "$SMPROGRAMS\Cage"
+    DeleteRegKey HKCU "${UNINSTALL_KEY}"
+  ${EndIf}
   !insertmacro UninstallPhase "removing_install_directory"
   RMDir "$INSTDIR"
 SectionEnd

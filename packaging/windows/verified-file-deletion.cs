@@ -19,6 +19,21 @@ public static class CageVerifiedFile
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFileHandle CreateFile(string path, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(SafeFileHandle handle, System.Text.StringBuilder path, uint length, uint flags);
+
+    public static string DirectoryLocation(string path)
+    {
+        // Follow junctions without opening a VM disk or asking Hyper-V for access.
+        using (var handle = CreateFile(path, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero))
+        {
+            if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+            var result = new System.Text.StringBuilder(32768);
+            uint length = GetFinalPathNameByHandle(handle, result, (uint)result.Capacity, 0);
+            if (length == 0 || length >= result.Capacity) throw new IOException("Cannot resolve the installation or guest directory.");
+            return result.ToString().TrimEnd('\\');
+        }
+    }
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, out AttributeTag info, uint size);
     [DllImport("kernel32.dll", SetLastError = true)]
