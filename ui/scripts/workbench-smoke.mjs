@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { join } from "node:path";
 import { smokeCaptureDirectory } from "./smoke-captures.mjs";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const output = await smokeCaptureDirectory("workbench");
 const { browser, page, state, errors } = await createWorkbench();
@@ -11,7 +11,7 @@ const modifier = await page.evaluate(() => /Mac/i.test(navigator.platform) ? "Me
 const shot = (name) =>
   page.screenshot({ path: join(output, name + ".png"), animations: "disabled" });
 const settings = async () => {
-  await page.getByRole("button", { name: /^设置/ }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "通用", exact: true }).click();
 };
 const tabs = () => page.getByRole("tablist", { name: "浏览器标签页" });

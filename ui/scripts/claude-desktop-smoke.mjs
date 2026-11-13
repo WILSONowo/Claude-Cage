@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 const output = new URL(
   "../../docs/test-reports/2026-11-02-claude-desktop/",
   import.meta.url,
@@ -122,7 +122,8 @@ try {
     stoppedActions,
     "refresh must not reopen a stopped app",
   );
-  await page.getByRole("button", { name: /^设置/ }).click();
+  await openWorkbenchSettings(page);
+  await page.getByRole("button", { name: "通用", exact: true }).click();
   await page
     .getByLabel("Claude 终端启动命令", { exact: true })
     .fill("claude --continue --model sonnet");

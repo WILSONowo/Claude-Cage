@@ -1,3 +1,4 @@
+import { openWorkbenchSettings } from "../ui/scripts/open-workbench-settings.mjs";
 // Full UI -> real Go service -> encrypted disk round trip in a new temp profile.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
@@ -41,7 +42,7 @@ try {
   await page.getByLabel("确认密码", { exact: true }).fill("isolated-vault-account-password");
   await page.getByRole("button", { name: "创建本地账户", exact: true }).click();
   const openVault = async () => {
-    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await openWorkbenchSettings(page);
     await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "密码保险箱", exact: true }).click();
     await page.getByRole("heading", { name: "密码保险箱", exact: true }).waitFor();
   };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const failure = "联网检查未通过：浏览器语言未通过。语言与已保存的设置不一致。请核对语言设置后重新检测。外网保持关闭。";
 const output = process.env.CAGE_SAFETY_SCREENSHOTS || "/tmp/cage-safety-checklist";
@@ -88,7 +88,7 @@ for (const platform of platforms) {
     await page.reload();
 
     await page.route("**/api/settings/probe", route => route.fulfill({ status: 409, contentType: "text/plain; charset=utf-8", body: failure }));
-    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await openWorkbenchSettings(page);
     await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "网络与代理", exact: true }).click();
     const settings = page.getByRole("region", { name: "设置", exact: true });
     const dns = settings.getByLabel("加密 DNS", { exact: true });

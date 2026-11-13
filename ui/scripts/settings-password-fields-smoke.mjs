@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const output = process.env.CAGE_REMOTE_QA_DIR;
 if (output) await mkdir(output, { recursive: true });
@@ -93,7 +93,7 @@ for (const [width, height, size, mode] of [[1280, 850, 14, "light"], [375, 640, 
     await inspect(page.getByLabel("密钥口令（如果已设置）", { exact: true }), "ssh");
     await page.getByRole("button", { name: "返回工作台侧栏" }).click();
     await openSidebar();
-    await sidebar.getByRole("button", { name: "设置", exact: true }).click();
+    await openWorkbenchSettings(page);
     await section("网络与代理");
     await page.getByRole("button", { name: "添加来源", exact: true }).click();
     await page.getByRole("button", { name: "手动节点", exact: true }).click();

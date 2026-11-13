@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createWorkbench, chooseInline } from './workbench-fixture.mjs';
+import { createWorkbench, chooseInline, openWorkbenchSettings } from './workbench-fixture.mjs';
 
 const output = path.resolve(process.env.CAGE_CHAIN_QA_OUTPUT || 'ui/.oil-ui/proxy-chain-20261105/shots');
 await fs.mkdir(output, { recursive: true });
@@ -28,7 +28,7 @@ await page.route('**/api/proxy/route', r=>{
  return r.fulfill({json:{id:state.status.job.id}});
 });
 const enter = async()=>{
- await page.getByRole('button',{name:/^设置/}).click();
+ await openWorkbenchSettings(page);
  await page.getByRole('button',{name:'网络与代理',exact:true}).click();
  await page.getByRole('heading',{name:'内置代理',exact:true}).waitFor();
  await page.getByRole('combobox',{name:'最终出口',exact:true}).waitFor();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const base = process.env.CAGE_UI_URL || "http://127.0.0.1:5209";
 const engine = process.env.CAGE_TEST_BROWSER || "chromium";
@@ -34,7 +34,7 @@ const allName = "全选当前筛选结果";
 const projectName = path => `全选项目 ${path} 的当前筛选结果`;
 try {
   state.status.ready = state.status.vm_running = true;
-  await page.getByRole("button",{name:"设置",exact:true}).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation",{name:"设置分组"}).getByRole("button",{name:"已归档会话",exact:true}).click();
   const panel = page.getByRole("region",{name:"已归档会话",exact:true});
   await checkbox(panel,allName).waitFor();

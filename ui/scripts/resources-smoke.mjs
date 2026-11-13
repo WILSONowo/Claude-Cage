@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const { browser, page, errors } = await createWorkbench();
 const windowsRuntime = process.env.CAGE_RESOURCE_RUNTIME === "hyperv";
@@ -17,7 +17,7 @@ await page.route("**/api/environment/resources", async (route) => {
   return route.fulfill({ json: { ...allocation, ...(windowsRuntime ? { runtime: "hyperv", min_memory_gib: 4, min_cpus: 2 } : {}), running: false, recommended_memory_bytes: 12 * 2 ** 30, recommended_cpus: 5, max_memory_gib: 12, max_cpus: 5 } });
 });
 async function open() {
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "环境与恢复", exact: true }).click();
   await page.getByLabel("内存上限（GiB）", { exact: true }).waitFor();
 }

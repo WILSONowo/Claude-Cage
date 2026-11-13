@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const project = "/Users/fixture/Cage Projects/macOS 示例";
 const calls = [];
@@ -116,7 +116,7 @@ try {
   state.status.project_error = "";
   state.status.project_errors = [];
   await page.reload();
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "环境与恢复", exact: true }).click();
   const permissions = page.getByRole("region", { name: "客机系统权限", exact: true });
   for (const [label, purpose] of [["文件共享权限", "projects"], ["屏幕录制权限", "screen"], ["辅助功能权限", "input"]]) {

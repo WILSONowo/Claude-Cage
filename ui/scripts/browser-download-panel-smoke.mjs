@@ -75,13 +75,7 @@ for (const platform of ["darwin", "win32", "linux"]) {
     });
     const panel = page.getByRole("dialog", { name: "下载文件", exact: true });
     const toolbar = page.locator(".browser-chrome .navigation-row");
-    assert.equal(
-      await page
-        .getByRole("button", { name: "设置", exact: true })
-        .locator("svg.lucide-settings")
-        .count(),
-      1,
-    );
+    assert.equal(await page.locator("#workspace-sidebar").getByRole("button", { name: "设置", exact: true }).count(), 0);
     await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
     for (const width of [1280, 375]) {
       await page.setViewportSize({ width, height: 850 });

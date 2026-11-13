@@ -1,6 +1,6 @@
 // Real settings interactions against isolated API fixtures; no user profile is used.
 import assert from 'node:assert/strict';
-import { createWorkbench, chooseInline } from './workbench-fixture.mjs';
+import { createWorkbench, chooseInline, openWorkbenchSettings } from './workbench-fixture.mjs';
 const policies = {
  first: { mode:'static',scope:'country',ip:'1.1.1.1' },
  second: { mode:'static',scope:'country',ip:'8.8.4.4' },
@@ -26,7 +26,7 @@ const f = await createWorkbench({beforeNavigate: async (page,state)=>{
 }});
 try {
  const {page,state}=f;
- await page.getByRole('button',{name:/^设置/}).click();
+ await openWorkbenchSettings(page);
  await page.getByRole('button',{name:'网络与代理',exact:true}).click();
  const ip=page.getByLabel('绑定的 IPv4 地址',{exact:true});
  assert.equal(await ip.inputValue(),policies.first.ip);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 const output = process.env.CAGE_VAULT_CAPTURE || fileURLToPath(new URL("../../docs/test-reports/2026-11-05-password-vault/", import.meta.url));
 await fs.mkdir(output, { recursive: true });
 let clipboard = "";
@@ -47,7 +47,7 @@ await page.route("**/api/vault**", async route => {
   return route.fulfill({ json: { ok: true } });
 });
 const settings = async () => {
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "密码保险箱", exact: true }).click();
   await page.getByRole("heading", { name: "密码保险箱", exact: true }).waitFor();
 };

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chooseInline, createWorkbench } from "./workbench-fixture.mjs";
+import { chooseInline, createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const output = new URL("../../docs/test-reports/2026-11-07-user-feedback/", import.meta.url);
 await fs.mkdir(output, { recursive: true });
@@ -14,7 +14,7 @@ try {
     timezone: "Asia/Tokyo", checked_at: new Date().toISOString(),
   } }));
   const openSettings = async () => {
-    await page.getByRole("button", { name: /^设置/ }).click();
+    await openWorkbenchSettings(page);
     await page.getByRole("button", { name: "网络与代理", exact: true }).click();
   };
   await openSettings();

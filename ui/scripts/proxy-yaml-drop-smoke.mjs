@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const engine = process.env.CAGE_TEST_BROWSER || "chromium";
 const output = path.resolve(process.env.CAGE_YAML_QA_OUTPUT || "/tmp/cage-yaml-drop-qa", engine);
@@ -22,7 +22,7 @@ try {
     return route.fulfill({ json: job });
   });
   const open = async () => {
-    await page.getByRole("button", { name: /^设置/ }).click();
+    await openWorkbenchSettings(page);
     await page.getByRole("button", { name: "网络与代理", exact: true }).click();
     await page.getByRole("tab", { name: "订阅", exact: true }).click();
     await page.getByRole("button", { name: "添加来源", exact: true }).click();

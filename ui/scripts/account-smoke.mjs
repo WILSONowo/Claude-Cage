@@ -13,16 +13,15 @@ await page.exposeFunction('fixtureLaunchAcks', () => launchAcks);
 const accountMenu = () => page.getByRole('button', { name: /^账户菜单，/ });
 async function checkMenuLayout() {
   const trigger = accountMenu();
-  const settings = page.getByRole('button', { name: '设置', exact: true });
+  assert.equal(await page.locator('#workspace-sidebar').getByRole('button', { name: '设置', exact: true }).count(), 0);
   const list = page.getByRole('menu', { name: '本地账户菜单' });
   const projects = page.locator('.sidebar-scroll');
-  const before = await Promise.all([trigger.boundingBox(), settings.boundingBox(), projects.boundingBox()]);
+  const [triggerBefore, projectsBefore] = await Promise.all([trigger.boundingBox(), projects.boundingBox()]);
   await trigger.click();
   const menu = await list.boundingBox();
-  assert.ok(menu.y >= 0 && menu.y + menu.height <= before[0].y - 6);
+  assert.ok(menu.y >= 0 && menu.y + menu.height <= triggerBefore.y - 6);
   assert.equal(await list.evaluate(el => getComputedStyle(el).boxShadow), 'none');
-  assert.deepEqual(await trigger.boundingBox(), before[0]);
-  assert.deepEqual(await settings.boundingBox(), before[1]);
+  assert.deepEqual(await trigger.boundingBox(), triggerBefore);
   const projectBox = await projects.boundingBox();
   assert.ok(projectBox.y + projectBox.height <= menu.y);
   assert.equal(await page.getByRole('menuitem', {name:'设置',exact:true}).evaluate(el => el === document.activeElement), true);
@@ -31,7 +30,7 @@ async function checkMenuLayout() {
   await page.keyboard.press('Escape');
   await list.waitFor({state:'hidden'});
   assert.equal(await trigger.evaluate(el => el === document.activeElement), true);
-  assert.deepEqual(await projects.boundingBox(), before[2]);
+  assert.deepEqual(await projects.boundingBox(), projectsBefore);
 }
 try {
   Object.assign(state.account, {exists:false,unlocked:false,username:''});

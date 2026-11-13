@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 for (const system of ["macos", "windows-11", "debian"]) {
   const calls = [];
@@ -23,7 +23,7 @@ for (const system of ["macos", "windows-11", "debian"]) {
   } });
   const { page, browser, errors } = fixture;
   try {
-    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await openWorkbenchSettings(page);
     await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "环境与恢复", exact: true }).click();
     const panel = page.getByRole("region", { name: "环境版本", exact: true });
     await panel.getByText("2.1.300", { exact: true }).waitFor();

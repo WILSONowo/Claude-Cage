@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { join } from "node:path";
 import { smokeCaptureDirectory } from "./smoke-captures.mjs";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const output = await smokeCaptureDirectory("recovery-ui");
 const calls = [];
@@ -71,7 +71,7 @@ try {
   assert.equal(editorRestarts, 1);
   assert.equal(state.status.vm_running, true);
   checks.push("download retry reports durable save", "editor recovery leaves VM running");
-  await page.getByRole("button", { name: "设置", exact: false }).first().click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "环境与恢复", exact: true }).click();
   await page.getByRole("region", { name: "环境版本" }).getByText("需要更新", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "更新环境工具", exact: true }).isDisabled(), true);

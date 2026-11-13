@@ -1,5 +1,5 @@
 import { SearchField } from "./search-field";
-import { isWindows, shortcut } from "./platform.mjs";
+import { isWindows } from "./platform.mjs";
 import { nativeAvailable } from "./api";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -16,7 +16,6 @@ import {
   PanelLeftClose,
   Plus,
   RefreshCw,
-  Settings,
   Server,
   SquareTerminal,
 } from "lucide-react";
@@ -152,12 +151,9 @@ export function WorkspaceSidebar({
           <Globe2 size={17} />
           浏览器
         </button>
+        <button className="sidebar-link" onClick={onClaudeWeb} disabled={!ready || busy} title="在 Cage 浏览器打开 claude.ai"><MessageCircle size={17} />claude.ai</button>
         <button className="sidebar-link" onClick={onTailscale} aria-label="打开 Tailscale"><Network size={17} />Tailscale</button>
         {ssh && <button id="open-ssh-sidebar" aria-controls="ssh-hosts" className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
-        <div className="claude-shortcuts">
-          <button className="sidebar-link" onClick={onClaudeWeb} disabled={!ready || busy} title="在 Cage 浏览器打开 claude.ai"><MessageCircle size={17} />claude.ai</button>
-
-        </div>
         {downloadAction}
       </nav>
       <div className="sidebar-scroll">
@@ -308,7 +304,6 @@ export function WorkspaceSidebar({
       <div className="sidebar-bottom">
         <div className="sidebar-footer-actions">
           <AccountMenu onSettings={onSettings} onConfirm={onAccountConfirm} onStatus={onAccountStatus} busy={busy} />
-          <button className="icon-button" aria-label="设置" title={shortcut("设置 ⌘,")} onClick={() => onSettings("keyboard")}><Settings size={17} /></button>
           {!sidebarCollapsed && updateAction}
         </div>
       </div>

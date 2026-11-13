@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chooseInline, createWorkbench } from "./workbench-fixture.mjs";
+import { chooseInline, createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 const output = fileURLToPath(
   new URL(process.env.CAGE_APPEARANCE_SCREENSHOTS || "../../docs/test-reports/2026-10-31-appearance/", import.meta.url),
 );
@@ -9,7 +9,7 @@ await fs.mkdir(output, { recursive: true });
 const { browser, page, state, errors } = await createWorkbench();
 const checks = [];
 const showAppearance = async () => {
-  await page.getByRole("button", { name: /^设置/ }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "外观", exact: true }).click();
   await page.getByRole("heading", { name: "外观", exact: true }).waitFor();
 };

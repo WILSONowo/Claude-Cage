@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { chooseInline, createWorkbench } from "./workbench-fixture.mjs";
+import { chooseInline, createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 import { startDisplay } from "./rfb-wire-fixture.mjs";
 
 const display = await startDisplay(process.env.CAGE_UI_URL || "http://127.0.0.1:5198", { frameInterval: 1000 });
@@ -90,7 +90,8 @@ try {
   await matched();
   await page.setViewportSize({ width: 820, height: 558 });
   await matched();
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
+  await page.getByRole("button", { name: "通用", exact: true }).click();
   await page.getByRole("switch", { name: /优先流畅/ }).check();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await page.getByRole("region", { name: "设置", exact: true }).waitFor({ state: "hidden" });

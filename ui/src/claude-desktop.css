@@ -112,9 +112,6 @@
   padding: 12px 18px;
   background: var(--selected);
 }
-.claude-shortcuts {
-  padding: 2px 0 6px;
-}
 .terminal-choice-buttons {
   display: flex;
   flex-direction: column;

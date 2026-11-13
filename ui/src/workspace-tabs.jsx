@@ -38,8 +38,7 @@ function TerminalAction({ label, icon: Icon, disabled, onClick }) {
   );
 }
 
-// Active content carries the strongest emphasis; titles and actions use the
-// existing paper/selected/muted tokens, 14px type and 8px spacing in both layouts.
+const preferredTabWidth = 240;
 export function WorkspaceTabs({
   tabs,
   saved,
@@ -79,17 +78,17 @@ export function WorkspaceTabs({
   }, [horizontal]);
   const gap = tabs.length > 20 ? 1 : 4;
   const available = Math.max(0, width - gap * Math.max(0, tabs.length - 1));
-  const regularWidth = Math.min(220, available / Math.max(1, tabs.length));
+  const regularWidth = Math.min(preferredTabWidth, available / Math.max(1, tabs.length));
   const activeWidth =
     tabs.length > 1 && tabs.some((tab) => tab.id === active)
-      ? Math.min(220, Math.max(regularWidth, Math.min(160, available * 0.4)))
+      ? Math.min(preferredTabWidth, Math.max(regularWidth, Math.min(160, available * 0.4)))
       : regularWidth;
   const otherWidth = Math.max(
     0,
     (available - activeWidth) / Math.max(1, tabs.length - 1),
   );
   const tabWidth = (id) =>
-    id === active ? activeWidth : Math.min(220, otherWidth);
+    id === active ? activeWidth : Math.min(preferredTabWidth, otherWidth);
   const matchingTabs = tabs.filter((tab) =>
     `${tabName(tab, saved)} ${tab.url || ""}`
       .toLowerCase()
@@ -306,7 +305,7 @@ export function WorkspaceTabs({
           horizontal
             ? {
                 gap,
-                width: tabs.length * 220 + gap * Math.max(0, tabs.length - 1),
+                width: tabs.length * preferredTabWidth + gap * Math.max(0, tabs.length - 1),
                 flex: "0 1 auto",
               }
             : undefined

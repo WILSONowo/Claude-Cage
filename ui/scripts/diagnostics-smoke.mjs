@@ -1,3 +1,4 @@
+import { openWorkbenchSettings } from "./open-workbench-settings.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -32,7 +33,7 @@ try {
   await page.getByLabel("设置密码", { exact: true }).fill("Test-only-password-8712");
   await page.getByLabel("确认密码", { exact: true }).fill("Test-only-password-8712");
   await page.getByRole("button", { name: "创建本地账户", exact: true }).click();
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "环境与恢复", exact: true }).click();
   await page.getByRole("heading", { name: "日志与诊断" }).waitFor();
   // Exercise browser event handlers, the actual authenticated endpoint and disk.

@@ -1,3 +1,4 @@
+import { openWorkbenchSettings } from "./open-workbench-settings.mjs";
 // Real authenticated workbench, bundled Mihomo and local HTTP CONNECT servers.
 // Uses a new private profile. Never touches the user's Cage, VM or subscriptions.
 import assert from 'node:assert/strict';
@@ -61,7 +62,7 @@ try{
  await page.getByLabel('确认密码',{exact:true}).fill('isolated-chain-test-password');
  await page.getByRole('button',{name:'创建本地账户',exact:true}).click();
  const enter=async()=>{
-  await page.getByRole('button',{name:/^设置/}).click();
+  await openWorkbenchSettings(page);
   await page.getByRole('button',{name:'网络与代理',exact:true}).click();
   await page.getByRole('heading',{name:'内置代理',exact:true}).waitFor();
  };

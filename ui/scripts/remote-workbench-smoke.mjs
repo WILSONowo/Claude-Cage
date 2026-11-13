@@ -1,7 +1,7 @@
 // UI contract fixture: remote paths, generation binding and client-only quit.
 // SSH, cookies and streaming use the real protocol tests in internal/remotehost.
 import assert from "node:assert/strict";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const connection = "test-remote-connection";
 const instance = "a".repeat(64);
@@ -45,7 +45,7 @@ try {
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   assert.equal(state.settings.workspace, "/srv/projects/research");
   assert.equal(directoryRequests, 2);
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "通用", exact: true }).click();
   const macKeyboard = page.getByRole("radio", { name: /Mac 快捷键/ });
   assert.equal(await macKeyboard.isChecked(), true, "Mac client defaults must not follow Linux server keyboard mode");

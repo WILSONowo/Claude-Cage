@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const output = fileURLToPath(new URL("../../docs/test-reports/2026-11-07-paired-phone-model/", import.meta.url));
 await fs.mkdir(output, { recursive: true });
@@ -29,7 +29,7 @@ const { browser, page, errors } = await createWorkbench({
   }),
 });
 async function open() {
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "远程连接", exact: true }).click();
   await page.getByRole("heading", { name: "手机已配对", exact: true }).waitFor();
 }

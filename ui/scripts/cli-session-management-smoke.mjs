@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const base = process.env.CAGE_UI_URL || "http://127.0.0.1:5209";
 const output = process.env.CAGE_TEST_CAPTURE || "../docs/test-reports/2026-11-07-cli-session-sync";
@@ -110,7 +110,7 @@ try {
   await history.waitFor({state:"hidden"});
   assert.deepEqual(errors,[],"phone archive");
 
-  await page.getByRole("button",{name:"设置",exact:true}).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation",{name:"设置分组"}).getByRole("button",{name:"已归档会话",exact:true}).click();
   const panel = page.getByRole("region",{name:"已归档会话",exact:true});
   const projectFilter = panel.getByRole("combobox",{name:"项目筛选"});

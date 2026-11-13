@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chooseInline, createWorkbench } from "./workbench-fixture.mjs";
+import { chooseInline, createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const output = new URL("../../docs/test-reports/2026-11-01-manual-region/", import.meta.url);
 await fs.mkdir(output, { recursive: true });
@@ -15,7 +15,7 @@ try {
     body: "已测得出口 IP，但位置查询均失败；未使用直连回退",
   }));
   const policy = structuredClone(state.settings.exit_policy);
-  await page.getByRole("button", { name: /^设置/ }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "时区与语言", exact: true }).click();
   await page.getByRole("button", { name: "现在检测", exact: true }).first().click();
   await page.getByRole("alert").filter({ hasText: "位置查询均失败" }).waitFor();
@@ -39,7 +39,7 @@ try {
   assert.equal(state.settings.browser_language, "ja-JP");
   assert.deepEqual(state.settings.exit_policy, policy);
   await page.reload();
-  await page.getByRole("button", { name: /^设置/ }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "时区与语言", exact: true }).click();
   assert.equal(await page.getByLabel("系统时区", { exact: true }).inputValue(), "Asia/Tokyo");
   assert.equal(await page.getByRole("combobox", { name: "系统语言", exact: true }).getAttribute("value"), "ja_JP.UTF-8");

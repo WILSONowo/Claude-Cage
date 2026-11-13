@@ -397,3 +397,4 @@ export async function chooseInline(picker, value) {
   await picker.click();
   await picker.page().getByRole("option").and(picker.page().locator(`[data-value=${JSON.stringify(String(value))}]`)).click();
 }
+export { openWorkbenchSettings } from "./open-workbench-settings.mjs";

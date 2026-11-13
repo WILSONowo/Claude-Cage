@@ -1,3 +1,4 @@
+import { openWorkbenchSettings } from "./open-workbench-settings.mjs";
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -51,7 +52,7 @@ try {
   assert.equal(await address.inputValue(), nextHome);
   checks.push('real menu opens and reuses settings tab; unsaved form survives category changes; save failure retains input; saved default affects new tabs; address and layout survive reload');
 
-  await page.getByRole('button', { name: /^设置/ }).filter({ has: page.locator('svg') }).first().click();
+  await openWorkbenchSettings(page);
   const globalSettings = page.getByRole('region', { name: '设置', exact: true });
   await globalSettings.waitFor();
   assert.equal(await globalSettings.getByRole('button', { name: '浏览器', exact: true }).count(), 0);

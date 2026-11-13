@@ -1,3 +1,4 @@
+import { openWorkbenchSettings } from "./open-workbench-settings.mjs";
 // Real authenticated workbench and bundled Mihomo, with a new private profile.
 // Uses synthetic local YAML only; never reads the user's profile or subscription.
 import assert from "node:assert/strict";
@@ -51,7 +52,7 @@ try {
   await page.getByLabel("确认密码", { exact: true }).fill("isolated-subscription-qa-password");
   await page.getByRole("button", { name: "创建本地账户", exact: true }).click();
   const enter = async () => {
-    await page.getByRole("button", { name: /^设置/ }).click();
+    await openWorkbenchSettings(page);
     await page.getByRole("button", { name: "网络与代理", exact: true }).click();
     await page.getByRole("heading", { name: "内置代理", exact: true }).waitFor();
     await page.getByRole("tab", { name: "订阅", exact: true }).click();

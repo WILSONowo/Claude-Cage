@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 const output = process.env.CAGE_RESOURCE_QA_OUTPUT || await mkdtemp(join(tmpdir(), "cage-macos-resource-ui-"));
 await mkdir(output, { recursive: true });
@@ -30,7 +30,7 @@ const fixture = await createWorkbench({ beforeNavigate: async (page, state) => {
 } });
 const { page, browser, errors } = fixture;
 try {
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "环境与恢复", exact: true }).click();
   const panel = page.getByRole("region", { name: "计算资源", exact: true });
   await panel.getByText(/macOS 客机使用固定的启动内存容量/).waitFor();

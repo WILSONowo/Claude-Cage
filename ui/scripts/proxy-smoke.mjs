@@ -1,3 +1,4 @@
+import { openWorkbenchSettings } from "./open-workbench-settings.mjs";
 // Uses the built app, real workbench APIs, real Mihomo, and local CONNECT
 // upstreams. No request reaches the user's running Cage or Clash instances.
 import assert from "node:assert/strict";
@@ -61,7 +62,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 850 } });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(launch.url); console.log("QA: workbench loaded");
-  await page.getByRole("button", { name: /^设置/ }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "网络与代理", exact: true }).click();
   await page.getByRole("heading", { name: "内置代理", exact: true }).waitFor();
   await page.screenshot({ path: path.join(output, "empty.png") });
@@ -105,7 +106,7 @@ try {
   await page.getByRole("button", { name: "保存来源", exact: true }).click();
   await page.getByText("QA imported", { exact: true }).waitFor();
   await page.reload();
-  await page.getByRole("button", { name: /^设置/ }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "网络与代理", exact: true }).click();
   await page.getByRole("tab", { name: "节点", exact: true }).click();
   assert.equal((await state()).selected, p.selected);

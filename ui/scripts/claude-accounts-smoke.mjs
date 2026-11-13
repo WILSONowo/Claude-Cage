@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench, openWorkbenchSettings } from "./workbench-fixture.mjs";
 
 // Drives the shared workbench with an isolated account registry. No real credentials or VM.
 const { browser, page, state, errors } = await createWorkbench();
@@ -20,7 +20,7 @@ let lastLoginNotice = "";
 const joins = [];
 const now = Math.floor(Date.now() / 1000);
 const openAccounts = async () => {
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   await page.getByRole("button", { name: "Claude 账号", exact: true }).click();
 };
 
@@ -97,7 +97,7 @@ async function checkLocalCountdown() {
   profiles[0].quota = { observed_at: seconds, five_hour: { used_percentage: 28, observed_at: seconds - 900, resets_at: seconds + 5 },
     seven_day: { used_percentage: 64, observed_at: seconds, resets_at: seconds + 7200 } };
   // Let the lazy settings page mount before freezing the quota countdown.
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await openWorkbenchSettings(page);
   const accounts = page.getByRole("button", { name: "Claude 账号", exact: true });
   await accounts.waitFor();
   await page.clock.pauseAt(frozen);
