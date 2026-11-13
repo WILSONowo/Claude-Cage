@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"golang.org/x/crypto/ssh/agent"
 	"net"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -47,10 +48,12 @@ func TestHostAgentSocket(t *testing.T) {
 
 func TestAgentAuthenticationUsesSelectedSocket(t *testing.T) {
 	// Windows AF_UNIX and Linux have short pathname limits; keep the socket near the temp root.
-	path := filepath.Join(t.TempDir(), "a")
-	if runtime.GOOS != "windows" && len(path) > 100 {
-		t.Fatal("fixture socket path too long")
+	dir, err := os.MkdirTemp("", "agent-")
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "a")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

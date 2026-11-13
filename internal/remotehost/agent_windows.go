@@ -4,11 +4,12 @@ package remotehost
 
 import (
 	"context"
-	"github.com/Microsoft/go-winio"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Microsoft/go-winio"
 )
 
 func dialAgent(ctx context.Context, path string) (net.Conn, error) {
