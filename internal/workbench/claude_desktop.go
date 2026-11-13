@@ -191,15 +191,17 @@ func (s *Server) runDesktopScript(script string, timeout time.Duration) error {
 	return nil
 }
 
-func (s *Server) claudeDesktopCredentials(w http.ResponseWriter, r *http.Request) {
-	if s.windowsGuest != nil {
-		s.windowsDesktopCredentials(w, r)
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
-	defer cancel()
-	b, err := s.guestQuick(ctx, `set -eu
+// All Linux Desktop guest versions expose Xtigervnc's private native RFB
+// socket. Old sessions may still have an independent, stale scraping socket.
+const linuxDesktopRFBSocket = "/run/cage-desktop/display.sock"
+
+const linuxDesktopCredentials = `set -eu
 systemctl is-active --quiet cage-claude-desktop.service
+# A socket inode can survive a crash. A listening stream in /proc/net/unix
+# checks the actual endpoint without opening an extra unauthenticated viewer.
+if ! awk '$4=="00010000" && $5=="0001" && $8=="` + linuxDesktopRFBSocket + `" {found=1} END {exit !found}' /proc/net/unix; then
+  echo display-unavailable; exit 0
+fi
 password=$(cat /home/cage/.config/claude-cage/desktop-password)
 printf '%s\n' "$password"
 if test -f /run/cage-desktop/base-display-scale; then cat /run/cage-desktop/base-display-scale
@@ -208,8 +210,21 @@ else echo; fi
 if test -x /usr/bin/dump_xsettings && test -f /run/cage-desktop/xsettings.pid; then
   manager=$(cat /run/cage-desktop/xsettings.pid)
   if test "$(cat "/proc/$manager/comm" 2>/dev/null)" = xsettingsd; then echo dynamic; fi
-fi`)
+fi`
+
+func (s *Server) claudeDesktopCredentials(w http.ResponseWriter, r *http.Request) {
+	if s.windowsGuest != nil {
+		s.windowsDesktopCredentials(w, r)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	defer cancel()
+	b, err := s.guestQuick(ctx, linuxDesktopCredentials)
 	password, scale, _ := strings.Cut(strings.TrimSpace(string(b)), "\n")
+	if err == nil && password == "display-unavailable" {
+		http.Error(w, "Claude Desktop 的显示服务未就绪，请关闭应用后重新打开。", http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil || len(password) != 8 {
 		http.Error(w, "Claude Desktop 尚未启动", 409)
 		return
@@ -354,7 +369,7 @@ func (s *Server) claudeDesktopVNC(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	// No extra localhost port or public VNC listener on the host. SSH is bound
 	// to this profile's single guest and carries the authenticated RFB session.
-	cmd := s.sshCommand(ctx, "-T", s.sshTarget(), "--", "exec socat STDIO UNIX-CONNECT:/run/cage-desktop/vnc.sock")
+	cmd := s.sshCommand(ctx, "-T", s.sshTarget(), "--", "exec socat STDIO UNIX-CONNECT:"+linuxDesktopRFBSocket)
 	reader, err := cmd.StdoutPipe()
 	if err != nil {
 		http.Error(w, "无法连接应用画面", 502)

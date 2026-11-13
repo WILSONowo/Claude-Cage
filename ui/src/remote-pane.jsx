@@ -29,6 +29,7 @@ export default forwardRef(function RemoteView(
   current.current = { visible: screenVisible && focused, keyboard, guestPlatform, systemClipboard, tabId, onStatus, onFallback, zoom };
   const failures = useRef(0);
   const [connection, setConnection] = useState("connecting"),
+    [connectionError, setConnectionError] = useState(""),
     [attempt, setAttempt] = useState(0),
     [sizeError, setSizeError] = useState(false);
   useEffect(() => { displayResize.current?.update(); }, [zoom]);
@@ -71,6 +72,7 @@ export default forwardRef(function RemoteView(
     api(`${desktopPrefix}/vnc-credentials`)
       .then(({ password, display_scale, dynamic_scale, pixel_wheel }) => {
         if (disposed) return;
+        setConnectionError("");
         // Such a guest renders at the density of the screen showing it.
         let followScreen = dynamic_scale === true;
         client = new RFB(
@@ -228,7 +230,8 @@ export default forwardRef(function RemoteView(
           retry();
         });
       })
-      .catch(() => {
+      .catch((error) => {
+        if (!disposed && desktop) setConnectionError(error.message);
         retry();
       });
     return () => {
@@ -267,7 +270,7 @@ export default forwardRef(function RemoteView(
           </h3>
           {connection === "disconnected" && (
             <>
-              <p>后台任务仍在运行。</p>
+              <p>{connectionError || "后台任务仍在运行。"}</p>
               <button className="primary" onClick={() => setAttempt((v) => v + 1)}>
                 重新连接画面
               </button>

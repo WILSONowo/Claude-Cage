@@ -20,7 +20,10 @@ if [ ! -s "$password" ]; then
   od -An -N4 -tx1 /dev/urandom | tr -d ' \n' > "$password"
 fi
 tigervncpasswd -f < "$password" > "$XDG_RUNTIME_DIR/vnc-password"
-Xtigervnc "$DISPLAY" -geometry 1600x1000 -depth 24 -rfbport -1 -rfbunixpath "$XDG_RUNTIME_DIR/display.sock" -rfbunixmode 0600 -nolisten tcp -auth "$XAUTHORITY" -SecurityTypes VncAuth -PasswordFile "$XDG_RUNTIME_DIR/vnc-password" &
+# Older workbenches connect to vnc.sock. Both names use the X server's
+# framebuffer so a resize never races a second process scraping the display.
+ln -sfn display.sock "$XDG_RUNTIME_DIR/vnc.sock"
+Xtigervnc "$DISPLAY" -geometry 1600x1000 -depth 24 -rfbport -1 -rfbunixpath "$XDG_RUNTIME_DIR/display.sock" -rfbunixmode 0600 -nolisten tcp -auth "$XAUTHORITY" -SecurityTypes VncAuth -PasswordFile "$XDG_RUNTIME_DIR/vnc-password" -AlwaysShared &
 display_pid=$!
 trap 'kill "$display_pid" 2>/dev/null || true' EXIT
 for i in $(seq 1 100); do
@@ -32,7 +35,6 @@ xdpyinfo -display "$DISPLAY" >/dev/null
 # Older standalone Desktop installs may predate the compositor dependency.
 if command -v picom >/dev/null; then picom --config /dev/null --backend xrender --daemon; fi
 openbox --config-file /etc/claude-cage/desktop-openbox.xml &
-X0tigervnc -display "$DISPLAY" -rfbport -1 -rfbunixpath "$XDG_RUNTIME_DIR/vnc.sock" -rfbunixmode 0600 -SecurityTypes VncAuth -PasswordFile "$XDG_RUNTIME_DIR/vnc-password" -AlwaysShared &
 # Lower the refresh rate of unattended animation. Optional on older guests.
 if [ -x /usr/local/bin/cage-display-governor ]; then
   /usr/local/bin/cage-display-governor &

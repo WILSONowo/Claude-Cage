@@ -3,6 +3,7 @@
 package workbench
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,47 @@ import (
 	"testing"
 	"time"
 )
+
+func TestLinuxDesktopCredentialsRequireLiveNativeDisplay(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("checks the guest kernel's Unix socket table")
+	}
+	dir := t.TempDir()
+	// Avoid long temp paths exceeding sockaddr_un's path limit.
+	sockets, err := os.MkdirTemp("/tmp", "rfb-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(sockets) })
+	listen := func(name string) *net.UnixListener {
+		t.Helper()
+		l, err := net.ListenUnix("unix", &net.UnixAddr{Name: filepath.Join(sockets, name), Net: "unix"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		l.SetUnlinkOnClose(false)
+		return l
+	}
+	password := filepath.Join(dir, "password")
+	if err := os.WriteFile(password, []byte("testonly"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	script := strings.NewReplacer("/run/cage-desktop", sockets, "/home/cage/.config/claude-cage/desktop-password", password).Replace(linuxDesktopCredentials)
+	check := func(want string) {
+		t.Helper()
+		output, err := exec.Command("bash", "-c", "systemctl() { return 0; }\n"+script).CombinedOutput()
+		if err != nil || strings.TrimSpace(string(output)) != want {
+			t.Fatalf("display credentials: %v %q", err, output)
+		}
+	}
+	old := listen("vnc.sock")
+	check("display-unavailable")
+	old.Close() // reproduces the stale scraping socket on an older guest
+	native := listen("display.sock")
+	check("testonly")
+	native.Close()
+	check("display-unavailable")
+}
 
 func TestDesktopResizeScriptAppliesTheViewersDensity(t *testing.T) {
 	bash, err := exec.LookPath("bash")
