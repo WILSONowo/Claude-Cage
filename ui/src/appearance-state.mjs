@@ -159,6 +159,7 @@ export function themeVariables(theme, variant) {
     "--field-ring": `inset 0 0 0 1px ${page}, 0 0 0 1px ${focus}, 0 0 6px 1px ${glow}`,
     "--field-radius": "6px",
     "--composer-bg": colors.input || (claude && dark ? "#303030" : variables["--input"]),
+    "--composer-action-bg": claude && accent === stock.accent ? "#c56849" : accent,
     "--composer-shadow": `0 4px 20px rgb(0 0 0 / 3.5%), ${edge}`,
     "--composer-shadow-focus": `0 4px 20px rgb(0 0 0 / 7.5%), ${edge}`,
   });

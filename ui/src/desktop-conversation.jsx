@@ -76,7 +76,7 @@ export function HomeComposer({ workspace, hidden, disabled, drafts, onChooseProj
         aria-label={workspace ? `选择项目文件夹，当前为 ${projectName(workspace)}` : "选择项目文件夹"}
         title={workspace || "选择项目文件夹"} disabled={disabled || sending}
         onClick={onChooseProject}>
-        <Folder size={16} /><span>{workspace ? projectName(workspace) : "选择文件夹"}</span><ChevronDown size={13} />
+        <Folder size={14} /><span>{workspace ? projectName(workspace) : "选择文件夹"}</span><ChevronDown size={12} />
       </button>
       <button className="composer-send" title="发送" aria-label="发送" disabled={disabled || sending || !workspace || !text.trim()}>
         {sending ? <LoaderCircle size={17} className="spin" /> : <ArrowUp size={18} />}

@@ -105,10 +105,13 @@
   user-select: none;
 }
 .greeting-mark { pointer-events: none; }
-.welcome .welcome-shortcuts { margin-top: 14px; gap: 7px; flex-wrap: wrap; }
-.welcome .welcome-shortcuts button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+.welcome .welcome-shortcuts { margin-top: 12px; gap: 6px; flex-wrap: wrap; }
+.welcome .welcome-shortcuts > button {
+  min-height: 28px; gap: 5px; padding: 3px 8px; line-height: 1.35;
+  border: 1px solid var(--line); border-radius: 7px; color: var(--ink);
+}
+.welcome .welcome-shortcuts > button svg { flex: none; width: 14px; height: 14px; }
 .welcome .welcome-hint { max-width: 55ch; margin-inline: auto; }
-.welcome .welcome-shortcuts button { border-radius: 7px; }
 .home-composer { padding: 15px 16px 10px; text-align: start; }
 .home-composer, .desktop-conversation .composer-field {
   background: var(--composer-bg); border: 0; border-radius: 12px; box-shadow: var(--composer-shadow);
@@ -127,13 +130,14 @@
   padding: 0; font: inherit; line-height: 1.55; background: transparent; color: var(--ink);
 }
 .composer-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.home-composer, .desktop-conversation { --composer-button-size: 28px; }
+.home-composer, .desktop-conversation { --composer-button-size: 26px; --composer-hit-inset: 0px; }
 @media (any-pointer: coarse) {
-  .home-composer, .desktop-conversation { --composer-button-size: 44px; }
+  .home-composer, .desktop-conversation { --composer-hit-inset: 9px; }
+  .welcome .welcome-shortcuts > button { min-height: 44px; }
 }
 .composer-project {
   display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
-  min-height: var(--composer-button-size); gap: 5px; padding: 0 6px;
+  min-height: calc(var(--composer-button-size) + 2 * var(--composer-hit-inset)); gap: 4px; padding: 0 5px;
   border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: .86rem;
 }
 .composer-project span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -141,16 +145,17 @@
 .composer-project:hover:not(:disabled), .composer-project[aria-expanded="true"] { background: var(--hover); color: var(--strong); }
 .composer-tools .composer-send, .desktop-conversation .composer-action {
   display: grid; place-items: center; flex: none;
-  width: var(--composer-button-size); height: var(--composer-button-size); min-height: 0;
-  padding: 0; border: 0; border-radius: 7px; color: var(--accent-ink); background: var(--accent);
+  box-sizing: content-box; width: var(--composer-button-size); height: var(--composer-button-size); min-height: 0;
+  padding: 0; border: var(--composer-hit-inset) solid transparent; border-radius: calc(6px + var(--composer-hit-inset));
+  color: var(--accent-ink); background: var(--composer-action-bg) padding-box;
 }
 .composer-tools .composer-send:hover:not(:disabled), .desktop-conversation .composer-action:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 90%, var(--ink)); color: var(--accent-ink);
+  background: color-mix(in srgb, var(--composer-action-bg) 90%, var(--ink)) padding-box; border-color: transparent;
 }
-.composer-tools .composer-send svg, .desktop-conversation .composer-action svg { width: 16px; height: 16px; }
+.composer-tools .composer-send svg, .desktop-conversation .composer-action svg { width: 15px; height: 15px; }
 @media (forced-colors: active) {
-  .composer-tools .composer-send, .desktop-conversation .composer-action { border: 1px solid ButtonText; }
-  .composer-tools .composer-send:disabled, .desktop-conversation .composer-action:disabled { border-color: GrayText; }
+  .composer-tools .composer-send, .desktop-conversation .composer-action { outline: 1px solid ButtonText; outline-offset: -1px; }
+  .composer-tools .composer-send:disabled, .desktop-conversation .composer-action:disabled { outline-color: GrayText; }
 }
 .home-composer [role="alert"] { margin-bottom: 0; color: var(--danger); }
 .desktop-conversation {

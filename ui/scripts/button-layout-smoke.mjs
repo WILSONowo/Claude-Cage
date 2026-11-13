@@ -31,6 +31,14 @@ try {
     assert.equal(await greeting.locator("img").evaluate(img => img.draggable), false);
 
     const composer = page.locator(".home-composer");
+    const send = composer.getByRole("button", { name: "发送", exact: true });
+    const sendBounds = await send.boundingBox();
+    assert.equal(sendBounds.width, 26);
+    assert.equal(sendBounds.height, 26);
+    if (font === 14) {
+      const heights = await page.locator(".welcome-shortcuts > button").evaluateAll(items => items.map(el => el.offsetHeight));
+      assert.deepEqual(heights, [28, 28, 28]);
+    }
     const input = composer.getByRole("textbox");
     const start = await composer.boundingBox();
     await input.fill("可选的消息");
@@ -73,6 +81,14 @@ try {
     assert.ok(await trigger.evaluate(node => document.activeElement === node));
     console.log(`PASS ${width}px window / ${font}px text`);
   }
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  const touchSend = page.locator(".composer-tools .composer-send");
+  const touch = await touchSend.evaluate(el => {
+    const style = getComputedStyle(el);
+    return [el.offsetWidth, el.offsetHeight, style.width, style.height, style.backgroundClip];
+  });
+  assert.deepEqual(touch, [44, 44, "26px", "26px", "padding-box"]);
   assert.deepEqual(errors, []);
 } finally {
   await browser.close();
