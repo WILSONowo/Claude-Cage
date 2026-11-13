@@ -15,19 +15,69 @@ function Assert-NoLink([string]$Path){
     $item=Get-Item -LiteralPath $Path -Force
     while($item){if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Manager files cannot traverse links.'};if($item -is [IO.FileInfo]){$item=$item.Directory}else{$item=$item.Parent}}
 }
-function Copy-ManagerExecutable([string]$Source,[string]$Destination){
-    # SCM can report Stopped before the executable's last mapped handle closes.
-    $timer=[Diagnostics.Stopwatch]::StartNew()
-    while($true){
+function Get-FixedManagerService([string]$Name,[string]$Binary){
+    $record=Get-CimInstance Win32_Service -Filter ("Name='"+$Name+"'") -ErrorAction Stop
+    if(!$record -or $record.PathName -cne $Binary -or $record.StartName -notin @('LocalSystem','NT AUTHORITY\SYSTEM')){
+        throw 'The fixed manager service identity changed.'
+    }
+    return $record
+}
+function Stop-FixedManager([string]$Name,[string]$Binary,[string]$Executable){
+    $service=Get-FixedManagerService $Name $Binary
+    if($service.State -eq 'Stopped' -and $service.ProcessId -eq 0){return}
+    if(!$service.ProcessId){throw 'The manager service is changing state. Retry the update.'}
+    $process=$null
+    try{
+        $process=[Diagnostics.Process]::GetProcessById($service.ProcessId)
+        $null=$process.Handle # Pin the process while validating the SCM PID.
+        if(![string]::Equals($process.MainModule.FileName,$Executable,[StringComparison]::OrdinalIgnoreCase)){
+            throw 'The fixed manager process image changed.'
+        }
+        $confirmed=Get-FixedManagerService $Name $Binary
+        if($confirmed.ProcessId -ne $service.ProcessId){throw 'The fixed manager process changed.'}
+        if($confirmed.State -notin @('Stop Pending','Stopped')){Stop-Service -Name $Name -ErrorAction Stop}
         try{
-            [IO.File]::Copy($Source,$Destination,$true)
-            return
+            (Get-Service -Name $Name).WaitForStatus('Stopped',[TimeSpan]::FromSeconds(30))
+            if(!$process.WaitForExit(30000)){throw 'The manager process did not exit within 30 seconds.'}
+        }catch{
+            throw "The manager stop did not finish: $($_.Exception.Message) The executable was preserved. Retry maintenance after the old process exits."
+        }
+    }finally{if($process){$process.Dispose()}}
+}
+function Replace-StoppedManager([string]$Name,[string]$Binary,[string]$Executable,[string]$Source,$Backup){
+    # When SCM already reports PID 0 the old image can still be mapped.
+    # A write handle detects this and prevents any new execution of the old
+    # file through the last service check and the atomic NTFS replacement.
+    $timer=[Diagnostics.Stopwatch]::StartNew()
+    $lease=$null
+    while(!$lease){
+        $service=Get-FixedManagerService $Name $Binary
+        if($service.State -ne 'Stopped' -or $service.ProcessId -ne 0){
+            throw 'The fixed manager service restarted before replacement.'
+        }
+        try{
+            $lease=[IO.File]::Open($Executable,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]'Read,Delete')
         }catch{
             $cause=$_.Exception.GetBaseException()
-            if($cause -isnot [IO.IOException] -or ($cause.HResult -band 0xffff) -notin 32,33 -or $timer.Elapsed.TotalSeconds -ge 10){throw}
+            if($cause -isnot [IO.IOException] -or ($cause.HResult -band 0xffff) -notin 32,33 -or $timer.Elapsed.TotalSeconds -ge 30){throw}
             Start-Sleep -Milliseconds 200
         }
     }
+    try{
+        $service=Get-FixedManagerService $Name $Binary
+        if($service.State -ne 'Stopped' -or $service.ProcessId -ne 0){throw 'The fixed manager service restarted before replacement.'}
+        [IO.File]::Replace($Source,$Executable,$Backup)
+    }finally{$lease.Dispose()}
+}
+function Resume-PreviousManager([string]$Name,[string]$Binary,[string]$Executable,[string]$OriginalHash){
+    $service=Get-FixedManagerService $Name $Binary
+    if($service.State -eq 'Running'){return}
+    if($service.State -ne 'Stopped' -or $service.ProcessId -ne 0 -or
+        (Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash -cne $OriginalHash){
+        throw 'The previous manager could not be safely restarted. Recheck the service state before retrying.'
+    }
+    Start-Service -Name $Name -ErrorAction Stop
+    (Get-Service -Name $Name).WaitForStatus('Running',[TimeSpan]::FromSeconds(30))
 }
 function Protect-ManagerPath([string]$Path,[switch]$Shared){
     $item=Get-Item -LiteralPath $Path -Force
@@ -57,6 +107,10 @@ foreach($path in @($programRoot,$program,$cageDataRoot,$dataRoot,$data)){
     Protect-ManagerPath $path -Shared:($path -in @($programRoot,$cageDataRoot,$dataRoot))
 }
 $prepare=Join-Path $program ('manager-prepare-'+[guid]::NewGuid().ToString('N')+'.exe')
+# Serialize the complete upgrade (including its possible rollback) for this VM.
+$lockPath=Join-Path $program 'maintenance.lock'
+if(Test-Path -LiteralPath $lockPath){Assert-NoLink $lockPath}
+$maintenance=[IO.File]::Open($lockPath,'OpenOrCreate','ReadWrite','None')
 try{
     # Hash and execute the same protected copy. The caller's original payload
     # may change while setup runs; it never becomes an execution authority.
@@ -66,8 +120,7 @@ try{
     $payload=Get-Item -LiteralPath $prepare
 $service=Get-Service -Name $name -ErrorAction SilentlyContinue
 if($service){
-    $existing=Get-CimInstance Win32_Service -Filter ("Name='"+$name+"'")
-    if($existing.PathName -cne $binary -or $existing.StartName -notin @('LocalSystem','NT AUTHORITY\SYSTEM')){throw 'An unrelated service already uses this name.'}
+    $null=Get-FixedManagerService $name $binary
 }
 # Existing installations retain their protected authority and recovery journal.
 # They can repair a stopped helper while its bound data volume is disconnected.
@@ -81,15 +134,20 @@ if(Test-Path -LiteralPath $bindingPath){
     Assert-NoLink $bindingPath;$old=Get-Content -LiteralPath $bindingPath -Raw -Encoding UTF8|ConvertFrom-Json
     foreach($key in @('version','vm_id','host_sid','disk_path','disk_volume','disk_file_id')){if([string]$old.$key -cne [string]$binding.$key){throw 'The existing protected VM/disk binding changed; preserved it.'}}
 }
-$rollback=$null;$cleanupRollback=$false;$wasRunning=$service -and $service.Status -eq 'Running'
+$rollback=$null;$replaced=$false;$stopped=$false;$cleanupRollback=$false;$wasRunning=$service -and $service.Status -eq 'Running'
 try{
     if($service){
         Assert-NoLink $exe
+        if($wasRunning){$originalHash=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash}
         $rollback=Join-Path $program ('manager-rollback-'+[guid]::NewGuid().ToString('N')+'.exe')
-        Copy-Item -LiteralPath $exe -Destination $rollback;Protect-ManagerPath $rollback
-        if($service.Status -ne 'Stopped'){Stop-Service -Name $name;$service.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(30))}
+        Stop-FixedManager $name $binary $exe
+        $stopped=$true
+        Replace-StoppedManager $name $binary $exe $payload.FullName $rollback
+        $replaced=$true
+    }else{
+        [IO.File]::Copy($payload.FullName,$exe,$true)
     }
-    Copy-ManagerExecutable $payload.FullName $exe;Protect-ManagerPath $exe
+    Protect-ManagerPath $exe
     if((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -cne $PayloadSHA256.ToLowerInvariant()){throw 'The copied manager checksum does not match.'}
     if(!(Test-Path -LiteralPath $bindingPath)){[IO.File]::WriteAllText($bindingPath,($binding|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))}
     Protect-ManagerPath $bindingPath
@@ -102,14 +160,19 @@ try{
     Start-Service -Name $name;(Get-Service -Name $name).WaitForStatus('Running',[TimeSpan]::FromSeconds(30))
     $cleanupRollback=$true
 }catch{
-    if($rollback){
-        Stop-Service -Name $name -ErrorAction SilentlyContinue
-        (Get-Service -Name $name).WaitForStatus('Stopped',[TimeSpan]::FromSeconds(30))
-        Copy-ManagerExecutable $rollback $exe;Protect-ManagerPath $exe
-        if($wasRunning){Start-Service -Name $name}
+    if($replaced){
+        Stop-FixedManager $name $binary $exe
+        Replace-StoppedManager $name $binary $exe $rollback ([NullString]::Value)
+        Protect-ManagerPath $exe
+        if($wasRunning){Resume-PreviousManager $name $binary $exe $originalHash}
         $cleanupRollback=$true
+    }elseif($stopped -and $wasRunning){
+        Resume-PreviousManager $name $binary $exe $originalHash
     }
     throw
 }finally{if($rollback -and $cleanupRollback -and (Test-Path -LiteralPath $rollback)){Remove-Item -LiteralPath $rollback}}
 [pscustomobject]@{Installed=$true;VMId=$VMId.ToString('D');HostSID=$HostSID;LocalPipeOnly=$true;VMDataPreserved=$true;HostGroupsUnchanged=$true;ServiceRunning=$true}
-}finally{if(Test-Path -LiteralPath $prepare){Remove-Item -LiteralPath $prepare}}
+}finally{
+    try{if(Test-Path -LiteralPath $prepare){Remove-Item -LiteralPath $prepare}}
+    finally{$maintenance.Dispose()}
+}

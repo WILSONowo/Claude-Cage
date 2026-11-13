@@ -49,7 +49,7 @@ function Run-Script([string]$Path,[hashtable]$Parameters) {
     $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
     $start=[Diagnostics.ProcessStartInfo]::new()
     $start.FileName=$shell
-    $start.Arguments='-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand '+$encoded
+    $start.Arguments='-NoLogo -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -EncodedCommand '+$encoded
     $start.UseShellExecute=$false
     $start.RedirectStandardOutput=$true
     $start.RedirectStandardError=$true
