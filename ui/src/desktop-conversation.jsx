@@ -1,34 +1,44 @@
-import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Folder, LoaderCircle } from "lucide-react";
+import React, { lazy, Suspense, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { ArrowUp, ChevronDown, Folder, LoaderCircle } from "lucide-react";
 import { api } from "./api";
+import { projectName } from "./workspace-state.mjs";
 
 const Chat = lazy(() => import("./mobile-cli/chat"));
 const ignoreSnapshot = () => {};
 
-export function HomeComposer({ workspace, project, hidden, disabled, drafts, onCreated }) {
+export function HomeComposer({ workspace, hidden, disabled, drafts, onChooseProject, onCreated }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const pending = useRef(null);
-  const active = useRef(false);
+  const pending = useRef(new Map());
   const controller = useRef(null);
-  useEffect(() => () => controller.current?.abort(), []);
+  useLayoutEffect(() => {
+    setError("");
+    setSending(false);
+    return () => {
+      controller.current?.abort();
+      controller.current = null;
+    };
+  }, [workspace]);
 
   const submit = async event => {
     event.preventDefault();
-    if (active.current || disabled || !workspace || !text.trim()) return;
-    active.current = true;
+    if (controller.current || disabled || !workspace || !text.trim()) return;
     setSending(true);
     setError("");
     const abort = new AbortController();
     controller.current = abort;
     const options = { signal: abort.signal };
-    pending.current ||= { id: crypto.randomUUID(), request_id: crypto.randomUUID() };
-    const { id, request_id } = pending.current;
+    // A lost response may already have created the session or accepted the message.
+    const body = text.trim();
+    const previous = pending.current.get(workspace);
+    const id = previous?.id ?? crypto.randomUUID();
+    const request_id = previous?.body === body ? previous.request_id : crypto.randomUUID();
+    pending.current.set(workspace, { id, body, request_id });
     try {
       const session = await api("/mobile/cli/sessions", { id, workspace }, undefined, {}, options);
       if (abort.signal.aborted) return;
-      const message = { text: text.trim(), request_id };
+      const message = { text: body, request_id };
       if (session.can_send === false && session.terminal_available) {
         drafts.set(id, { text, pending: message });
         onCreated(id);
@@ -46,20 +56,28 @@ export function HomeComposer({ workspace, project, hidden, disabled, drafts, onC
     } catch (cause) {
       if (!abort.signal.aborted) setError(cause.message);
     } finally {
-      active.current = false;
-      if (!abort.signal.aborted) setSending(false);
+      if (controller.current === abort) {
+        controller.current = null;
+        setSending(false);
+      }
     }
   };
   return <form hidden={hidden} className="home-composer" onSubmit={submit}>
     <textarea aria-label="消息" placeholder="给 Claude Code 发消息…" rows={2} value={text}
-      disabled={disabled || sending} onChange={event => { setText(event.target.value); if (pending.current) pending.current.request_id = crypto.randomUUID(); }}
+      disabled={disabled || sending} onChange={event => setText(event.target.value)}
       onKeyDown={event => {
         if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
           event.preventDefault();
           event.currentTarget.form.requestSubmit();
         }
       }} />
-    <div className="composer-tools"><span title={workspace}><Folder size={16} /><span>{project}</span></span>
+    <div className="composer-tools">
+      <button type="button" className="composer-project" aria-haspopup="dialog"
+        aria-label={workspace ? `选择项目文件夹，当前为 ${projectName(workspace)}` : "选择项目文件夹"}
+        title={workspace || "选择项目文件夹"} disabled={disabled || sending}
+        onClick={onChooseProject}>
+        <Folder size={16} /><span>{workspace ? projectName(workspace) : "选择文件夹"}</span><ChevronDown size={13} />
+      </button>
       <button className="composer-send" title="发送" aria-label="发送" disabled={disabled || sending || !workspace || !text.trim()}>
         {sending ? <LoaderCircle size={17} className="spin" /> : <ArrowUp size={18} />}
       </button>

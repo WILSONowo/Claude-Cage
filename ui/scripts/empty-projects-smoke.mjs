@@ -18,6 +18,12 @@ try {
     });
     try {
       assert.equal(await page.getByText("默认工作区", { exact: true }).count(), 0);
+      const composer = page.locator(".home-composer");
+      await composer.getByRole("textbox").fill("从空项目列表开始");
+      assert.equal(await composer.getByRole("button", { name: "发送", exact: true }).isDisabled(), true);
+      await composer.getByRole("button", { name: "选择项目文件夹", exact: true }).click();
+      await page.getByRole("dialog", { name: "选择工作项目" }).getByRole("button", { name: "取消" }).click();
+      assert.equal(await composer.getByRole("textbox").inputValue(), "从空项目列表开始");
       await page.getByRole("button", { name: "打开项目", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "打开项目", exact: true });
       assert.equal(await dialog.getByRole("radio").count(), 0);
@@ -25,6 +31,8 @@ try {
       await dialog.getByRole("button", { name: "打开项目", exact: true }).click();
       await dialog.waitFor({ state: "detached" });
       assert.deepEqual(state.status.projects, [state.chosenFolder]);
+      assert.equal(await composer.getByRole("textbox").inputValue(), "从空项目列表开始");
+      assert.equal(await composer.getByRole("button", { name: "发送", exact: true }).isEnabled(), true);
       await page.getByRole("region", { name: "项目 design-lab", exact: true }).waitFor();
       await page.reload();
       await page.getByRole("region", { name: "项目 design-lab", exact: true }).waitFor();

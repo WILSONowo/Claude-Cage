@@ -12,6 +12,7 @@ import { getClientContext, isRemoteClient } from "./client-context.mjs";
 export function ProjectDialog({
   status,
   initialPath = "",
+  selectedWorkspace,
   activate = true,
   onClose,
   onOpened,
@@ -20,7 +21,7 @@ export function ProjectDialog({
 }) {
   const projects = status.projects || [];
   const [adding, setAdding] = useState(Boolean(initialPath) || projects.length === 0);
-  const [path, setPath] = useState(initialPath || status.workspace || projects[0] || "");
+  const [path, setPath] = useState(initialPath || selectedWorkspace || status.workspace || projects[0] || "");
   const [error, setError] = useState("");
   const [recovery, setRecovery] = useState("");
   const [pending, setPending] = useState(null);

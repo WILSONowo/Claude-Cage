@@ -137,6 +137,7 @@ function App() {
     [savedTabs, setSavedTabs] = useState(readLocal(clientStorageKey("cage-tab-layout"), {})),
     [privateTabMetadata, setPrivateTabMetadata] = useState({}),
     [projectDialog, setProjectDialog] = useState(null),
+    [conversationWorkspace, setConversationWorkspace] = useState(""),
     [rename, setRename] = useState(null),
     [toast, setToast] = useState(""),
     [fatal, setFatal] = useState(""),
@@ -351,7 +352,10 @@ function App() {
     if (tab?.kind === "browser-settings") setLayout({ active: id });
     else setActive(id);
     if (!tab?.incognito) localStorage.setItem(clientStorageKey("cage-active"), id);
-    if (tab?.kind === "terminal") setSelectedProject(tab.workspace);
+    if (tab?.kind === "terminal") {
+      setSelectedProject(tab.workspace);
+      setConversationWorkspace("");
+    }
     if (tab && tab.kind !== "terminal") {
       try {
         await api("/browser/activate", { id });
@@ -477,6 +481,7 @@ function App() {
     };
     setTabs((list) => [...list.filter((t) => t.id !== tab.id && (!tab.cli_session_id || t.cli_session_id !== tab.cli_session_id)), tab]);
     setSelectedProject(result.workspace);
+    setConversationWorkspace("");
     setDesktopOpen(false);
     setHome(false);
     setActive(tab.id);
@@ -1204,6 +1209,7 @@ function App() {
     await refreshSettings();
     await refreshStatus.current?.();
     setSelectedProject(path);
+    setConversationWorkspace("");
     setProjectDialog(null);
     setHome(true);
   };
@@ -1431,7 +1437,10 @@ function App() {
             onReorder={reorder}
             onSessionReorder={(path, order) => changeTabMetadata({ ...metadata,
               sessionOrder: { ...metadata.sessionOrder, [path]: order } })}
-            onProjectSelect={setSelectedProject}
+            onProjectSelect={path => {
+              setConversationWorkspace("");
+              setSelectedProject(path);
+            }}
             onNewTerminal={newTerminal}
             terminalMenuAt={terminalMenuAt}
             onBrowser={openBrowser}
@@ -1609,8 +1618,9 @@ function App() {
                       )}
                     </ol>
                   )}
-                  {running && status.ready && contentWorkspace && <HomeComposer key={contentWorkspace} workspace={contentWorkspace}
-                    project={project} hidden={busy} disabled={busy || Boolean(connectionError)} drafts={conversationDrafts}
+                  {running && status.ready && <HomeComposer workspace={conversationWorkspace || contentWorkspace}
+                    hidden={busy} disabled={busy || Boolean(connectionError)} drafts={conversationDrafts}
+                    onChooseProject={() => setProjectDialog({ forConversation: true })}
                     onCreated={id => { sessionsChanged(); setConversation(id); }} />}
                   {!busy && (!running || !status.ready) && <div className="start-project-box">
                     <div className="environment-summary">
@@ -1828,13 +1838,20 @@ function App() {
           current={settings}
           status={status}
           initialPath={projectDialog.path}
+          selectedWorkspace={projectDialog.forConversation ? conversationWorkspace || contentWorkspace : undefined}
+          activate={!projectDialog.forConversation}
           onClose={() => setProjectDialog(null)}
           onSettings={() => { setProjectDialog(null); openSettings("project"); }}
-          onOpened={openedProject}
+          onOpened={projectDialog.forConversation ? path => {
+            setConversationWorkspace(path);
+            setProjectDialog(null);
+            void refreshStatus.current?.();
+          } : openedProject}
           onRemoved={async (removed, workspace) => {
             await refreshSettings();
             await refreshStatus.current?.();
             if (selectedProject === removed) setSelectedProject(workspace);
+            if (conversationWorkspace === removed) setConversationWorkspace("");
           }}
         />
       )}

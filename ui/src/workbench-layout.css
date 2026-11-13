@@ -127,10 +127,30 @@
   padding: 0; font: inherit; line-height: 1.55; background: transparent; color: var(--ink);
 }
 .composer-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.composer-tools > span { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: .86rem; }
+.home-composer, .desktop-conversation { --composer-button-size: 28px; }
+@media (any-pointer: coarse) {
+  .home-composer, .desktop-conversation { --composer-button-size: 44px; }
+}
+.composer-project {
+  display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
+  min-height: var(--composer-button-size); gap: 5px; padding: 0 6px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: .86rem;
+}
+.composer-project span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.composer-project svg { flex: none; }
+.composer-project:hover:not(:disabled), .composer-project[aria-expanded="true"] { background: var(--hover); color: var(--strong); }
 .composer-tools .composer-send, .desktop-conversation .composer-action {
-  width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9px;
-  color: var(--accent-ink); background: var(--accent);
+  display: grid; place-items: center; flex: none;
+  width: var(--composer-button-size); height: var(--composer-button-size); min-height: 0;
+  padding: 0; border: 0; border-radius: 7px; color: var(--accent-ink); background: var(--accent);
+}
+.composer-tools .composer-send:hover:not(:disabled), .desktop-conversation .composer-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 90%, var(--ink)); color: var(--accent-ink);
+}
+.composer-tools .composer-send svg, .desktop-conversation .composer-action svg { width: 16px; height: 16px; }
+@media (forced-colors: active) {
+  .composer-tools .composer-send, .desktop-conversation .composer-action { border: 1px solid ButtonText; }
+  .composer-tools .composer-send:disabled, .desktop-conversation .composer-action:disabled { border-color: GrayText; }
 }
 .home-composer [role="alert"] { margin-bottom: 0; color: var(--danger); }
 .desktop-conversation {
@@ -228,10 +248,7 @@
 .remote-relay-settings > .secret-field { margin-block-start: 24px; }
 .settings-page .settings-footer { padding-inline: max(var(--page-gutter), calc((100% - 740px) / 2)); gap: .5rem .75rem; }
 .settings-footer .save-note { min-width: 0; line-height: 1.45; }
-.settings-sidebar nav button svg, .settings-sidebar .back-to-workspace svg,
-.composer-tools > span svg, .composer-tools .composer-send { flex-shrink: 0; }
-.composer-tools > span { min-width: 0; }
-.composer-tools > span > span { overflow-wrap: anywhere; line-height: 1.4; }
+.settings-sidebar nav button svg, .settings-sidebar .back-to-workspace svg { flex-shrink: 0; }
 .welcome .welcome-content { min-width: 0; }
 .workspace-modes button:first-child { flex: 1 1 auto; }
 .workspace-modes button:last-child { flex: 1 0 auto; }
