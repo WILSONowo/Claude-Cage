@@ -106,6 +106,9 @@ func newAudioCompressionStream(t *testing.T, compression bool) *audioCompression
 	if !compression && extensions != "" {
 		t.Fatalf("legacy client received unsolicited extension %q", extensions)
 	}
+	if compression && (!strings.Contains(extensions, "server_no_context_takeover") || !strings.Contains(extensions, "client_no_context_takeover")) {
+		t.Fatalf("audio compression retained context between messages: %q", extensions)
+	}
 	_ = ws.SetReadDeadline(time.Now().Add(3 * time.Second))
 	kind, format, err := ws.ReadMessage()
 	wantFormat := []byte("{\"format\":\"s16le\",\"sample_rate\":48000,\"channels\":2}\n")
@@ -287,19 +290,129 @@ func TestAudioCompressionClosesOnCancellationAndSourceEOF(t *testing.T) {
 }
 
 func TestAudioCompressionRejectsInboundDataWithoutReadingPayload(t *testing.T) {
-	for _, opcode := range []byte{websocket.TextMessage, websocket.BinaryMessage} {
-		t.Run(fmt.Sprintf("opcode=%d", opcode), func(t *testing.T) {
-			stream := newAudioCompressionStream(t, true)
-			// Valid negotiated compressed data-frame header, masked as required
-			// for a client, advertising 256 bytes (below the 1024-byte read limit).
-			// Deliberately withhold the body: the output-only endpoint must close
-			// on the header, without waiting for or expanding compressed data.
-			header := []byte{0xc0 | opcode, 0xfe, 0x01, 0x00, 0x12, 0x34, 0x56, 0x78}
-			_ = stream.ws.UnderlyingConn().SetWriteDeadline(time.Now().Add(3 * time.Second))
-			if _, err := stream.ws.UnderlyingConn().Write(header); err != nil {
-				t.Fatal("write compressed data header:", err)
+	for _, compression := range []bool{false, true} {
+		for _, opcode := range []byte{websocket.TextMessage, websocket.BinaryMessage} {
+			for _, final := range []bool{false, true} {
+				t.Run(fmt.Sprintf("compression=%v/opcode=%d/final=%v", compression, opcode, final), func(t *testing.T) {
+					stream := newAudioCompressionStream(t, compression)
+					// Valid data-frame header, masked as required for a client,
+					// advertising 256 bytes (below the 1024-byte read limit).
+					// Deliberately withhold the body: close on the header without
+					// waiting for payload, more fragments, or decompression.
+					header := []byte{opcode, 0xfe, 0x01, 0x00, 0x12, 0x34, 0x56, 0x78}
+					if compression {
+						header[0] |= 0x40
+					}
+					if final {
+						header[0] |= 0x80
+					}
+					_ = stream.ws.UnderlyingConn().SetWriteDeadline(time.Now().Add(3 * time.Second))
+					if _, err := stream.ws.UnderlyingConn().Write(header); err != nil {
+						t.Fatal("write output-only data header:", err)
+					}
+					stream.expectClosed(t)
+				})
 			}
-			stream.expectClosed(t)
+		}
+	}
+}
+
+func TestAudioCompressionRejectsMalformedClientFrames(t *testing.T) {
+	for _, compression := range []bool{false, true} {
+		for _, test := range []struct {
+			name  string
+			frame []byte
+		}{
+			{"unmasked data", []byte{0x82, 0x01, 0x00}},
+			{"reserved bit", []byte{0xa2, 0x80, 0, 0, 0, 0}},
+			{"reserved opcode", []byte{0x83, 0x80, 0, 0, 0, 0}},
+			{"fragmented ping", []byte{0x09, 0x80, 0, 0, 0, 0}},
+			{"orphan continuation", []byte{0x80, 0x80, 0, 0, 0, 0}},
+			// The oversized body is withheld: the 1024-byte wire limit must
+			// reject its header without waiting for any client payload.
+			{"oversized data", []byte{0x82, 0xfe, 0x04, 0x01, 0, 0, 0, 0}},
+			// With compression, this invalid DEFLATE body must never be read.
+			// Without compression, RSV1 itself violates the negotiated format.
+			{"invalid compressed data", []byte{0xc2, 0x81, 0, 0, 0, 0, 0xff}},
+		} {
+			t.Run(fmt.Sprintf("compression=%v/%s", compression, test.name), func(t *testing.T) {
+				stream := newAudioCompressionStream(t, compression)
+				_ = stream.ws.UnderlyingConn().SetWriteDeadline(time.Now().Add(3 * time.Second))
+				if _, err := stream.ws.UnderlyingConn().Write(test.frame); err != nil {
+					t.Fatal("write malformed client frame:", err)
+				}
+				stream.expectClosed(t)
+			})
+		}
+	}
+}
+
+func TestAudioCompressionPreservesAccountBoundary(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		auth   bool
+		locked bool
+		status int
+	}{
+		{"no session", false, false, http.StatusUnauthorized},
+		{"locked account", true, true, http.StatusLocked},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := testServer(t)
+			if test.locked {
+				s.account.lock()
+			}
+			r := httptest.NewRequest(http.MethodGet, s.origin+"/api/audio", nil)
+			r.Header.Set("Origin", s.origin)
+			r.Header.Set("Upgrade", "websocket")
+			r.Header.Set("Connection", "Upgrade")
+			r.Header.Set("Sec-WebSocket-Version", "13")
+			r.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+			r.Header.Set("Sec-WebSocket-Extensions", "permessage-deflate; server_no_context_takeover; client_no_context_takeover")
+			if test.auth {
+				r.AddCookie(&http.Cookie{Name: s.cookieName(), Value: s.session})
+			}
+			w := httptest.NewRecorder()
+			s.handler().ServeHTTP(w, r)
+			if w.Code != test.status || w.Header().Get("Sec-WebSocket-Extensions") != "" {
+				t.Fatalf("audio compression bypassed account boundary: status=%d extensions=%q", w.Code, w.Header().Get("Sec-WebSocket-Extensions"))
+			}
+		})
+	}
+}
+
+func TestAudioCompressionPreservesOriginBoundary(t *testing.T) {
+	for _, origin := range []string{"", "https://other.example"} {
+		t.Run(fmt.Sprintf("origin=%q", origin), func(t *testing.T) {
+			s := &Server{}
+			reader, writer := io.Pipe()
+			defer writer.Close()
+			source := &audioClosingReader{PipeReader: reader, closed: make(chan struct{})}
+			defer source.Close()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				s.streamAudio(w, r, source)
+			}))
+			defer server.Close()
+			s.origin = server.URL
+			dialer := websocket.Dialer{EnableCompression: true, HandshakeTimeout: 3 * time.Second}
+			ws, response, err := dialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), http.Header{"Origin": {origin}})
+			if ws != nil {
+				_ = ws.Close()
+			}
+			if response != nil {
+				defer response.Body.Close()
+			}
+			if err == nil || response == nil || response.StatusCode != http.StatusForbidden {
+				t.Fatalf("untrusted origin negotiated audio: response=%v err=%v", response, err)
+			}
+			if extensions := response.Header.Get("Sec-WebSocket-Extensions"); extensions != "" {
+				t.Fatalf("untrusted origin negotiated compression: %q", extensions)
+			}
+			select {
+			case <-source.closed:
+			case <-time.After(3 * time.Second):
+				t.Fatal("rejected origin retained audio source")
+			}
 		})
 	}
 }
