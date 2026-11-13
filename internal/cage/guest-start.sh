@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-for app in code-server chromium X0tigervnc Xtigervnc openbox websockify; do
+# Ubuntu installs or migrates its workbench launcher in the service setup.
+if ! cage_is_ubuntu && [[ ! -x /usr/bin/chromium ]]; then
+  echo 'Missing chromium; run cage setup first.' >&2
+  exit 1
+fi
+for app in code-server X0tigervnc Xtigervnc openbox websockify; do
   command -v "$app" >/dev/null || { echo "Missing $app; run cage setup first." >&2; exit 1; }
 done
 mkdir -p "$HOME/.config/claude-cage"

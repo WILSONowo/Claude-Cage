@@ -10,7 +10,7 @@ import (
 )
 
 func TestBrowserLanguagePackageMigration(t *testing.T) {
-	start := strings.Index(guestStart, "if ! cage_is_ubuntu")
+	start := strings.Index(guestStart, "if ! cage_is_ubuntu && ! dpkg-query")
 	if start < 0 {
 		t.Fatal("existing guests have no language package migration")
 	}

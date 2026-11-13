@@ -1,3 +1,5 @@
+import { lines } from "./browser-protocol.mjs";
+export { lines };
 import { createTailnetClient } from "./tailnet-client.mjs";
 // The GUI-session broker owns this process. Playwright uses inherited DevTools
 // pipes; neither the controller nor DevTools opens a guest network listener.
@@ -19,7 +21,7 @@ const chunkSize = 64 << 10;
 const fileLimit = 2 * 1024 * 1024 * 1024;
 const imageLimit = 20 << 20;
 const textLimit = 2 << 20;
-const lineLimit = 128 << 10;
+
 function jpegFrameSize(value) {
   if (typeof value !== "string" || value.length > 12 << 20) return null;
   const bytes = Buffer.from(value.slice(0, 128 << 10), "base64");
@@ -1482,19 +1484,6 @@ export function createNativeBrowserService(options = {}) {
   }, releaseInput, close: async () => { tailnet.close(); clearInterval(expiry); await close(); } };
 }
 
-export async function* lines(input, limit = lineLimit) {
-  let buffer = Buffer.alloc(0);
-  for await (const chunk of input) {
-    buffer = Buffer.concat([buffer, chunk]);
-    let end;
-    while ((end = buffer.indexOf(10)) >= 0) {
-      if (end > limit) throw failure("message_limit", "浏览器请求过大");
-      yield buffer.subarray(0, end).toString("utf8"); buffer = buffer.subarray(end + 1);
-    }
-    if (buffer.length > limit) throw failure("message_limit", "浏览器请求过大");
-  }
-  if (buffer.length) throw failure("message_invalid", "浏览器请求没有完整收到");
-}
 export const createWindowsBrowserService = createNativeBrowserService;
 
 export async function runWindowsBrowser(input = process.stdin, output = process.stdout, options) {

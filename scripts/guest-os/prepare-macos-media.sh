@@ -67,7 +67,6 @@ download() {
     mv "$temporary" "$target"
 }
 download editor.tgz https://github.com/coder/code-server/releases/download/v4.145.0/code-server-4.145.0-macos-arm64.tar.gz a79774d8d34eed785c1f831bc0125f7534bc21a0039bef8e8a2aa32463f9421a https://api.github.com/repos/coder/code-server/releases/assets/711206948
-download playwright.tgz https://registry.npmjs.org/playwright-core/-/playwright-core-1.65.0.tgz 315247c55a793ca760b2f05bdcee0e6a53fd65b1f22d1d3de8323c8c9395add3
 download node.tgz https://nodejs.org/dist/v24.22.2/node-v24.22.2-darwin-arm64.tar.gz aa9549349e47dffaa42dcf95d6e06ade8c4bdafc980979883b88767670df385a
 if [[ ${CAGE_REFRESH_TOOLS:-} != 1 ]]; then
     download macfuse.dmg https://github.com/macfuse/macfuse/releases/download/macfuse-5.5.0/macfuse-5.5.0.dmg 92c21ef2db4199bcf5bddc8e6efb57b23ecb9715f74ab38cba2c77ab226d3830

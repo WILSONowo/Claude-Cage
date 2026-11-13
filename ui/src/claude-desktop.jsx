@@ -31,7 +31,7 @@ export function useDesktopZoom(automatic = false) {
   return [zoom, setZoom];
 }
 
-export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, onStop, onActivate, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
+export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zoom, setZoom, onConfirm, onStop, onActivate, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem("cage-desktop-toolbar-hidden") === "true"; }
     catch { return false; }
@@ -60,7 +60,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
             <PanelLeftOpen size={17} />
           </button>
         )}
-        {sidebarCollapsed && <><Monitor size={18} /><strong>Claude Desktop</strong></>}
+        {sidebarCollapsed && <><Monitor size={18} /><strong>{title}</strong></>}
         <span className="desktop-version">
           {desktop?.version ? `v${desktop.version}` : platform}
         </span>
@@ -90,7 +90,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
             恢复操作
           </button>
         )}
-        {desktop?.running && (
+        {desktop?.running && onStop && (
           <button
             className="quiet-button"
             disabled={busy}
@@ -111,7 +111,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
         )}
         <button
           className="icon-button"
-          aria-label="刷新 Claude Desktop 状态"
+          aria-label={"刷新 " + title + " 状态"}
           disabled={busy}
           onClick={refresh}
         >

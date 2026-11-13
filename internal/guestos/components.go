@@ -45,7 +45,7 @@ func RequiredNativeComponents(kit, system string) (NativeComponentManifest, erro
 	}
 	essential := []string{"payload/Cage.GuestClipboard.exe", "payload/cage-guest-files.exe", "payload/cage-guest-boot.exe", "payload/Cage.HyperVManager.exe", "payload/windows-browser.mjs"}
 	if system == MacOS {
-		essential = []string{"Cage Guest Window.app/Contents/MacOS/CageGuestWindow", "Cage Guest Clipboard.app/Contents/MacOS/CageGuestClipboard", "project/cage-sshfs", "project/cage-macos-terminal", "native-browser/macos-native-browser.mjs", "native-browser/macos-browser-service.mjs", "register-macos-browser.sh", "macos-cli.py", "cli_channel.py"}
+		essential = []string{"Cage Guest Window.app/Contents/MacOS/CageGuestWindow", "Cage Guest Clipboard.app/Contents/MacOS/CageGuestClipboard", "project/cage-sshfs", "project/cage-macos-terminal", "native-browser/macos-native-browser.mjs", "native-browser/macos-browser-service.mjs", "native-browser/macos-browser-window.mjs", "register-macos-browser.sh", "macos-cli.py", "cli_channel.py"}
 	}
 	for _, relative := range essential {
 		info, err := os.Lstat(filepath.Join(kit, filepath.FromSlash(relative)))

@@ -122,11 +122,11 @@ var browserSettingsPage string
 var splitControl string
 
 func splitExtensionScript() string {
-	return "sudo install -d -m 0755 /usr/local/lib/cage-split\n" +
-		"sudo tee /usr/local/lib/cage-split/manifest.json >/dev/null <<'CAGE_MANIFEST'\n" + splitManifest + "\nCAGE_MANIFEST\n" +
-		"sudo tee /usr/local/lib/cage-split/control.html >/dev/null <<'CAGE_HTML'\n" + splitPage + "\nCAGE_HTML\n" +
-		"sudo tee /usr/local/lib/cage-split/settings.html >/dev/null <<'CAGE_SETTINGS_HTML'\n" + browserSettingsPage + "\nCAGE_SETTINGS_HTML\n" +
-		"sudo tee /usr/local/lib/cage-split/control.js >/dev/null <<'CAGE_CONTROL'\n" + splitControl + "\nCAGE_CONTROL\n"
+	return "split_directory=/usr/local/lib/cage-split\nif cage_is_ubuntu; then split_directory=/var/snap/chromium/common/workbench-extension; fi\nsudo install -d -m 0755 \"$split_directory\"\n" +
+		"sudo tee \"$split_directory\"/manifest.json >/dev/null <<'CAGE_MANIFEST'\n" + splitManifest + "\nCAGE_MANIFEST\n" +
+		"sudo tee \"$split_directory\"/control.html >/dev/null <<'CAGE_HTML'\n" + splitPage + "\nCAGE_HTML\n" +
+		"sudo tee \"$split_directory\"/settings.html >/dev/null <<'CAGE_SETTINGS_HTML'\n" + browserSettingsPage + "\nCAGE_SETTINGS_HTML\n" +
+		"sudo tee \"$split_directory\"/control.js >/dev/null <<'CAGE_CONTROL'\n" + splitControl + "\nCAGE_CONTROL\n"
 }
 
 func browserClipboardScript() string {
@@ -289,7 +289,7 @@ CAGE_CHROMIUM_DOWNLOAD
 }
 
 func RequiredToolVersions() map[string]string {
-	result := map[string]string{"chromium": "Debian security repository / Ubuntu Chrome for Testing"}
+	result := map[string]string{"chromium": "Debian security repository / Ubuntu Chromium latest/stable"}
 	for _, line := range strings.Split(toolVersions, "\n") {
 		key, value, ok := strings.Cut(line, "=")
 		if !ok {

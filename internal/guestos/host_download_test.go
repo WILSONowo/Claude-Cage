@@ -90,7 +90,7 @@ plutil() {
 	if strings.Count(string(requests), " macos-cli-claude ") != 1 {
 		t.Fatal("completed CLI package was fetched again on retry")
 	}
-	for _, name := range []string{"editor.tgz", "playwright.tgz", "node.tgz", "chrome.dmg", "macos-cli-claude", "macos-cli-uv.tar.gz", "macos-cli-python.tar.gz", "macos-cli-git.tar.gz"} {
+	for _, name := range []string{"editor.tgz", "node.tgz", "chrome.dmg", "macos-cli-claude", "macos-cli-uv.tar.gz", "macos-cli-python.tar.gz", "macos-cli-git.tar.gz"} {
 		if !strings.Contains(string(requests), " "+name+" ") || !strings.Contains(string(output), "CAGE_HOST_BYTES "+name+" 7 7") {
 			t.Fatalf("component bypassed host download helper: %s\n%s", name, requests)
 		}
