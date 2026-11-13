@@ -91,6 +91,7 @@
   letter-spacing: -.045em; text-wrap: balance; color: var(--strong);
 }
 .welcome .welcome-subtitle { line-height: 1.65; margin: 10px 0 22px; color: var(--muted); }
+.home-job-spinner { margin-inline-end: .5em; vertical-align: -.15em; }
 .welcome .onboarding-steps { flex-wrap: wrap; justify-content: center; margin: 0 0 16px; gap: 8px 18px; }
 .welcome .start-project-box {
   background: var(--input); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--surface-shadow);

@@ -5,7 +5,7 @@ import { api } from "./api";
 const Chat = lazy(() => import("./mobile-cli/chat"));
 const ignoreSnapshot = () => {};
 
-export function HomeComposer({ workspace, project, disabled, drafts, onCreated }) {
+export function HomeComposer({ workspace, project, hidden, disabled, drafts, onCreated }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +50,7 @@ export function HomeComposer({ workspace, project, disabled, drafts, onCreated }
       if (!abort.signal.aborted) setSending(false);
     }
   };
-  return <form className="home-composer" onSubmit={submit}>
+  return <form hidden={hidden} className="home-composer" onSubmit={submit}>
     <textarea aria-label="消息" placeholder="给 Claude Code 发消息…" rows={2} value={text}
       disabled={disabled || sending} onChange={event => { setText(event.target.value); if (pending.current) pending.current.request_id = crypto.randomUUID(); }}
       onKeyDown={event => {

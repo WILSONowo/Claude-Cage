@@ -73,6 +73,17 @@ function greeting(name) {
   return name ? phrase + "，" + name : phrase;
 }
 
+const jobHeadings = {
+  start: "正在启动环境", stop: "正在停止环境", logout: "正在退出环境",
+  safety: "正在检查网络", proxy: "正在更新代理", project: "正在打开项目",
+  settings: "正在应用设置", resources: "正在调整环境资源", storage: "正在调整环境存储",
+  restore: "正在恢复配置", "storage-recovery": "正在恢复环境存储",
+  "guest-install": "正在安装客机", "environment-update": "正在更新环境组件",
+  "environment-tools": "正在更新环境工具", "tailscale-install": "正在安装 Tailscale",
+  "claude-desktop-install": "正在安装 Claude Desktop", "claude-desktop-start": "正在启动 Claude Desktop",
+  "claude-desktop-stop": "正在关闭 Claude Desktop", "claude-desktop-update": "正在更新 Claude Desktop",
+};
+
 function App() {
   const { account } = useAccount();
   const macGuest = account?.guest_system === "macos";
@@ -302,23 +313,7 @@ function App() {
   const network = connectionError
     ? { mode: "unknown", label: "外网状态待确认" }
     : networkState(status);
-  const runtimeLabel = connectionError
-    ? "连接中断"
-    : busy
-      ? network.mode === "checking" || status?.job?.kind === "safety"
-        ? "检查中"
-        : status?.job?.kind === "stop"
-          ? "停止中"
-          : running
-            ? "应用中"
-            : "启动中"
-      : status?.ready
-        ? network.mode === "open"
-          ? "运行中"
-          : "离线可用"
-        : running
-          ? status?.environment_update_required ? "环境待更新" : "浏览器待恢复"
-          : "已停止";
+  const homeProgress = showHome && !conversation && !storageRecovery && !setupProgress && busy;
   const notify = (text) => setToast(text);
   const clipboardConnection = getClientContext().connection_id;
   useEffect(() => {
@@ -1574,13 +1569,7 @@ function App() {
                   </> : <>
                   <h1 className="welcome-heading" aria-label={running && status.ready && !busy ? "新建对话" : undefined}>
                     {busy
-                      ? status.job.kind === "stop"
-                        ? "正在停止 Cage 环境"
-                        : status.job.kind === "storage"
-                          ? "正在调整环境存储"
-                        : status.job.kind === "project"
-                          ? "正在打开项目"
-                          : "正在准备 Cage 环境"
+                      ? jobHeadings[status.job.kind] || "正在处理环境任务"
                       : running
                         ? !status.ready
                           ? "Cage 环境正在连接"
@@ -1589,9 +1578,10 @@ function App() {
                           ? "配置工作环境"
                           : "开始使用 Cage"}
                   </h1>
-                  {(!running || !status.ready || busy || network.mode !== "open") && <p className="welcome-subtitle">
+                  {(!running || !status.ready || busy || network.mode !== "open") && <div className="welcome-subtitle" role={busy ? "status" : undefined}>
+                    {busy && <LoaderCircle className="spin home-job-spinner" size={16} aria-hidden="true" />}
                     <SafetyMessage message={busy
-                      ? status.job.message
+                      ? connectionError || status.job.message || "请稍候…"
                       : running
                         ? !status.ready
                           ? status.environment_update_error || "浏览器尚未连接。你可以恢复连接，或继续使用终端。"
@@ -1599,8 +1589,8 @@ function App() {
                         : setupProxy
                           ? "先连接代理，再启动工作环境。"
                           : "启动环境后可打开项目和会话。"} />
-                  </p>}
-                  {!running && !nativeGuestLabel && (
+                  </div>}
+                  {!busy && !running && !nativeGuestLabel && (
                     <ol className="onboarding-steps" aria-label="开始使用 Cage">
                       {["配置代理", "启动环境", "开始工作"].map(
                         (label, index) => (
@@ -1620,9 +1610,9 @@ function App() {
                     </ol>
                   )}
                   {running && status.ready && contentWorkspace && <HomeComposer key={contentWorkspace} workspace={contentWorkspace}
-                    project={project} disabled={busy || Boolean(connectionError)} drafts={conversationDrafts}
+                    project={project} hidden={busy} disabled={busy || Boolean(connectionError)} drafts={conversationDrafts}
                     onCreated={id => { sessionsChanged(); setConversation(id); }} />}
-                  {(!running || !status.ready || busy) && <div className="start-project-box">
+                  {!busy && (!running || !status.ready) && <div className="start-project-box">
                     <div className="environment-summary">
                       <EnvironmentShield
                         healthy={status.ready && network.mode === "open"}
@@ -1632,96 +1622,63 @@ function App() {
                         <strong>Cage 隔离环境</strong>
                         <small>
                           {running
-                            ? runtimeLabel
+                            ? connectionError ? "连接中断" : status.environment_update_required ? "环境待更新" : "浏览器待恢复"
                             : setupProxy
                               ? "自备代理订阅、YAML 配置或节点"
                               : nativeGuestLabel ? `${nativeGuestLabel} 客机已安装` : "代理已配置，首次启动会下载开发环境"}
                         </small>
                       </span>
                     </div>
-                    {!busy && !running && !account?.guest_system && status.local_vm_storage && !isRemoteClient() && <GuestSystemPicker system={guestSystem} onChange={setGuestSystem} />}
-                    {!running && !nativeGuestLabel && status.local_vm_storage && !isRemoteClient() && <button className="storage-entry text-button" disabled={busy} onClick={() => openSettings("project")}>选择环境存储位置</button>}
+                    {!running && !account?.guest_system && status.local_vm_storage && !isRemoteClient() && <GuestSystemPicker system={guestSystem} onChange={setGuestSystem} />}
+                    {!running && !nativeGuestLabel && status.local_vm_storage && !isRemoteClient() && <button className="storage-entry text-button" onClick={() => openSettings("project")}>选择环境存储位置</button>}
                     <div className="start-project-footer">
                       <span>
                         <i className={`status-dot ${network.mode}`} />
-                        {busy
-                          ? runtimeLabel
-                          : running
-                            ? network.label
-                            : setupProxy
-                              ? "等待配置代理"
-                              : "环境已停止"}
+                        {running ? network.label : setupProxy ? "等待配置代理" : "环境已停止"}
                       </span>
                       <button
                         className="primary"
-                        data-terminal-location="start"
-                        disabled={busy || Boolean(connectionError) || (!running && !setupProxy &&
+                        disabled={Boolean(connectionError) || (!running && !setupProxy &&
                           ((!account?.guest_system && status.local_vm_storage && !isRemoteClient() && guestSystem === undefined) || !validGuestChoice(guestSystem)))}
-                        onClick={(event) => {
+                        onClick={() => {
                           if (!running && guestSystem?.activate) {
                             api("/environment/guest-systems/activate", {}).then(() => native("reconnect")).catch((e) => setToast(e.message));
                           } else if (!running && setupProxy) openSettings("network");
-                          else if (!running || !status.ready)
-                            setStartOptions(!running && guestSystem?.guest_system === "debian-13" && !guestSystem.clone ? { guest_system: "debian-13" } : !running && guestSystem ? {
-                              guest_system: guestSystem.guest_system, media: guestSystem.media, sha256: guestSystem.sha256,
-                              clone_key: guestSystem.clone_key,
-                              editor_terms: guestSystem.editor_terms,
-                            } : {});
-                          else if (!workspace)
-                            setProjectDialog({ path: "" });
-                          else newTerminal(workspace, event.currentTarget);
+                          else setStartOptions(!running && guestSystem?.guest_system === "debian-13" && !guestSystem.clone ? { guest_system: "debian-13" } : !running && guestSystem ? {
+                            guest_system: guestSystem.guest_system, media: guestSystem.media, sha256: guestSystem.sha256,
+                            clone_key: guestSystem.clone_key,
+                            editor_terms: guestSystem.editor_terms,
+                          } : {});
                         }}
                       >
-                        {busy ? (
-                          <LoaderCircle size={16} className="spin" />
-                        ) : !running && setupProxy ? (
-                          <Globe2 size={16} />
-                        ) : !running ? (
-                          <Power size={16} />
-                        ) : !status.ready ? (
-                          <RefreshCw size={16} />
-                        ) : !workspace ? (
-                          <FolderOpen size={16} />
-                        ) : (
-                          <TerminalSquare size={16} />
-                        )}
-                        {busy
-                          ? "正在处理…"
-                          : !running
-                            ? setupProxy
-                              ? "配置网络与代理"
-                              : guestSystem?.activate ? "打开工作台" : guestSystem?.pending ? "继续安装" :
-                                guestSystem && guestSystem.guest_system !== "debian-13" ? "安装客户机" : "启动 Cage 环境"
-                            : !status.ready
-                              ? "恢复浏览器"
-                              : !workspace
-                                ? "打开项目"
-                                : "新建终端"}
+                        {!running && setupProxy ? <Globe2 size={16} /> : running ? <RefreshCw size={16} /> : <Power size={16} />}
+                        {running ? "恢复浏览器" : setupProxy ? "配置网络与代理"
+                          : guestSystem?.activate ? "打开工作台" : guestSystem?.pending ? "继续安装"
+                          : guestSystem && guestSystem.guest_system !== "debian-13" ? "安装客户机" : "启动 Cage 环境"}
                       </button>
                     </div>
-                    {terminalMenuAt("start")}
                   </div>}
-                  {running && (
+                  {!busy && running && (
                     <div className="welcome-shortcuts">
-                      {macGuest && <MacOSLogin disabled={!status.ready || busy} />}
-                      {status.ready && <button onClick={() => setProjectDialog({ path: "" })} disabled={busy}>
+                      {macGuest && <MacOSLogin disabled={!status.ready} />}
+                      {status.ready && <button onClick={() => setProjectDialog({ path: "" })}>
                         <FolderOpen size={16} />打开项目
                       </button>}
-                      <button onClick={newTerminalHere} data-terminal-location="shortcuts" aria-haspopup="menu" disabled={busy}>
+                      <button onClick={newTerminalHere} data-terminal-location="shortcuts" aria-haspopup="menu">
                         <TerminalSquare size={16} />
                         新建终端
                       </button>
                       <button
                         onClick={() => openEditor(contentWorkspace)}
-                        disabled={!status.ready || busy}
+                        disabled={!status.ready}
                       >
                         <FileCode2 size={16} />
                         浏览文件
                       </button>
                     </div>
                   )}
-                  {terminalMenuAt("shortcuts")}
-                  {!running && !nativeGuestLabel && (
+                  {!busy && terminalMenuAt("shortcuts")}
+                  {!busy && !running && !nativeGuestLabel && (
                     <p className="welcome-hint">
                       {setupProxy
                         ? "连接后可在 Cage 中登录 Claude。"
@@ -1762,7 +1719,7 @@ function App() {
                       )}
                     </div>
                   )}
-                  {!setupProgress && (status.job?.error || status.job?.log) && (
+                  {!setupProgress && (homeProgress || status.job?.error || status.job?.log) && (
                     <button
                       className="text-button details-link"
                       onClick={() => setDetails(true)}
@@ -1817,7 +1774,7 @@ function App() {
             <span className="status-feedback" role="status">
               <SafetyMessage message={toast ||
                 (busy
-                  ? status.job.message
+                  ? homeProgress ? "" : status.job.message
                   : running
                     ? status.ready
                       ? isRemoteClient() ? "文件保存在云端" : "文件与本机同步"
