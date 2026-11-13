@@ -9,6 +9,7 @@ cage_curl_download() { python3 "$downloader" "$@"; }
 source internal/cage/guest-tools.sh
 source internal/cage/ubuntu-browser.sh
 cage_is_ubuntu || { echo 'This test requires Ubuntu.' >&2; exit 2; }
+python3 internal/cage/ubuntu-browser.test.py
 sudo apt-get update
 # Keep an existing system executable or symlink exactly as the runner supplied it.
 system_chromium_state() {

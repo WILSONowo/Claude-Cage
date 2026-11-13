@@ -1,6 +1,10 @@
 # Complete the browser change before interrupting access to the running session.
-if cage_is_ubuntu && [[ ! -x /usr/local/lib/workbench-browser/chromium ]]; then
-  cage_install_ubuntu_browser
+if cage_is_ubuntu; then
+  if [[ ! -x /usr/local/lib/workbench-browser/chromium ]]; then
+    cage_install_ubuntu_browser
+  elif [[ -L /usr/local/lib/workbench-browser/chromium ]]; then
+    cage_install_ubuntu_launcher
+  fi
 fi
 # Publish browser assets while the web endpoint is stopped, so clients cannot
 # mix old and new noVNC modules during an upgrade.

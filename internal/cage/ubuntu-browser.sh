@@ -48,10 +48,73 @@ cage_install_ubuntu_browser() (
       return 1
     fi
   fi
-  # Keep distro launchers and other browser installations intact. Snap dispatches
-  # by executable name, so the workbench entry must also be named chromium.
-  sudo install -d -m 0755 /usr/local/lib/workbench-browser
-  sudo ln -sfnT /snap/bin/chromium /usr/local/lib/workbench-browser/chromium
+  cage_install_ubuntu_launcher
+)
+
+# Publish outside the system browser paths. A temporary file and rename also
+# replace the old snap symlink without following it into /snap/bin.
+cage_install_ubuntu_launcher() (
+  set -euo pipefail
+  local dir=/usr/local/lib/workbench-browser stage
+  sudo install -d -m 0755 "$dir"
+  stage=$(sudo mktemp "$dir/.chromium.XXXXXX")
+  trap 'sudo rm -f "$stage"' EXIT
+  sudo tee "$stage" >/dev/null <<'PYLAUNCH'
+#!/usr/bin/python3 -I
+import os
+import sys
+from pathlib import Path
+
+def unused_leveldb(directory, version_key):
+    # A failed first launch may create a schema marker and empty batches.
+    # Anything else (including compacted tables) may contain newer site data.
+    try:
+        entries = list(directory.iterdir())
+    except FileNotFoundError:
+        return True
+    version = b"\x01\x07" + version_key + b"\x011"
+    for file in entries:
+        if file.name in ("CURRENT", "LOCK", "LOG", "LOG.old") or file.name.startswith("MANIFEST-"):
+            continue
+        if not file.stem.isdigit() or file.suffix != ".log":
+            return False
+        with file.open("rb") as stream:
+            data = stream.read(1025)
+        if len(data) > 1024:
+            return False
+        while data:
+            if len(data) < 19 or data[6] != 1:
+                return False
+            end = 7 + int.from_bytes(data[4:6], "little")
+            if end < 19 or end > len(data):
+                return False
+            # A FULL WAL record holds an 8-byte sequence then a write batch.
+            batch = data[15:end]
+            if batch not in (b"\x00" * 4, b"\x01\x00\x00\x00" + version):
+                return False
+            data = data[end:]
+    return True
+
+def uses_sqlite(profile):
+    default = Path(profile) / "Default"
+    try:
+        with (default / "LocalStorage").open("rb") as f:
+            if f.read(16) != b"SQLite format 3\x00":
+                return False
+        return (unused_leveldb(default / "Local Storage" / "leveldb", b"VERSION")
+                and unused_leveldb(default / "Session Storage", b"version"))
+    except OSError:
+        return False
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    profile = next((arg.split("=", 1)[1] for arg in args if arg.startswith("--user-data-dir=")), "")
+    if profile and uses_sqlite(profile):
+        args.insert(0, "--enable-features=DomStorageSqlite")
+    os.execv("/snap/bin/chromium", ["chromium", *args])
+PYLAUNCH
+  sudo chmod 0755 "$stage"
+  sudo mv -fT "$stage" "$dir/chromium"
 )
 
 cage_install_chromium() {
