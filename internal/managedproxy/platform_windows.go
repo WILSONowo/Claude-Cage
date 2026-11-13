@@ -78,7 +78,7 @@ func stopWindowsCore(profile string) error {
 	}
 	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, record.PID)
 	if errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
-		return os.Remove(path)
+		return removeStaleCore(profile, path)
 	}
 	if errors.Is(err, windows.ERROR_ACCESS_DENIED) && !recordedCoreRunning(record) {
 		// The core runs as the current user, so a PID that cannot be
@@ -114,7 +114,9 @@ func stopWindowsCore(profile string) error {
 			return errors.New("Cage 代理进程未能及时停止")
 		}
 	}
-	_ = os.Remove(Socket(profile))
+	if err := removeWindowsCoreSocket(profile); err != nil {
+		return err
+	}
 	return os.Remove(path)
 }
 
@@ -133,11 +135,34 @@ func recordedCoreRunning(record windowsCoreRecord) bool {
 }
 
 func removeStaleCore(profile, path string) error {
-	_ = os.Remove(Socket(profile))
+	if err := removeWindowsCoreSocket(profile); err != nil {
+		return err
+	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
+}
+
+func removeWindowsCoreSocket(profile string) error {
+	if err := os.Remove(Socket(profile)); err != nil && !os.IsNotExist(err) {
+		return &coreError{stage: "socket.remove", err: err}
+	}
+	return nil
+}
+
+func startWindowsCoreProcess(profile string, cmd *exec.Cmd) error {
+	if err := removeWindowsCoreSocket(profile); err != nil {
+		return err
+	}
+	return cmd.Start()
+}
+
+func stopWindowsCoreAfterFailure(profile string, cause error) error {
+	if err := stopWindowsCore(profile); err != nil {
+		return errors.Join(cause, &coreError{stage: "startup.cleanup", err: err})
+	}
+	return cause
 }
 
 func startWindowsCore(ctx context.Context, profile string, s Store) error {
@@ -179,13 +204,12 @@ func startWindowsCore(ctx context.Context, profile string, s Store) error {
 	if err := Write(path, b); err != nil {
 		return err
 	}
-	_ = os.Remove(Socket(profile))
 	log := diagnostics.New(profile).Stream("proxy", "warn")
 
 	cmd := exec.Command(core, "-d", Dir(profile), "-f", path)
 	cmd.Env, cmd.Stdout, cmd.Stderr = coreEnvironment(Dir(profile)), log, log
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW}
-	if err := cmd.Start(); err != nil {
+	if err := startWindowsCoreProcess(profile, cmd); err != nil {
 		_ = log.Close()
 		return err
 	}
@@ -219,19 +243,18 @@ func startWindowsCore(ctx context.Context, profile string, s Store) error {
 	defer ticker.Stop()
 	timeout := time.NewTimer(15 * time.Second)
 	defer timeout.Stop()
+	var lastReadiness error
 	for {
 		select {
 		case <-ctx.Done():
-			_ = stopWindowsCore(profile)
-			return ctx.Err()
+			return stopWindowsCoreAfterFailure(profile, ctx.Err())
 		case <-timeout.C:
-			_ = stopWindowsCore(profile)
-			return errors.New("代理核心启动超时，请查看私有代理日志")
+			return stopWindowsCoreAfterFailure(profile, errors.Join(errors.New("代理核心启动超时，请查看私有代理日志"), lastReadiness))
 		case <-ticker.C:
-			if Running(ctx, profile, s) {
+			lastReadiness = checkRunning(ctx, profile, s)
+			if lastReadiness == nil {
 				if err := host.ProtectFile(Socket(profile)); err != nil {
-					_ = stopWindowsCore(profile)
-					return err
+					return stopWindowsCoreAfterFailure(profile, &coreError{stage: "socket.protect", err: err})
 				}
 				return nil
 			}
