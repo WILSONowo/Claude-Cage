@@ -208,6 +208,7 @@ class Governor:
         changed the mode since the previous call: a viewer attached or resized.
         """
         from Xlib import error
+        from Xlib.ext import randr
         created = False
         while True:
             # A size owner may change the mode at any moment. Deciding and
@@ -236,7 +237,10 @@ class Governor:
                         # Modes of earlier sizes. Those of this size are reused.
                         if governed(name) and (width, height) != current[1:]:
                             if mode in info.modes:
-                                self.conn.xrandr_delete_output_mode(output, mode)
+                                # python-xlib 0.29's wrapper omits both parameters.
+                                display = self.conn.display
+                                randr.DeleteOutputMode(display=display, opcode=display.get_extension_major(randr.extname),
+                                                       output=output, mode=mode)
                             self.conn.xrandr_destroy_mode(mode)
                     return 'shown'
             except error.XError:
