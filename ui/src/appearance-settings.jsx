@@ -37,6 +37,20 @@ import {
   themeVariables,
 } from "./appearance-state.mjs";
 
+import { isMac, isWindows } from "./platform.mjs";
+
+const codeFontOptions = isMac
+  ? ["SF Mono", "Menlo", "Monaco", "JetBrains Mono"]
+  : isWindows
+    ? ["Cascadia Mono", "Consolas", "JetBrains Mono", "Sarasa Mono SC"]
+    : [
+        "Sarasa Mono SC",
+        "Noto Sans Mono CJK SC",
+        "JetBrains Mono",
+        "Ubuntu Mono",
+        "DejaVu Sans Mono",
+      ];
+
 function SettingRow({ label, description, children }) {
   return (
     <div className="appearance-row">
@@ -329,10 +343,9 @@ function ThemeCard({ variant, value, active, onChange }) {
               patch({ fonts: { ...value.fonts, code: next } })
             }
           >
-            <option value="SF Mono" />
-            <option value="Menlo" />
-            <option value="Monaco" />
-            <option value="JetBrains Mono" />
+            {codeFontOptions.map((name) => (
+              <option key={name} value={name} />
+            ))}
           </InlineSelect>
         </label>
         <label className="appearance-switch">

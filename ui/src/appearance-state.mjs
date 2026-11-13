@@ -1,6 +1,12 @@
+import { isLinux, isWindows } from "./platform.mjs";
+
 export const systemUIFont =
   '-apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif';
-export const systemCodeFont = '"SF Mono", Menlo, Consolas, monospace';
+export const systemCodeFont = isLinux
+  ? '"Sarasa Mono SC", "Noto Sans Mono CJK SC", "Noto Sans Mono", "DejaVu Sans Mono", monospace'
+  : isWindows
+    ? '"Cascadia Mono", Consolas, "Sarasa Mono SC", monospace'
+    : '"SF Mono", Menlo, Monaco, monospace';
 import { presets } from "./appearance-presets.mjs";
 export {
   presets,
