@@ -2,7 +2,6 @@ import { InlineSelect } from "./inline-select";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Check,
-  ChevronDown,
   Download,
   LoaderCircle,
   Monitor,
@@ -127,7 +126,6 @@ function ColorField({ label, value, onChange, onReset }) {
   );
 }
 function ThemeCard({ variant, value, active, onChange }) {
-  const [advanced, setAdvanced] = useState(false);
   const label = variant === "light" ? "浅色主题" : "深色主题";
   const options = presets[variant];
   const patch = (delta) => onChange({ ...value, preset: "custom", ...delta });
@@ -231,133 +229,123 @@ function ThemeCard({ variant, value, active, onChange }) {
           />
         ))}
       </div>
-      <button
-        className="theme-customize"
-        onClick={() => setAdvanced(!advanced)}
-        aria-expanded={advanced}
-      >
-        自定义
-        <ChevronDown size={14} className={advanced ? "rotated" : ""} />
-      </button>
-      {advanced && (
-        <div className="theme-options">
-          <p className="theme-options-hint">
-            未单独设置的颜色随基础配色自动调整。
-          </p>
-          {colorGroups.map((group) => (
-            <details className="theme-color-group" key={group.label}>
-              <summary>{group.label}</summary>
-              {group.entries.map(([key, name]) => (
-                <ColorField
-                  key={key}
-                  label={label + name}
-                  value={vars[colorTokens[key]]}
-                  onChange={(color) => setColor("colors", key, color)}
-                  onReset={
-                    value.colors?.[key]
-                      ? () => setColor("colors", key)
-                      : undefined
-                  }
-                />
-              ))}
-            </details>
-          ))}
-          {terminalColorGroups.map((group) => (
-            <details className="theme-color-group" key={group.label}>
-              <summary>{group.label}</summary>
-              {group.entries.map(([key, name]) => (
-                <ColorField
-                  key={key}
-                  label={label + "终端" + name}
-                  value={terminal[key]}
-                  onChange={(color) => setColor("terminal", key, color)}
-                  onReset={
-                    value.terminal?.[key]
-                      ? () => setColor("terminal", key)
-                      : undefined
-                  }
-                />
-              ))}
-            </details>
-          ))}
-          <div
-            className="theme-terminal-preview"
-            style={{
-              background: terminal.background,
-              color: terminal.foreground,
-            }}
-            aria-label={label + "终端预览"}
-          >
-            <span style={{ color: terminal.green }}>~/cage</span> ${" "}
-            <span style={{ color: terminal.blue }}>echo</span> hello
-            <i style={{ background: terminal.cursor }} />
-          </div>
-          <button
-            className="theme-reset-colors"
-            disabled={
-              !Object.keys(value.colors || {}).length &&
-              !Object.keys(value.terminal || {}).length
-            }
-            onClick={() => patch({ colors: {}, terminal: {} })}
-          >
-            <RotateCcw size={13} />
-            恢复全部自动颜色
-          </button>
-          <label>
-            对比度 <output>{value.contrast}</output>
-            <input
-              aria-label={label + "对比度"}
-              type="range"
-              min="0"
-              max="100"
-              value={value.contrast}
-              onChange={(e) => patch({ contrast: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            界面字体
-            <InlineSelect editable
-              aria-label={label + "界面字体"}
-              value={value.fonts.ui}
-              placeholder="系统默认"
-              onValueChange={(next) =>
-                patch({ fonts: { ...value.fonts, ui: next } })
-              }
-            >
-              <option value="system-ui" />
-              <option value="PingFang SC" />
-              <option value="Helvetica Neue" />
-              <option value="Arial" />
-            </InlineSelect>
-          </label>
-          <label>
-            代码字体
-            <InlineSelect editable
-              aria-label={label + "代码字体"}
-              value={value.fonts.code}
-              placeholder="系统等宽字体"
-              onValueChange={(next) =>
-                patch({ fonts: { ...value.fonts, code: next } })
-              }
-            >
-              <option value="SF Mono" />
-              <option value="Menlo" />
-              <option value="Monaco" />
-              <option value="JetBrains Mono" />
-            </InlineSelect>
-          </label>
-          <label className="appearance-switch">
-            <span>半透明侧栏</span>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label={label + "半透明侧栏"}
-              checked={!value.opaqueWindows}
-              onChange={(e) => patch({ opaqueWindows: !e.target.checked })}
-            />
-          </label>
+      <div className="theme-options">
+        <p className="theme-options-hint">
+          未单独设置的颜色随基础配色自动调整。
+        </p>
+        {colorGroups.map((group) => (
+          <section className="theme-color-group" key={group.label}>
+            <h5>{group.label}</h5>
+            {group.entries.map(([key, name]) => (
+              <ColorField
+                key={key}
+                label={label + name}
+                value={vars[colorTokens[key]]}
+                onChange={(color) => setColor("colors", key, color)}
+                onReset={
+                  value.colors?.[key]
+                    ? () => setColor("colors", key)
+                    : undefined
+                }
+              />
+            ))}
+          </section>
+        ))}
+        {terminalColorGroups.map((group) => (
+          <section className="theme-color-group" key={group.label}>
+            <h5>{group.label}</h5>
+            {group.entries.map(([key, name]) => (
+              <ColorField
+                key={key}
+                label={label + "终端" + name}
+                value={terminal[key]}
+                onChange={(color) => setColor("terminal", key, color)}
+                onReset={
+                  value.terminal?.[key]
+                    ? () => setColor("terminal", key)
+                    : undefined
+                }
+              />
+            ))}
+          </section>
+        ))}
+        <div
+          className="theme-terminal-preview"
+          style={{
+            background: terminal.background,
+            color: terminal.foreground,
+          }}
+          aria-label={label + "终端预览"}
+        >
+          <span style={{ color: terminal.green }}>~/cage</span> ${" "}
+          <span style={{ color: terminal.blue }}>echo</span> hello
+          <i style={{ background: terminal.cursor }} />
         </div>
-      )}
+        <button
+          className="theme-reset-colors"
+          disabled={
+            !Object.keys(value.colors || {}).length &&
+            !Object.keys(value.terminal || {}).length
+          }
+          onClick={() => patch({ colors: {}, terminal: {} })}
+        >
+          <RotateCcw size={13} />
+          恢复全部自动颜色
+        </button>
+        <label>
+          对比度 <output>{value.contrast}</output>
+          <input
+            aria-label={label + "对比度"}
+            type="range"
+            min="0"
+            max="100"
+            value={value.contrast}
+            onChange={(e) => patch({ contrast: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          界面字体
+          <InlineSelect editable
+            aria-label={label + "界面字体"}
+            value={value.fonts.ui}
+            placeholder="系统默认"
+            onValueChange={(next) =>
+              patch({ fonts: { ...value.fonts, ui: next } })
+            }
+          >
+            <option value="system-ui" />
+            <option value="PingFang SC" />
+            <option value="Helvetica Neue" />
+            <option value="Arial" />
+          </InlineSelect>
+        </label>
+        <label>
+          代码字体
+          <InlineSelect editable
+            aria-label={label + "代码字体"}
+            value={value.fonts.code}
+            placeholder="系统等宽字体"
+            onValueChange={(next) =>
+              patch({ fonts: { ...value.fonts, code: next } })
+            }
+          >
+            <option value="SF Mono" />
+            <option value="Menlo" />
+            <option value="Monaco" />
+            <option value="JetBrains Mono" />
+          </InlineSelect>
+        </label>
+        <label className="appearance-switch">
+          <span>半透明侧栏</span>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label={label + "半透明侧栏"}
+            checked={!value.opaqueWindows}
+            onChange={(e) => patch({ opaqueWindows: !e.target.checked })}
+          />
+        </label>
+      </div>
     </section>
   );
 }
@@ -518,7 +506,7 @@ function ThemeLibrary({ appearance, update, saving, onError }) {
         <InlineSelect
           aria-label="已保存的主题"
           value={current?.id || ""}
-          disabled={busy || saving}
+          disabled={busy || saving || !themes.length}
           onValueChange={(next) => {
             const item = themes.find((theme) => theme.id === next);
             if (item) apply(item);

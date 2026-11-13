@@ -720,7 +720,7 @@ function TrustedDeviceSettings() {
     } catch (error) { setMessage(error.message); }
     finally { setBusy(false); }
   };
-  return <form onSubmit={update}>
+  return <form className="account-trusted-device" onSubmit={update}>
     <fieldset disabled={busy}>
       <h4>记住我</h4>
       <p className="field-help">{enabled ? "已信任此电脑，下次用当前系统用户打开时自动进入。手动锁定仍需验证，退出账户会撤销信任。" : "验证一次账户密码，信任此电脑，下次用当前系统用户打开时自动进入。"}</p>

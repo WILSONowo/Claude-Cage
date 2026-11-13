@@ -43,6 +43,7 @@ try {
           }) };
         if (entry === "workbench") await page.route("**/api/jobs/history", route => route.fulfill({ json: [
           { id: "previous", label: "更新 Claude Desktop", kind: "claude-desktop-update", message: "已完成", log: "Package verification complete" },
+          ...Array.from({ length: 30 }, (_, index) => ({ id: "record-" + index, label: "启动环境 " + index, log: "record " + index })),
         ] }));
         await page.emulateMedia({ reducedMotion: "reduce" });
       },
@@ -105,7 +106,18 @@ try {
       }
       if (entry === "workbench") {
         await dialog.getByRole("combobox", { name: "选择操作记录" }).click();
-        await page.getByRole("option", { name: "更新 Claude Desktop" }).click();
+        const search = page.getByRole("combobox", { name: "搜索选项" });
+        const list = page.getByRole("listbox", { name: "选择操作记录选项" });
+        await search.waitFor();
+        assert.ok(await list.evaluate(node => node.scrollHeight > node.clientHeight));
+        await search.fill("启动环境 29");
+        assert.equal(await list.getByRole("option").count(), 1);
+        await search.press("Escape");
+        assert.equal(await search.inputValue(), "");
+        for (let index = 0; index < 18; index++) await search.press("ArrowDown");
+        assert.ok(await list.evaluate(node => node.scrollTop > 0));
+        await search.fill("更新 Claude Desktop");
+        await search.press("Enter");
         await buffer.getByText("Package verification complete").waitFor();
         await page.keyboard.press("Escape");
         await open.click();

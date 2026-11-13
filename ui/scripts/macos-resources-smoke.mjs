@@ -64,7 +64,7 @@ try {
   assert.deepEqual(requests.at(-1), {});
   await panel.getByRole("heading", { name: "计算资源", exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: join(output, "macos-resources.png"), animations: "disabled" });
-  await panel.getByText("资源统计说明", { exact: true }).click();
+  await panel.getByRole("heading", { name: "资源统计说明", exact: true }).waitFor();
   await panel.getByText(/内存估算使用客机物理容量/).scrollIntoViewIfNeeded();
   await page.screenshot({ path: join(output, "macos-resource-observation.png"), animations: "disabled" });
   assert.deepEqual(errors, []);

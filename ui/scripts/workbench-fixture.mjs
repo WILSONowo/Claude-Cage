@@ -229,6 +229,7 @@ export async function createWorkbench({
       };
     else if (path === "/settings" && request.method() === "GET")
       result = state.settings;
+    else if (path === "/vault") result = { entries: [], blocked: [] };
     else if (path === "/status")
       result = { ...state.status, workspace: state.settings.workspace };
     else if (path === "/projects/remove") {

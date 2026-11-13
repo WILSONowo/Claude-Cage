@@ -9,6 +9,7 @@ import { ArchivedSessions } from "../cli-sessions";
 import cageLogo from "../logo.png";
 import { Notice, Empty } from "./feedback";
 import "./mobile.css";
+import "../scrollbars.css";
 
 const Chat = lazy(() => import("./chat"));
 const RemoteDisplay = lazy(() => import("./remote-browser").then(module => ({ default: module.RemoteDisplay })));

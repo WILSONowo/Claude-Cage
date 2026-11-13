@@ -31,8 +31,8 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--log-ink) 34%, var(--log-bg)) transparent;
+  --scroll-ink: var(--log-ink);
+  --scroll-surface: var(--log-bg);
   overscroll-behavior: contain;
   font: max(.9rem, var(--code-font-size, 13px))/1.6 var(--log-font);
   overflow-wrap: anywhere;

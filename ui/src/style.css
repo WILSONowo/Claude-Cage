@@ -571,9 +571,23 @@ button.large {
 .resource-fields legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .settings-content .resource-fields label { margin: 0 !important; gap: 8px; min-width: 0; }
 .resource-fields small { color: var(--muted); font-size: 0.8571rem; font-weight: 400; line-height: 1.6; }
-.resource-input { position: relative; display: flex; align-items: center; }
-.settings-content .resource-input input { padding-right: 86px; font-variant-numeric: tabular-nums; font-size: 1.1429rem; height: 44px; }
-.resource-input > span { position: absolute; right: 30px; color: var(--muted); font-size: 0.8571rem; pointer-events: none; }
+.resource-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .5rem;
+  min-height: var(--control-height);
+  padding-inline: .75rem;
+}
+#root .resource-input > input[type="number"] {
+  width: 100%; min-width: 0; height: auto; min-height: var(--control-height);
+  border: 0; border-radius: 0; padding: 0; background: transparent;
+  outline: none; box-shadow: none; color: inherit; font: inherit;
+  font-variant-numeric: tabular-nums; appearance: textfield;
+}
+.resource-input input::-webkit-inner-spin-button,
+.resource-input input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.resource-input > span { color: var(--muted); font-size: .8571rem; white-space: nowrap; }
 .resource-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-top: 20px; }
 .resource-mode { margin-right: auto; color: var(--muted); font-size: 0.8571rem; }
 .resource-actions .text-button { margin: 0; }
@@ -586,7 +600,7 @@ button.large {
 .resource-runtime .setting-summary-row { margin: 0; padding: 10px 0; font-size: 0.9286rem; }
 .resource-runtime .field-help { margin: 12px 0 0; }
 .resource-observation-note { margin-top: 14px; color: var(--muted); font-size: 0.8571rem; }
-.resource-observation-note summary { cursor: pointer; width: fit-content; }
+.resource-observation-note h5 { margin: 0; font: inherit; font-weight: 550; }
 .resource-observation-note .field-help { margin: 10px 0 0; }
 @media (max-width: 600px) {
   .resource-fields { grid-template-columns: 1fr; gap: 16px; }
@@ -1452,7 +1466,6 @@ svg {
   overflow-y: auto;
   overflow-x: clip;
   padding-bottom: 24px;
-  scrollbar-width: thin;
 }
 .sidebar-section-heading {
   display: flex;
@@ -2126,10 +2139,10 @@ svg {
 .settings-content .inline-select-trigger {
   border-color: var(--line);
   background: var(--paper);
-  height: 40px;
+  height: var(--control-height);
 }
 .settings-content input:disabled {
-  background: var(--chrome) !important;
+  background: var(--chrome);
   color: var(--muted);
 }
 .settings-content .footnote,

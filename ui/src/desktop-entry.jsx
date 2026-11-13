@@ -7,6 +7,7 @@ import { native } from "./api";
 import "./style.css";
 import "./workbench-layout.css";
 import "./text-fields.css";
+import "./scrollbars.css";
 
 function WorkbenchEntry() {
   const [Workbench, setWorkbench] = useState(null);

@@ -13,7 +13,6 @@ import {
   Pencil,
   LoaderCircle,
   Square,
-  CircleHelp,
   Copy,
   ArrowRight,
   X,
@@ -86,7 +85,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   });
   const [routeDraft, setRouteDraft] = useState(null);
   const [hostRefresh, setHostRefresh] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [promptCopyState, setPromptCopyState] = useState("");
   const [readingFile, setReadingFile] = useState(false);
   const alive = useRef(true),
@@ -303,17 +301,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <h3>内置代理</h3>
           <button
             type="button"
-            className="icon-button proxy-help-toggle"
-            aria-label="代理使用说明"
-            title={helpOpen ? "收起代理使用说明" : "查看代理使用说明"}
-            aria-expanded={helpOpen}
-            aria-controls="proxy-help"
-            onClick={() => setHelpOpen((open) => !open)}
-          >
-            <CircleHelp size={17} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
             title="复制给本机 AI 助手的代理配置提示词"
             onClick={async () => {
               try {
@@ -338,62 +325,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <p className="field-help" role="alert">无法写入剪贴板，请复制下方提示词。</p>
           <textarea aria-label="代理配置提示词" readOnly rows={5} value={proxyAgentPrompt} />
         </>
-      )}
-      {helpOpen && (
-        <section
-          id="proxy-help"
-          className="proxy-help"
-          aria-labelledby="proxy-help-title"
-        >
-          <h4 id="proxy-help-title">代理使用说明</h4>
-          <p className="proxy-help-intro">
-            Cage 自带代理核心。请准备自己的订阅或节点，无需另装 Clash。
-          </p>
-          <ol className="proxy-help-steps">
-            <li>
-              <strong>导入你的代理</strong>
-              <p>在「订阅」中添加来源、命名并选择导入方式。</p>
-              <ul>
-                <li>
-                  <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
-                  格式的 HTTPS
-                  订阅地址，粘贴后点击「导入并验证」。首次还没有可用节点时，勾选「通过主机网络下载这份订阅」；主机需要能访问该地址。
-                </li>
-                <li>
-                  <strong>本地 YAML：</strong>拖入或选择配置文件，或粘贴含节点的
-                  YAML 配置，再点击「导入并验证」。可从已有代理客户端导出配置。
-                </li>
-                <li>
-                  <strong>手动节点：</strong>适用于 HTTP CONNECT 或
-                  SOCKS5。填写节点名称、服务器地址、端口，以及服务商提供的用户名和密码（如有），再点击「导入并验证」。
-                </li>
-              </ul>
-            </li>
-            <li>
-              <strong>选择节点并启用</strong>
-              <p>
-                在「节点」中选择出口，再点击「应用代理」。住宅代理无法直连时，可用「链式代理」添加中转，节点可跨订阅。首次启用需重启运行中的环境，后续切换只重连网络。
-              </p>
-            </li>
-            <li>
-              <strong>确认可以联网</strong>
-              <p>
-                {initializing ? "点击「开始安装」，安装后查看网络检查结果。" : "回到工作台，启动环境并查看联网状态。"}「测速」显示节点延迟。浏览器、终端和开发工具共用所选节点。
-              </p>
-            </li>
-          </ol>
-          <div className="proxy-help-notes">
-            <strong>导入失败或无法联网？</strong>
-            <p>
-              请使用含节点的 Clash/Mihomo YAML 订阅地址。登录页、单条分享链接、Base64 列表或仅引用远程节点的配置无法导入。
-            </p>
-            <p>
-              订阅下载失败时，可检查主机是否能访问订阅地址，或改用本地
-              YAML。节点不可用时，换一个节点并查看「诊断」；更换节点后仍需通过出口
-              IP 和地区检查。
-            </p>
-          </div>
-        </section>
       )}
       <div className="proxy-summary">
         <Server size={22} />
@@ -788,11 +719,10 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   <span className="proxy-source-error">{s.error}</span>
                 )}
                 {s.skipped?.length > 0 && (
-                  <details className="proxy-source-skipped">
-                    <summary>
+                  <div className="proxy-source-skipped">
+                    <strong>
                       已导入 {s.nodes.length} 个节点，跳过 {s.skipped.length} 个
-                      · 查看原因
-                    </summary>
+                    </strong>
                     <ul>
                       {s.skipped.map((issue) => (
                         <li key={issue.index}>
@@ -802,7 +732,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                         </li>
                       ))}
                     </ul>
-                  </details>
+                  </div>
                 )}
               </div>
               <div className="proxy-source-actions">
@@ -1176,6 +1106,60 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           {notice}
         </p>
       )}
+      <section
+        id="proxy-help"
+        className="proxy-help"
+        aria-labelledby="proxy-help-title"
+      >
+        <h4 id="proxy-help-title">代理使用说明</h4>
+        <p className="proxy-help-intro">
+          Cage 自带代理核心。请准备自己的订阅或节点，无需另装 Clash。
+        </p>
+        <ol className="proxy-help-steps">
+          <li>
+            <strong>导入你的代理</strong>
+            <p>在「订阅」中添加来源、命名并选择导入方式。</p>
+            <ul>
+              <li>
+                <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
+                格式的 HTTPS
+                订阅地址，粘贴后点击「导入并验证」。首次还没有可用节点时，勾选「通过主机网络下载这份订阅」；主机需要能访问该地址。
+              </li>
+              <li>
+                <strong>本地 YAML：</strong>拖入或选择配置文件，或粘贴含节点的
+                YAML 配置，再点击「导入并验证」。可从已有代理客户端导出配置。
+              </li>
+              <li>
+                <strong>手动节点：</strong>适用于 HTTP CONNECT 或
+                SOCKS5。填写节点名称、服务器地址、端口，以及服务商提供的用户名和密码（如有），再点击「导入并验证」。
+              </li>
+            </ul>
+          </li>
+          <li>
+            <strong>选择节点并启用</strong>
+            <p>
+              在「节点」中选择出口，再点击「应用代理」。住宅代理无法直连时，可用「链式代理」添加中转，节点可跨订阅。首次启用需重启运行中的环境，后续切换只重连网络。
+            </p>
+          </li>
+          <li>
+            <strong>确认可以联网</strong>
+            <p>
+              {initializing ? "点击「开始安装」，安装后查看网络检查结果。" : "回到工作台，启动环境并查看联网状态。"}「测速」显示节点延迟。浏览器、终端和开发工具共用所选节点。
+            </p>
+          </li>
+        </ol>
+        <div className="proxy-help-notes">
+          <strong>导入失败或无法联网？</strong>
+          <p>
+            请使用含节点的 Clash/Mihomo YAML 订阅地址。登录页、单条分享链接、Base64 列表或仅引用远程节点的配置无法导入。
+          </p>
+          <p>
+            订阅下载失败时，可检查主机是否能访问订阅地址，或改用本地
+            YAML。节点不可用时，换一个节点并查看「诊断」；更换节点后仍需通过出口
+            IP 和地区检查。
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

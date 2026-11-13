@@ -35,10 +35,8 @@
   min-width: 0;
 }
 .claude-add-profile { gap: 8px; }
-.claude-scheduling { margin-bottom: 12px; }
-.claude-scheduling > summary { cursor: pointer; padding: 8px 0; }
-.claude-scheduling[open] { max-height: 45vh; overflow-y: auto; padding-bottom: 8px; }
-.claude-scheduling > label + label { margin-top: 10px; }
+.claude-scheduling { display: grid; gap: .85rem; margin-block: 1rem 1.5rem; }
+.claude-scheduling > :is(h4, p) { margin: 0; }
 .claude-scheduling > label { display: grid; gap: 5px; font-size: .85rem; }
 .claude-account-order { max-height: 7rem; overflow: auto; }
 .claude-account-order > div { display: flex; gap: 8px; align-items: center; margin-top: 5px; }
@@ -82,8 +80,6 @@
   min-height: 6rem;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--focus) transparent;
   scrollbar-gutter: stable;
   padding: 2px 4px 4px 1px;
 }

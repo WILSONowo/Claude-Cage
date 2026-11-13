@@ -150,8 +150,8 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
               </small>
             </label>
           )}
-          <details>
-            <summary>云端安装路径</summary>
+          <section className="remote-paths">
+            <h4>云端安装路径</h4>
             <div className="remote-advanced">
               <label>
                 Cage 程序路径
@@ -176,7 +176,7 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                 <small>留空使用 <code>~/.claude-cage/config.json</code>。自定义配置请填写云端绝对路径。</small>
               </label>
             </div>
-          </details>
+          </section>
         </fieldset>
       </form>
     </Modal>

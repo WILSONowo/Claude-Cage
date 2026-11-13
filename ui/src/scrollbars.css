@@ -1,0 +1,30 @@
+/* Theme application-owned scroll areas. The terminal emulator and remote display manage their own viewports. */
+@media (any-pointer: fine) and (forced-colors: none) {
+  :where(
+    .inline-select-list, .inline-select-options, .modal-body, .operation-log-terminal,
+    .settings-content, .settings-sidebar nav, .browser-settings-page, .extension-permissions ul,
+    .sidebar-content, .sidebar-navigation, .sidebar-scroll, .account-menu, .terminal-create-menu,
+    .all-tabs-results, .browser-download-list, .browser-more-menu, .browser-tabs-vertical,
+    .project-picker-list, .favorite-form, .favorites-list, .cookie-list, .cookie-value,
+    .claude-profile-list, .claude-account-order, .session-account--compact,
+    .ssh-sidebar-body, .environment-picker, .remote-directory-list,
+    .welcome, .setup-scene, .mac-login-panel, .mac-setup-hint, .desktop-screen,
+    .desktop-conversation, .transcript
+  ) {
+    --scroll-thumb: color-mix(in srgb, var(--scroll-ink, var(--ink)) 55%, var(--scroll-surface, var(--paper)));
+    @supports selector(::-webkit-scrollbar) {
+      &::-webkit-scrollbar { width: 8px; height: 8px; }
+      &::-webkit-scrollbar-track, &::-webkit-scrollbar-corner { background: transparent; }
+      &::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+      &::-webkit-scrollbar-thumb {
+        border: 1px solid transparent; border-radius: 999px;
+        background: var(--scroll-thumb) padding-box;
+      }
+      &::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-ink, var(--ink)); }
+    }
+    @supports not selector(::-webkit-scrollbar) {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scroll-thumb) transparent;
+    }
+  }
+}

@@ -32,7 +32,7 @@ try{
   });
   await page.getByRole("button",{name:"设置",exact:true}).click();
   await page.getByRole("button",{name:"Claude 账号",exact:true}).click();
-  await page.getByText("调度设置 · 均衡分配",{exact:true}).click();
+  await page.getByRole("heading",{name:"调度设置",exact:true}).waitFor();
   const select=page.getByRole("combobox",{name:"新会话分配",exact:true});
   const policy=page.getByRole("combobox",{name:"新会话切换授权",exact:true});
   const before=(await policy.boundingBox()).y;
@@ -53,7 +53,7 @@ try{
   await page.screenshot({path:fileURLToPath(new URL("scheduling-desktop.png",out))});
   await page.reload();
   await page.getByRole("button",{name:"设置",exact:true}).click();await page.getByRole("button",{name:"Claude 账号",exact:true}).click();
-  await page.getByText("调度设置 · 顺序优先",{exact:true}).waitFor();
+  await page.getByRole("combobox",{name:"新会话分配",exact:true}).getByText("按列表顺序优先",{exact:true}).waitFor();
 
   const phoneContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,userAgent:"CageMobile/1"});
   const phone=await phoneContext.newPage();

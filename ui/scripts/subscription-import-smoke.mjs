@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createRequire } from "node:module";
@@ -12,11 +13,13 @@ const { chromium } = require(process.env.CAGE_PLAYWRIGHT_MODULE || "playwright")
 const run = promisify(execFile);
 const executable = process.env.CAGE_SUBSCRIPTION_QA_EXECUTABLE;
 assert.ok(executable, "Set CAGE_SUBSCRIPTION_QA_EXECUTABLE to the newly built cage beside mihomo");
-const output = path.resolve(process.env.CAGE_SUBSCRIPTION_QA_OUTPUT || "/tmp/cage-subscription-ui");
+const output = path.resolve(process.env.CAGE_SUBSCRIPTION_QA_OUTPUT || path.join(tmpdir(), "cage-subscription-ui"));
 await fs.mkdir(output, { recursive: true });
-const profile = await fs.mkdtemp("/private/tmp/cage-subscription-qa-");
+const profile = await fs.mkdtemp(path.join(tmpdir(), "cage-subscription-qa-"));
 const env = { ...process.env, CLAUDE_CAGE_CONFIG: path.join(profile, "config.json") };
 await run(executable, ["init"], { env });
+// Exercise the settings page of a configured workstation without starting a VM.
+await fs.writeFile(path.join(profile, "initialization.json"), JSON.stringify({ version: 1, completed: true }), { mode: 0o600 });
 const log = await fs.open(path.join(profile, "server.log"), "w", 0o600);
 const service = spawn(executable, ["serve"], { env, stdio: ["ignore", log.fd, log.fd] });
 let browser;
@@ -91,25 +94,15 @@ try {
   await importYAML("第二来源", "proxies: [{name: 备用节点, type: http, server: 127.0.0.1, port: 8080}]");
   await page.locator(".proxy-notice").filter({ hasText: "已导入 1 个节点，跳过 0 个" }).waitFor();
   const details = page.locator(".proxy-source-skipped").first();
-  const summary = details.locator("summary");
-  const secondSource = page.locator(".proxy-source").nth(1);
-  // Measure relative positions so scrolling cannot hide a layout regression.
-  const relativeY = async () => (await secondSource.boundingBox()).y - (await details.boundingBox()).y;
-  await summary.scrollIntoViewIfNeeded();
-  const before = await relativeY();
-  await summary.click();
   await details.getByText(/节点不能引用本机文件、网络接口或额外路由/).waitFor();
   await details.getByText(/代理链必须引用同一来源中成功导入/).waitFor();
-  assert.ok((await relativeY()) > before + 30, "Expanded reasons did not push the next source down");
+  const reasons = await details.boundingBox();
+  const next = await page.locator(".proxy-source").nth(1).boundingBox();
+  assert.ok(next.y >= reasons.y + reasons.height, "The next source overlaps the import reasons");
   await page.locator(".settings-content").evaluate((element) => { element.scrollTop = 0; });
   await page.screenshot({ path: path.join(output, "partial-import.png") });
-  await summary.focus();
-  await summary.press("Enter");
-  assert.equal(await details.getAttribute("open"), null);
-  assert.ok(Math.abs((await relativeY()) - before) < 2, "Collapsed reasons did not restore layout");
   await page.reload();
   await enter();
-  await page.locator(".proxy-source-skipped summary").click();
   await page.locator(".proxy-source-skipped").getByText(/节点不能引用本机文件、网络接口或额外路由/).waitFor();
   assert.equal((await state()).sources[0].skipped.length, 2, "Reload lost the import report");
   await page.setViewportSize({ width: 760, height: 1000 });
@@ -123,7 +116,7 @@ try {
   assert.ok(!(await page.getByRole("alert").innerText()).includes("private-pin"));
   await page.screenshot({ path: path.join(output, "all-skipped.png") });
   assert.deepEqual(errors, []);
-  const result = { passed: true, imported: 3, skipped: 2, checks: ["real UI import", "bundled core validation", "VLESS xudp and nested REALITY options retained", "unknown protocol field retained", "interface key variant rejected", "guest UDP remains disabled", "port hopping and pin retained", "dependent chain skipped", "public status privacy", "success summary", "inline reasons and keyboard collapse", "reload persistence", "narrow viewport", "all-skipped rejection preserves sources"], browserErrors: errors };
+  const result = { passed: true, imported: 3, skipped: 2, checks: ["real UI import", "bundled core validation", "VLESS xudp and nested REALITY options retained", "unknown protocol field retained", "interface key variant rejected", "guest UDP remains disabled", "port hopping and pin retained", "dependent chain skipped", "public status privacy", "success summary", "visible reasons and source spacing", "reload persistence", "narrow viewport", "all-skipped rejection preserves sources"], browserErrors: errors };
   await fs.writeFile(path.join(output, "result.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } finally {

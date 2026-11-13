@@ -7,6 +7,7 @@ const output = process.env.CAGE_REMOTE_QA_DIR;
 if (output) await mkdir(output, { recursive: true });
 for (const [width, height, size, mode] of [[1280, 850, 14, "light"], [375, 640, 24, "dark"]]) {
   let releaseVerification;
+  let incompleteList = true;
   const { browser, page, errors } = await createWorkbench({
     viewport: { width, height },
     beforeNavigate: async (page, state) => {
@@ -19,6 +20,7 @@ for (const [width, height, size, mode] of [[1280, 850, 14, "light"], [375, 640, 
           await new Promise(resolve => { releaseVerification = resolve; });
           return route.fulfill({ status: 400, contentType: "text/plain; charset=utf-8", body: "密码不正确" });
         }
+        if (incompleteList) { incompleteList = false; return route.fulfill({ json: {} }); }
         return route.fulfill({ json: { entries: [{ id: "one", origin: "https://example.test", username: "user" }], blocked: [] } });
       });
     },
@@ -101,6 +103,9 @@ for (const [width, height, size, mode] of [[1280, 850, 14, "light"], [375, 640, 
     await page.getByRole("button", { name: "自建中继", exact: true }).click();
     await inspect(page.getByLabel("管理令牌（可选）", { exact: true }), "relay");
     await section("密码保险箱");
+    await page.getByRole("alert").filter({ hasText: "无法读取密码列表" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "添加密码", exact: true }).isDisabled(), true);
+    await page.getByRole("alert").getByRole("button", { name: "重试" }).click();
     await page.getByRole("button", { name: "添加密码", exact: true }).click();
     await inspect(page.getByLabel("网站密码", { exact: true }), "vault");
     await page.locator(".vault-editor").getByRole("button", { name: "取消", exact: true }).click();

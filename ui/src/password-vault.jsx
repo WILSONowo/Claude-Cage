@@ -92,14 +92,24 @@ export function PasswordVaultSettings({ onConfirm, onDirty }) {
   const [search, setSearch] = useState(""), [draft, setDraft] = useState(null);
   const [verify, setVerify] = useState(null), [accountPassword, setAccountPassword] = useState("");
   const [revealed, setRevealed] = useState(null), [error, setError] = useState(""), [message, setMessage] = useState("");
+  const [readError, setReadError] = useState("");
   const alive = useRef(true);
   const refresh = async () => {
     const data = await api("/vault");
-    if (alive.current) setStore(data);
+    if (!Array.isArray(data?.entries) || !Array.isArray(data.blocked)) {
+      throw new Error("无法读取密码列表，请重试。");
+    }
+    if (alive.current) { setStore(data); setReadError(""); }
+  };
+  const load = async () => {
+    setLoading(true);
+    try { await refresh(); }
+    catch (cause) { if (alive.current) setReadError(cause.message); }
+    finally { if (alive.current) setLoading(false); }
   };
   useEffect(() => {
     alive.current = true;
-    refresh().catch(error => { if (alive.current) setError(error.message); }).finally(() => { if (alive.current) setLoading(false); });
+    void load();
     const clear = () => { setRevealed(null); setAccountPassword(""); };
     window.addEventListener("blur", clear);
     document.addEventListener("visibilitychange", clear);
@@ -129,10 +139,11 @@ export function PasswordVaultSettings({ onConfirm, onDirty }) {
   return <section className="vault-settings">
     <div className="section-title"><h3>密码保险箱</h3><p>密码在本机加密保存，随 Cage 锁定和解锁。</p></div>
     <div className="vault-note"><ShieldCheck size={17} /><span>查看或复制时需验证 Cage 账户密码。自动填写后，请在网页上提交登录。</span></div>
+    {readError && <div className="account-error" role="alert">{readError} <button type="button" disabled={loading || busy} onClick={load}>重试</button></div>}
     {error && <p className="account-error" role="alert">{error}</p>}
     {message && <p role="status">{message}</p>}
     <div className="vault-toolbar"><SearchField type="search" label="搜索网站或账号" value={search} onValueChange={setSearch} />
-      <button disabled={busy || Boolean(draft) || loading || Boolean(error && !store.entries.length)} onClick={() => { setDraft(newEntry()); setVerify(null); setRevealed(null); }}><Plus size={15} />添加密码</button></div>
+      <button disabled={busy || Boolean(draft) || loading || Boolean(readError)} onClick={() => { setDraft(newEntry()); setVerify(null); setRevealed(null); }}><Plus size={15} />添加密码</button></div>
     {draft && <form className="vault-editor" onSubmit={event => { event.preventDefault(); void run({ action: "save", entry: draft }, "密码记录已保存"); }}>
       <h4>{draft.id ? "编辑密码" : "添加密码"}</h4>
       <fieldset disabled={busy}>
@@ -156,7 +167,7 @@ export function PasswordVaultSettings({ onConfirm, onDirty }) {
       <div className="vault-actions"><button className="primary" disabled={busy} type="submit">验证并{verify.mode === "copy" ? "复制" : "查看"}</button>
         <button type="button" disabled={busy} onClick={() => { setVerify(null); setAccountPassword(""); }}>取消验证</button></div>
     </form>}
-    {loading ? <p>正在读取密码保险箱…</p> : !entries.length ? <div className="vault-empty"><KeyRound size={24} /><p>{search ? "没有找到匹配的账号" : "还没有保存密码"}</p></div> :
+    {loading ? <p>正在读取密码保险箱…</p> : readError && !entries.length ? null : !entries.length ? <div className="vault-empty"><KeyRound size={24} /><p>{search ? "没有找到匹配的账号" : "还没有保存密码"}</p></div> :
       <div className="vault-list">{entries.map(entry => <article className="vault-entry" key={entry.id}>
         <div><strong>{entry.origin}</strong><span>{entry.username || "未填写用户名"}</span></div>
         {revealed?.id === entry.id && <div className="vault-revealed"><output aria-label="已保存的网站密码">{revealed.password}</output><button onClick={() => setRevealed(null)}>隐藏密码</button></div>}

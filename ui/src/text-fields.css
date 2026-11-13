@@ -4,7 +4,7 @@
   input:not([type]), input[type="text" i], input[type="search" i], input[type="url" i],
   input[type="email" i], input[type="password" i], input[type="tel" i], input[type="number" i], textarea
 ):not(:where(
-  .password-input *, .address-bar *, .search-field *, .home-composer *, .composer-field *,
+  .password-input *, .resource-input *, .address-bar *, .search-field *, .home-composer *, .composer-field *,
   .xterm *, .mac-login-keyboard, .remote-view *, .remote-text-input, [hidden]
 )) {
   min-inline-size: 0;
@@ -20,9 +20,9 @@
 :is(#root, .select-surface) :is(
   input:not([type]), input[type="text" i], input[type="search" i], input[type="url" i],
   input[type="email" i], input[type="password" i], input[type="tel" i], input[type="number" i], textarea,
-  .address-bar, .search-field
+  .address-bar, .search-field, .resource-input
 ):not(:where(
-  .password-input *, .address-bar *, .search-field *, .home-composer *, .composer-field *,
+  .password-input *, .resource-input *, .address-bar *, .search-field *, .home-composer *, .composer-field *,
   .xterm *, .mac-login-keyboard, .remote-view *, .remote-text-input, [hidden]
 )) {
   background: var(--field-bg);
@@ -32,12 +32,12 @@
   outline: none;
 
   &:hover:not(:disabled, :focus-within, :has(input:disabled)) { box-shadow: var(--field-shadow-hover); }
-  &:focus-visible, &:is(.address-bar, .search-field):has(input:focus-visible) { box-shadow: var(--field-ring); }
+  &:focus-visible, &:is(.address-bar, .search-field, .resource-input):has(input:focus-visible) { box-shadow: var(--field-ring); }
   &[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--danger); }
   &:disabled, &:has(input:disabled) { opacity: .4; }
   @media (forced-colors: active) {
     & { background: Field; color: FieldText; border: 1px solid ButtonText; box-shadow: none; }
-    &:focus-visible, &:is(.address-bar, .search-field):has(input:focus-visible) {
+    &:focus-visible, &:is(.address-bar, .search-field, .resource-input):has(input:focus-visible) {
       outline: 2px solid Highlight; outline-offset: 1px;
     }
     &:disabled, &:has(input:disabled) { opacity: 1; border-color: GrayText; color: GrayText; }

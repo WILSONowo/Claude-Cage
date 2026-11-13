@@ -351,8 +351,8 @@ export function ClaudeAccountsPanel({ store, running, environmentBusy, tabs, log
       <h3>Claude 账号</h3>
       <p>新建 Claude 终端时会自动分配账号。你可以加入普通终端的账号，也可以登录新账号。</p>
     </div>
-    <details className="claude-scheduling">
-      <summary>调度设置 · {store.scheduling.mode === "sequential" ? "顺序优先" : "均衡分配"}</summary>
+    <section className="claude-scheduling" aria-label="调度设置">
+      <h4>调度设置</h4>
       <label>新会话分配<InlineSelect aria-label="新会话分配" value={store.scheduling.mode} disabled={busy}
         onValueChange={mode => perform(() => load({action:"scheduling",scheduling:{...store.scheduling,mode}}))}>
         <option value="balanced">均衡分配</option><option value="sequential">按列表顺序优先</option>
@@ -369,7 +369,7 @@ export function ClaudeAccountsPanel({ store, running, environmentBusy, tabs, log
             perform(() => load({action:"scheduling",scheduling:store.scheduling,order}));
           }}>上移</button></div>)}
       </div>}
-    </details>
+    </section>
     <div className="claude-add-profile">
       <button className="primary" disabled={busy || environmentBusy || !!environment}
         onClick={() => perform(() => login())}><Plus size={16} />登录新账号</button>

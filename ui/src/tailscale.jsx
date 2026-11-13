@@ -18,8 +18,8 @@ function DeviceIcon({ os }) { return ["android", "iOS"].includes(os) ? <Smartpho
 export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onConfirm }) {
   const [state, setState] = useState(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [key, setKey] = useState(""), [notice, setNotice] = useState(""), [query, setQuery] = useState("");
-  const [sshOpen, setSSHOpen] = useState(false), [selected, setSelected] = useState(""), [username, setUsername] = useState("");
-  const [port, setPort] = useState("80"), [appsOpen, setAppsOpen] = useState(false);
+  const [selected, setSelected] = useState(""), [username, setUsername] = useState("");
+  const [port, setPort] = useState("80");
   const mounted = useRef(true), inflight = useRef(false), loginRequested = useRef(false), revision = useRef(0);
   const ready = status.ready && !status.job?.running;
   const connected = ready && state?.backend === "Running";
@@ -76,7 +76,7 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
   const stop = async logout => {
     if (!await onConfirm({ title: logout ? "退出 Tailscale 登录？" : "断开 Tailscale？", body: logout ? "私网连接会中断，下次连接需要重新登录。已添加的 SSH 公钥保留。" : "正在使用的私网连接会中断，登录状态和 SSH 公钥保留。", confirm: logout ? "退出登录" : "断开连接" })) return;
     loginRequested.current = false;
-    if (await act(logout ? "logout" : "disconnect")) { setSelected(""); setSSHOpen(false); }
+    if (await act(logout ? "logout" : "disconnect")) setSelected("");
   };
   return <Modal title="Tailscale" onClose={onClose} wide>
     <div className="modal-body tailscale-panel">
@@ -137,19 +137,19 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
           </article>)}</div>}
       </section>
       {connected && <section className="tailscale-section">
-        <button className="tailscale-disclosure" aria-expanded={sshOpen} aria-controls="tailnet-inbound-ssh" onClick={() => setSSHOpen(!sshOpen)}><span><KeyRound size={16} />从其他设备 SSH 到 Cage</span><ChevronDown size={16} /></button>
-        {sshOpen && <div id="tailnet-inbound-ssh" className="tailscale-detail">
+        <h3 className="tailscale-setting-title"><KeyRound size={16} />从其他设备 SSH 到 Cage</h3>
+        <div className="tailscale-detail">
           <p className="field-help">仅在需要远程终端、SFTP 或编辑器连接时配置。将连接设备的 SSH 公钥添加到这里，私钥保留在原设备。</p>
           {address && <div className="tailscale-command"><code>{`ssh ${state.user}@${address}`}</code><button className="icon-button" aria-label="复制连接 Cage 命令" onClick={() => copy(`ssh ${state.user}@${address}`)}><Copy size={15} /></button></div>}
           <label className="field-label" htmlFor="tailscale-key">连接设备的 SSH 公钥</label>
           <textarea id="tailscale-key" rows={3} placeholder="ssh-ed25519 AAAA…" value={key} onChange={e => setKey(e.target.value)} maxLength={8192} spellCheck={false} />
           <button className="quiet-button" disabled={busy || !key.trim()} onClick={() => act("add-key", { key: key.trim() })}>添加公钥</button>
           <div className="tailscale-keys">{(state.keys || []).map(entry => <div className="tailscale-key" key={entry}><code title={entry}>{entry}</code><button className="icon-button" disabled={busy} aria-label="移除 SSH 公钥" onClick={() => act("remove-key", { key: entry })}><Trash2 size={14} /></button></div>)}</div>
-        </div>}
+        </div>
       </section>}
       {connected && state.proxy_url && <section className="tailscale-section">
-        <button className="tailscale-disclosure" aria-expanded={appsOpen} aria-controls="tailnet-apps" onClick={() => setAppsOpen(!appsOpen)}><span><Network size={16} />应用访问私网</span><ChevronDown size={16} /></button>
-        {appsOpen && <div id="tailnet-apps" className="tailscale-detail"><p className="field-help">需要直接使用设备域名、HTTPS 或多个端口时，在 Cage 内的应用中配置 HTTP 代理。仅允许访问此私网中可见的设备，公网继续使用原有出口。</p><button className="quiet-button" onClick={() => copy(state.proxy_url, "已复制私网 HTTP 代理地址（含本地访问凭据）")}>复制私网代理地址</button><p className="field-help">代理地址含本地访问凭据，请仅用于 Cage 内的应用。此接入方式支持 TCP 服务；UDP、系统 VPN 和子网路由未启用。</p></div>}
+        <h3 className="tailscale-setting-title"><Network size={16} />应用访问私网</h3>
+        <div className="tailscale-detail"><p className="field-help">需要直接使用设备域名、HTTPS 或多个端口时，在 Cage 内的应用中配置 HTTP 代理。仅允许访问此私网中可见的设备，公网继续使用原有出口。</p><button className="quiet-button" onClick={() => copy(state.proxy_url, "已复制私网 HTTP 代理地址（含本地访问凭据）")}>复制私网代理地址</button><p className="field-help">代理地址含本地访问凭据，请仅用于 Cage 内的应用。此接入方式支持 TCP 服务；UDP、系统 VPN 和子网路由未启用。</p></div>
       </section>}
       <p className="field-help tailscale-footer">其他设备需安装 Tailscale 并加入同一网络。设备访问受网络权限控制；暂停 Cage 联网或停止环境会中断私网连接。</p>
       {notice && <p className="tailscale-notice" role="status"><Check size={14} />{notice}</p>}

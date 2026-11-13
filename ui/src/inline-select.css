@@ -5,16 +5,17 @@
 .inline-select-trigger[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
 .select-surface {
   display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 4px;
-  background: var(--input,var(--paper)); color: var(--ink); border: 1px solid var(--line);
-  border-radius: 10px; box-shadow: var(--popup-shadow, 0 4px 12px #0001, 0 12px 36px #0002);
+  background: var(--panel-bg, var(--input,var(--paper))); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--panel-radius, 8px); box-shadow: var(--popup-shadow, 0 4px 12px #0001, 0 12px 36px #0002);
   animation: select-appear 120ms var(--workbench-ease,ease-out);
 }
 .select-surface > .search-field { margin: 2px 2px 4px; flex: none; font-weight: 400; }
-.inline-select-list { display: flex; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; font-weight: 400; text-align: start; }
+.inline-select-list { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; font-weight: 400; text-align: start; }
 .inline-select-list [role="option"] {
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
   min-height: 30px; padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; cursor: var(--control-cursor,default);
 }
+.inline-select-list [role="option"] > span { min-inline-size: 0; }
 .inline-select-list [role="option"] svg { flex: none; }
 .inline-select-list [aria-selected="true"] { color: var(--strong,var(--ink)); font-weight: 550; }
 .inline-select-list [data-active], .inline-select-list [role="option"]:not([aria-disabled="true"]):hover { background: var(--hover,var(--selected)); }

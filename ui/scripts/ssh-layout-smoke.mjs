@@ -38,12 +38,12 @@ for (const [width, height, size, system, expected] of [
   const check = async (surface, name) => {
     await surface.waitFor();
     const issues = await surface.evaluate(root => {
-      const nodes = [...root.querySelectorAll("button,input,summary,code,label,footer,p")].filter(n => n.checkVisibility() && n.getClientRects().length);
+      const nodes = [...root.querySelectorAll("button,input,h4,code,label,footer,p")].filter(n => n.checkVisibility() && n.getClientRects().length);
       const bounds = root.getBoundingClientRect();
       return nodes.flatMap(n => {
         const rect = n.getBoundingClientRect();
         const label = n.ariaLabel || n.textContent.trim().slice(0, 24) || n.tagName;
-        const spilled = n.matches("button,summary,code,p") && n.scrollWidth > n.clientWidth + 2;
+        const spilled = n.matches("button,h4,code,p") && n.scrollWidth > n.clientWidth + 2;
         if (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.right > innerWidth + 1 || spilled) return [label];
         return [];
       });
@@ -68,7 +68,7 @@ for (const [width, height, size, system, expected] of [
     assert.ok(await dialog.getByLabel("主机名称").evaluate(n => n === document.activeElement && !n.validity.valid));
     await dialog.getByRole("combobox", { name: "SSH 登录方式" }).click();
     await page.getByRole("option", { name: "本机 SSH agent" }).click();
-    await dialog.getByText("云端安装路径", { exact: true }).click();
+    await dialog.getByRole("heading", { name: "云端安装路径", exact: true }).waitFor();
     await dialog.getByLabel("Cage 配置文件", { exact: false }).scrollIntoViewIfNeeded();
     assert.equal(await dialog.getByLabel("本机私钥文件").count(), 0);
     await check(dialog, "advanced-agent");

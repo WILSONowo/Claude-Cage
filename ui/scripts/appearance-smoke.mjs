@@ -70,10 +70,6 @@ try {
     () => document.documentElement.dataset.theme === "dark",
   );
   checks.push("导入本机设置、明暗主题独立保存、跟随系统实时切换、16/13 字号");
-  await page
-    .getByRole("region", { name: "深色主题", exact: true })
-    .getByRole("button", { name: "自定义", exact: true })
-    .click();
   await page.getByLabel("深色主题代码字体", { exact: true }).fill("Menlo");
   await saved();
   await page.getByLabel("深色主题半透明侧栏", { exact: true }).uncheck();

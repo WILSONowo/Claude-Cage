@@ -125,6 +125,6 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
       {(observation?.pressure || observation?.host_pressure) && <p className="field-help" role="status">{macOS ? "客机内存压力升高，请减少并行任务，或保存工作后调整内存上限并重启。" : observation.host_pressure ? "主机内存紧张，暂缓扩大分配。" : "环境内存紧张，正在上限内增加可用内存。达到上限后请减少同时运行的任务。"}</p>}
     </div>}
     {(resourceError || observation?.error) && <p role="alert" className="error-message"><SafetyMessage message={resourceError || observation.error} /></p>}
-    {data?.running && <details className="resource-observation-note"><summary>资源统计说明</summary><p className="field-help">{macOS ? "内存估算使用客机物理容量减去空闲与非活跃页，压缩页计入用量。CPU 来自连续两次 Mach 计数采样。OOM 终止计数尚未提供。主机系统监视器还会统计虚拟化开销。" : data.runtime === "hyperv" ? "内存与 CPU 用量来自 Windows 客机的系统观测。Hyper-V 会在设置的内存上下限内分配和回收内存；主机系统监视器还会统计虚拟化开销。" : "内存用量不含可回收缓存；这些数值反映环境内部状态，主机系统监视器还会统计虚拟化开销。"}</p></details>}
+    {data?.running && <section className="resource-observation-note"><h5>资源统计说明</h5><p className="field-help">{macOS ? "内存估算使用客机物理容量减去空闲与非活跃页，压缩页计入用量。CPU 来自连续两次 Mach 计数采样。OOM 终止计数尚未提供。主机系统监视器还会统计虚拟化开销。" : data.runtime === "hyperv" ? "内存与 CPU 用量来自 Windows 客机的系统观测。Hyper-V 会在设置的内存上下限内分配和回收内存；主机系统监视器还会统计虚拟化开销。" : "内存用量不含可回收缓存；这些数值反映环境内部状态，主机系统监视器还会统计虚拟化开销。"}</p></section>}
   </section>;
 }

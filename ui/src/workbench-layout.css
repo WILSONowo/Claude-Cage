@@ -77,7 +77,7 @@
 .project-heading .project-disclosure > svg { flex: none; }
 .project-children .sidebar-tabs { margin-block-start: 3px; }
 @media (max-height: 40rem) {
-  .sidebar-content { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .sidebar-content { overflow-y: auto; overscroll-behavior: contain; }
   .sidebar-content .sidebar-scroll { flex: none; overflow: visible; }
 }
 .sidebar-search-empty { margin: 10px; font-size: .86rem; color: var(--muted); }
@@ -214,7 +214,7 @@
   text-wrap: pretty; line-height: 1.55;
 }
 .settings-content .inline-select-trigger {
-  min-height: max(2.4rem, 34px); height: auto; line-height: 1.4;
+  min-height: var(--control-height); height: auto; line-height: 1.4;
   text-align: start; padding-block: .4em;
 }
 .settings-sheet[data-section="region"] .settings-fields > label:not(.toggle-row) > .inline-select {

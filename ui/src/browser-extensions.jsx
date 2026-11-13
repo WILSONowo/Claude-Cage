@@ -4,10 +4,10 @@ import { api, uploadFile } from './api';
 import { assertConnection, getClientContext } from './client-context.mjs';
 import { InlineSelect } from './inline-select';
 
-function Permissions({ item, expanded = false }) {
+function Permissions({ item }) {
   const permissions = [...(item.permissions || []), ...(item.hostPermissions || [])];
-  return <details className="extension-permissions" open={expanded || undefined}><summary>权限与网站访问{permissions.length ? `（${permissions.length}）` : ''}</summary>
-    {permissions.length ? <ul>{permissions.map((value, index) => <li key={index}>{value}</li>)}</ul> : <p>未声明额外权限。</p>}</details>;
+  return <section className="extension-permissions"><h4>权限与网站访问{permissions.length ? `（${permissions.length}）` : ''}</h4>
+    {permissions.length ? <ul>{permissions.map((value, index) => <li key={index}>{value}</li>)}</ul> : <p>未声明额外权限。</p>}</section>;
 }
 
 function LocalExtensionImport({ existing, onUpdated, onClose }) {
@@ -136,7 +136,7 @@ export function BrowserExtensions({ onOpenPage, onInternal, onConfirm }) {
     {busy === 'upload' && <p role="status">正在读取扩展包…</p>}
     {preview && <section className="extension-install-preview" aria-label="确认扩展安装">
       <h3>确认安装 {preview.name}</h3><p>版本 {preview.version}</p><p>{preview.description}</p>
-      <Permissions item={preview} expanded />
+      <Permissions item={preview} />
       <div className="browser-setting-actions"><button className="primary" disabled={Boolean(busy)} onClick={() => act('install')}>安装扩展</button><button disabled={Boolean(busy)} onClick={cancel}>取消</button></div>
     </section>}
     {importing && <LocalExtensionImport existing={items || []} onUpdated={setItems} onClose={() => setImporting(false)} />}

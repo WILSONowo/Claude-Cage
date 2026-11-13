@@ -101,9 +101,8 @@
   .remote-host-form :is(input:not(.password-value), .inline-select-trigger):focus-visible { outline: 2px solid Highlight; }
 }
 .remote-host-form small { color: var(--muted); font-weight: 400; font-size: .86rem; line-height: 1.5; overflow-wrap: anywhere; }
-.remote-host-form details { border-block-start: 1px solid var(--line); padding-top: .6rem; }
-.remote-host-form summary { width: fit-content; max-width: 100%; padding-block: .35rem; color: var(--ink); cursor: pointer; }
-.remote-host-form summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.remote-paths { border-block-start: 1px solid var(--line); padding-top: .6rem; }
+.remote-paths h4 { margin: 0; font-size: 1rem; color: var(--strong); }
 .remote-form-row { display: flex; flex-wrap: wrap; align-items: start; gap: .65rem var(--scene-gap); }
 .remote-form-row > label { flex: 1 1 13em; }
 .remote-form-row > .remote-port { flex: 0 1 6.75em; max-width: 100%; }

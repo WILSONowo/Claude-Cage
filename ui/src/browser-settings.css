@@ -41,7 +41,7 @@
 .extension-enable { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); white-space: nowrap; }
 .extension-enable input, .extension-import-row input { accent-color: var(--focus); width: 16px; height: 16px; flex: none; }
 .extension-permissions { margin: 12px 0; color: var(--muted); }
-.extension-permissions summary { cursor: pointer; color: var(--strong); padding: 4px 0; }
+.extension-permissions h4 { color: var(--strong); margin: 0; font-size: inherit; }
 .extension-permissions ul { margin: 8px 0; padding-left: 22px; max-height: 180px; overflow: auto; overflow-wrap: anywhere; line-height: 1.6; }
 .extension-item-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .extension-item-footer > span { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }

@@ -170,6 +170,7 @@
   font-size: 1.08rem;
   font-weight: 600;
 }
+.account-settings fieldset > .field-help { margin: 0; }
 .account-settings .field-help {
   line-height: 1.6;
 }
@@ -192,10 +193,10 @@
   font-size: 12px;
   line-height: 1.6;
 }
-.account-device-settings {
-  border-top: 1px solid var(--line);
-  margin-top: 32px;
-  padding-top: 24px;
+.account-trusted-device, .account-device-settings {
+  border-block-start: 1px solid var(--line);
+  margin-block-start: 1.25rem;
+  padding-block-start: 1.25rem;
 }
 .account-device-option {
   display: flex;

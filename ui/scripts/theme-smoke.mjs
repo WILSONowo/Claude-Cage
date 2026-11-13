@@ -62,17 +62,12 @@ try {
   await open();
   await shot("themes-light");
   await edit("浅色主题背景", "#fdf6e3");
-  await light().getByRole("button", { name: "自定义", exact: true }).click();
-  await light().getByText("界面与层级", { exact: true }).click();
   await edit("浅色主题面板背景", "#e8dec3");
   assert.equal(await color("--chrome"), "#e8dec3");
-  await light().getByText("按钮与交互", { exact: true }).click();
   await edit("浅色主题主按钮背景", "#426b52");
   await edit("浅色主题主按钮文字", "#ffffff");
   assert.equal(await color("--button"), "#426b52");
-  await light().getByText("终端", { exact: true }).click();
   await edit("浅色主题终端背景", "#101820");
-  await light().getByText("终端 ANSI 配色", { exact: true }).click();
   await edit("浅色主题终端红色", "#f08080");
   await shot("themes-colors");
   const originalChrome = state.appearance.lightTheme.colors.chrome;
@@ -214,8 +209,6 @@ try {
     ),
     false,
   );
-  await light().getByRole("button", { name: "自定义", exact: true }).click();
-  await light().getByText("界面与层级", { exact: true }).click();
   const row = page.getByLabel("浅色主题面板背景", { exact: true });
   await row.scrollIntoViewIfNeeded();
   await shot("themes-minimum-colors");
@@ -241,8 +234,6 @@ try {
   await shot("themes-terminal");
   const connections = state.terminalConnections;
   await open();
-  await light().getByRole("button", { name: "自定义", exact: true }).click();
-  await light().getByText("终端", { exact: true }).click();
   await edit("浅色主题终端背景", "#202830");
   await page.getByRole("button", { name: "返回工作台", exact: true }).click();
   await page.waitForFunction(() =>
