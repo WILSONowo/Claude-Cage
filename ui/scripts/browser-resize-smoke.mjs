@@ -48,8 +48,39 @@ try {
     return p[3] === 255 && p[0] !== value;
   }, oldPixel[0]);
   assert.equal(display.stats.connections, connections);
+  // A Tight JPEG defers later rectangles within the same RFB update. Raw
+  // scanlines share the socket buffer, then CopyRect reuses those pixels.
+  display.pauseFrames(true);
+  const jpeg = Buffer.from(await page.evaluate(() => {
+    const tile = document.createElement("canvas");
+    tile.width = tile.height = 16;
+    tile.getContext("2d").fillRect(0, 0, 16, 16);
+    return tile.toDataURL("image/jpeg").split(",")[1];
+  }), "base64");
+  assert.ok(jpeg.length < 16384 && jpeg.length >= 128);
+  const rect = (x, y, width, height, encoding, body) => {
+    const header = Buffer.alloc(12);
+    [x, y, width, height].forEach((n, i) => header.writeUInt16BE(n, 2 * i));
+    header.writeInt32BE(encoding, 8);
+    return Buffer.concat([header, body]);
+  };
+  const colors = Buffer.from([17, 34, 51, 0, 68, 85, 102, 0, 119, 136, 153, 0, 170, 187, 204, 0]);
+  display.sendFrame(Buffer.concat([
+    Buffer.from([0, 0, 0, 3]),
+    rect(0, 0, 16, 16, 7, Buffer.concat([Buffer.from([0x90, 0x80 | (jpeg.length & 127), jpeg.length >> 7]), jpeg])),
+    rect(20, 0, 2, 2, 0, colors),
+    rect(24, 0, 2, 2, 1, Buffer.from([0, 20, 0, 0])),
+  ]));
+  await page.waitForFunction(() => {
+    const ctx = document.querySelector(".browser-lane canvas").getContext("2d");
+    return [...ctx.getImageData(0, 0, 1, 1).data].join(",") === "0,0,0,255";
+  });
+  const tiles = await canvas.evaluate(c => [20, 24].map(x =>
+    [...c.getContext("2d").getImageData(x, 0, 2, 2).data]));
+  const expected = Array.from(colors, (byte, i) => i % 4 === 3 ? 255 : byte);
+  assert.deepEqual(tiles, [expected, expected], "queued Raw and CopyRect must preserve each scanline");
   assert.deepEqual(errors, []);
-  console.log("PASS: browser resize fills the pane, preserves the last frame and pointer mapping, then repaints over the same RFB connection");
+  console.log("PASS: browser resize, pointer mapping, queued JPEG/Raw and CopyRect pixels over the same RFB connection");
 } catch (error) {
   console.error({ errors, stats: display.stats, body: await page.locator("body").innerText() });
   throw error;

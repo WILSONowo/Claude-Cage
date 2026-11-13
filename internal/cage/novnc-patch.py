@@ -202,5 +202,13 @@ replace_once('''        if (!(flags & (1<<31))) {
             return this._fail("Unexpected fence response");
         }''')
 path.write_text(source)
+# The standalone viewer uses the guest's noVNC instead of the bundled copy.
+# Older display.js releases snapshot queued pixels from the start of the socket buffer.
+display = root / 'core/display.js'
+display_source = display.read_text()
+old_blit = 'newArr.set(new Uint8Array(arr.buffer, 0, newArr.length))'
+if old_blit in display_source:
+    display.write_text(display_source.replace(old_blit,
+        'newArr.set(new Uint8Array(arr.buffer, arr.byteOffset + offset, newArr.length))'))
 if ui.exists(): ui.write_text(u)
 if page.exists(): page.write_text(h)

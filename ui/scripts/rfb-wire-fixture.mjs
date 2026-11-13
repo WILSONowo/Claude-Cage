@@ -7,6 +7,7 @@ export async function startDisplay(upstream, { frameInterval = 50, sharedClipboa
   const stats = { connections: 0, closed: 0, frames: 0, clipboardConnections: 0, clipboardUpdates: [], keys: [] };
   const sockets = new Set();
   const displays = new Set();
+  const frameWriters = new Set();
   const clipboardWriters = new Set();
   const sharedWriters = new Set(), sharedSockets = new Set();
   const terminalWriters = new Set();
@@ -86,6 +87,7 @@ export async function startDisplay(upstream, { frameInterval = 50, sharedClipboa
         send(fence);
         makeFrame();
         displays.add(resize);
+        frameWriters.add(send);
         clipboardWriters.add(clipboard);
         timer = setInterval(() => {
           if (framesPaused || socket.writableLength > frame.length * 2) return;
@@ -141,6 +143,7 @@ export async function startDisplay(upstream, { frameInterval = 50, sharedClipboa
       }
     });
     socket.on("error", () => {});
+    socket.on("close", () => frameWriters.delete(send));
     socket.on("close", () => { clearInterval(timer); displays.delete(resize); clipboardWriters.delete(clipboard); sharedWriters.delete(sharedWrite); terminalWriters.delete(terminalWrite); sharedSockets.delete(socket); sockets.delete(socket); stats.closed++; });
     if (terminal) terminalWrite("Terminal clipboard ready\r\n$ ");
     else if (!shared) send(Buffer.from("RFB 003.008\n"));
@@ -150,6 +153,7 @@ export async function startDisplay(upstream, { frameInterval = 50, sharedClipboa
     url: `http://127.0.0.1:${server.address().port}`,
     stats,
     pauseFrames(paused) { framesPaused = paused; },
+    sendFrame(update) { for (const send of frameWriters) send(update); },
     clipboard(text) { for (const write of clipboardWriters) write(text); },
     sharedClipboard(value) { for (const write of sharedWriters) write(value); },
     terminalOutput(text) { for (const write of terminalWriters) write(text); },
