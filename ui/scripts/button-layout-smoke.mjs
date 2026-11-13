@@ -91,6 +91,15 @@ try {
     return [el.offsetWidth, el.offsetHeight, style.width, style.height, style.backgroundClip];
   });
   assert.deepEqual(touch, [44, 44, "30px", "30px", "padding-box"]);
+  await page.evaluate(() => document.documentElement.style.setProperty("--ui-font-size", "14px"));
+  const folder = page.locator(".composer-project");
+  await folder.click();
+  const geometry = await folder.evaluate(el => {
+    const css = getComputedStyle(el);
+    return [el.offsetHeight, el.offsetHeight - parseFloat(css.borderTopWidth) - parseFloat(css.borderBottomWidth), css.backgroundClip];
+  });
+  assert.deepEqual(geometry, [44, 24, "padding-box"]);
+  await page.keyboard.press("Escape");
   assert.deepEqual(errors, []);
 } finally {
   await browser.close();

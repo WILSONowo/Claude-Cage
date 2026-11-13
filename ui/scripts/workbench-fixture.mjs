@@ -90,7 +90,8 @@ export async function createWorkbench({
     active: "",
     sequence: 0,
   };
-  await page.exposeFunction("chooseTestFolder", () => state.chosenFolder);
+  state.folderPickerCalls = 0;
+  await page.exposeFunction("chooseTestFolder", () => { state.folderPickerCalls++; return state.chosenFolder; });
   await page.exposeFunction("requestNativeForTest", async (body) => nativeRequest ? nativeRequest(body) : null);
   await page.addInitScript(() => {
     window.webkit = {

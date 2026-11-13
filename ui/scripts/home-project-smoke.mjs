@@ -79,7 +79,18 @@ for (const remote of [false, true]) {
     }
     await picker.click();
     await dialog.getByRole("button", { name: remote ? "添加云端项目…" : "添加本机项目…" }).click();
+    assert.equal(state.folderPickerCalls, 0);
     if (remote) await dialog.getByRole("button", { name: "选择此云端文件夹" }).click();
+    else {
+      const input = dialog.getByLabel("新项目文件夹");
+      await input.fill("/typed/path");
+      state.chosenFolder = "";
+      await dialog.getByRole("button", { name: "选择文件夹…" }).click();
+      assert.equal(await input.inputValue(), "/typed/path");
+      state.chosenFolder = third;
+      await dialog.getByRole("button", { name: "选择文件夹…" }).click();
+      assert.equal(state.folderPickerCalls, 2);
+    }
     await page.waitForFunction(path => document.querySelector("#open-project input:not([type=radio])")?.value === path, third);
     state.failJob = true;
     await apply.click();
@@ -105,6 +116,7 @@ for (const remote of [false, true]) {
       assert.equal(await picker.getAttribute("title"), first);
       await picker.click();
       await dialog.getByRole("button", { name: "添加本机项目…" }).click();
+      await dialog.getByRole("button", { name: "选择文件夹…" }).click();
       await page.waitForFunction(path => document.querySelector("#open-project input:not([type=radio])")?.value === path, third);
       await apply.click();
       await dialog.waitFor({ state: "hidden" });

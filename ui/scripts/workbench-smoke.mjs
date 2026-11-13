@@ -29,6 +29,7 @@ try {
     .getByRole("button", { name: "添加项目", exact: true })
     .click();
   await page.getByRole("button", { name: "添加本机项目…", exact: true }).click();
+  await page.getByRole("button", { name: "选择文件夹…", exact: true }).click();
   await page.waitForFunction(
     (path) => document.getElementById("project-path")?.value === path,
     state.chosenFolder,

@@ -111,7 +111,6 @@ export function ProjectDialog({
     setPath("");
     setError("");
     if (remote) void browse("");
-    else if (nativeAvailable()) void choose();
   };
   const open = async (event, workspace = path) => {
     event?.preventDefault();
