@@ -1016,6 +1016,8 @@ function App() {
   }, [toast]);
   useEffect(() => {
     const key = (event) => {
+      // Workbench shortcuts can stop the event before remote input sees it.
+      window.dispatchEvent(new Event("cage-input-interrupted"));
       if (document.querySelector("[data-environment-dialog]") || !primaryModifier(event)) return;
       const k = event.key.toLowerCase();
       if (document.querySelector("[data-browser-dialog], .mac-login-fullscreen")) {
@@ -1126,6 +1128,7 @@ function App() {
       return remote.current?.edit(command) || false;
     };
     window.cageWorkbenchAction = async (command) => {
+      window.dispatchEvent(new Event("cage-input-interrupted"));
       if (document.querySelector(".mac-login-fullscreen")) {
         if (command === "closeTab" || command === "quit") document.dispatchEvent(new Event("cage-close-modal"));
         if (command !== "quit") return;
