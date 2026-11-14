@@ -32,6 +32,10 @@ function Get-CimInstance($ClassName, $Filter, $ErrorAction) {
     & $script:onRead
     $record.PSObject.Copy()
 }
+function Set-Service($Name,$StartupType,$ErrorAction) {
+    if ($Name -cne $script:name) { throw 'Unexpected service mode change' }
+    $script:testStartMode=$StartupType
+}
 function Stop-Service($Name, $ErrorAction) {
     if ($Name -cne $script:name) { throw 'Unexpected service stop' }
     $script:stops++
@@ -143,7 +147,7 @@ try {
     }, $true)
     Check $transaction 'Missing production upgrade transaction'
     $program = $root
-    $service = [pscustomobject]@{Status='Running'}
+    $service = [pscustomobject]@{Status='Running';StartType='Manual'}
     $record.StartName = 'LocalSystem'
     $wasRunning = $true
     foreach ($afterReplace in $false,$true) {
@@ -154,9 +158,11 @@ try {
         if ($afterReplace) { Copy-Item $new $stage }
         $payload = [IO.FileInfo]::new($stage)
         $script:failAfterReplace = $afterReplace
+        $script:testStartMode='Manual'
         $failure = $null
         try { . ([scriptblock]::Create($transaction.Extent.Text)) } catch { $failure = $_ }
         Check $failure 'Injection did not reach the production failure handler'
+        Check ($script:testStartMode -eq 'Manual') 'Rollback lost original activation mode'
         Check ($replaced -eq $afterReplace) 'Wrong side of the atomic swap'
         Check ($record.State -eq 'Running') 'Failed upgrade left the original service stopped'
         Check ((Get-FileHash $exe).Hash -eq (Get-FileHash $ping).Hash) 'Failed upgrade changed the original image'

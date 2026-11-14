@@ -134,12 +134,16 @@ if(Test-Path -LiteralPath $bindingPath){
     Assert-NoLink $bindingPath;$old=Get-Content -LiteralPath $bindingPath -Raw -Encoding UTF8|ConvertFrom-Json
     foreach($key in @('version','vm_id','host_sid','disk_path','disk_volume','disk_file_id')){if([string]$old.$key -cne [string]$binding.$key){throw 'The existing protected VM/disk binding changed; preserved it.'}}
 }
+$restartMode=$null
 $rollback=$null;$replaced=$false;$stopped=$false;$cleanupRollback=$false;$wasRunning=$service -and $service.Status -eq 'Running'
 try{
     if($service){
         Assert-NoLink $exe
         if($wasRunning){$originalHash=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash}
         $rollback=Join-Path $program ('manager-rollback-'+[guid]::NewGuid().ToString('N')+'.exe')
+        # Prevent an on-demand activation while replacing the verified image.
+        $restartMode=$service.StartType
+        Set-Service -Name $name -StartupType Disabled -ErrorAction Stop
         Stop-FixedManager $name $binary $exe
         $stopped=$true
         Replace-StoppedManager $name $binary $exe $payload.FullName $rollback
@@ -157,16 +161,19 @@ try{
     if($LASTEXITCODE -ne 0){throw 'The manager service permission could not be protected.'}
     & ($env:windir+'\System32\sc.exe') failure $name reset= 86400 actions= restart/5000/restart/15000/restart/60000|Out-Null
     if($LASTEXITCODE -ne 0){throw 'The manager recovery policy could not be configured.'}
+    if($service){Set-Service -Name $name -StartupType Automatic -ErrorAction Stop}
     Start-Service -Name $name;(Get-Service -Name $name).WaitForStatus('Running',[TimeSpan]::FromSeconds(30))
     $cleanupRollback=$true
 }catch{
     if($replaced){
+        Set-Service -Name $name -StartupType Disabled -ErrorAction Stop
         Stop-FixedManager $name $binary $exe
         Replace-StoppedManager $name $binary $exe $rollback ([NullString]::Value)
         Protect-ManagerPath $exe
-        if($wasRunning){Resume-PreviousManager $name $binary $exe $originalHash}
         $cleanupRollback=$true
-    }elseif($stopped -and $wasRunning){
+    }
+    if($null -ne $restartMode){Set-Service -Name $name -StartupType $restartMode -ErrorAction Stop}
+    if($wasRunning -and ($stopped -or ($null -ne $restartMode -and (Get-Service -Name $name).Status -eq 'Stopped'))){
         Resume-PreviousManager $name $binary $exe $originalHash
     }
     throw

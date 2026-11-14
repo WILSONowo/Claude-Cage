@@ -20,19 +20,19 @@ type controllerPortRecord struct {
 // listenController keeps the workbench origin stable, because the origin
 // scopes its cookies and browser storage. Windows can reserve whole port
 // blocks for Hyper-V, WSL or container networking, which may cover every
-// preferred port. The system then assigns a free port. It is remembered, so
+// preferred port. The system then assigns a free port. Try that recorded origin first so
 // later starts keep that origin while it stays available.
 func listenController(profile string) (net.Listener, int, error) {
-	for port := controllerFirstPort; port < controllerFirstPort+controllerPortCount; port++ {
-		if listener, err := listenLoopback(port); err == nil {
-			return listener, port, nil
-		}
-	}
 	path := filepath.Join(profile, "control-port.json")
 	var record controllerPortRecord
 	if b, err := os.ReadFile(path); err == nil && json.Unmarshal(b, &record) == nil && record.Port >= 1024 && record.Port <= 65535 {
 		if listener, err := listenLoopback(record.Port); err == nil {
 			return listener, record.Port, nil
+		}
+	}
+	for port := controllerFirstPort; port < controllerFirstPort+controllerPortCount; port++ {
+		if listener, err := listenLoopback(port); err == nil {
+			return listener, port, nil
 		}
 	}
 	listener, err := listenLoopback(0)

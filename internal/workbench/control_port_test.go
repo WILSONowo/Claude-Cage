@@ -37,6 +37,10 @@ func TestListenControllerFallsBackWhenPreferredPortsAreTaken(t *testing.T) {
 		t.Fatalf("fallback port was not remembered: %s %v", b, err)
 	}
 	first.Close()
+	// Releasing a preferred port should not change the already established origin.
+	if len(held) > 0 {
+		held[0].Close()
+	}
 	second, again, err := listenController(profile)
 	if err != nil {
 		t.Fatal(err)
