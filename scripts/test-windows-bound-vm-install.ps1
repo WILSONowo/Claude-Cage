@@ -2,8 +2,11 @@
 # Real NSIS on the current Windows user; all mutable host integration is redirected.
 param([Parameter(Mandatory)][string]$OutputDirectory, [string]$AppDirectory,
     [string]$MakeNSIS = 'makensis.exe', [string]$PackagingDirectory = (Join-Path $PSScriptRoot '../packaging/windows'),
-    [switch]$Baseline)
+    [switch]$Baseline, [string]$PreviousAppDirectory)
 $ErrorActionPreference = 'Stop'
+if ($PreviousAppDirectory -and (!$AppDirectory -or !(Test-Path -LiteralPath (Join-Path $AppDirectory 'resources/cage.exe')))) {
+    throw 'Live upgrade requires a complete new application payload.'
+}
 $id = [guid]::NewGuid().ToString('N')
 $root = [IO.Directory]::CreateDirectory((Join-Path $OutputDirectory $id)).FullName
 $build = [IO.Directory]::CreateDirectory((Join-Path $root 'build')).FullName
@@ -17,14 +20,18 @@ $env:CLAUDE_CAGE_CONFIG = Join-Path $profileDir 'config.json'
 $setup = Join-Path $root 'fixture.exe'
 $script:reports = [ordered]@{}
 function Assert([bool]$condition, [string]$message) { if (!$condition) { throw $message } }
-function Run-Setup([string]$installDir, [string]$phase, [int]$expected) {
+function Run-Setup([string]$installDir, [string]$phase, [int]$expected, [scriptblock]$afterStart) {
     $report = Join-Path $root ($phase + '.json')
     $process = Start-Process -FilePath $setup -ArgumentList @('/S','/DESKTOPSHORTCUT=1','/STARTMENUSHORTCUT=1',('/DIAGNOSTICS="' + $report + '"'),('/D=' + $installDir)) -WindowStyle Hidden -PassThru
     try {
+        if ($afterStart) { & $afterStart }
         if (!$process.WaitForExit(600000)) { throw "NSIS timed out in $phase" }
         $script:reports[$phase] = Get-Content -Raw -LiteralPath $report | ConvertFrom-Json
         Assert ($process.ExitCode -eq $expected) "$phase returned $($process.ExitCode): $(Get-Content -Raw -LiteralPath $report)"
-    } finally { $process.Dispose() }
+    } finally {
+        if (!$process.HasExited) { $process.Kill($true); $process.WaitForExit() }
+        $process.Dispose()
+    }
 }
 try {
     foreach ($name in 'Cage.ico','installation-files.ps1','verified-file-deletion.cs') { Copy-Item -LiteralPath (Join-Path $PackagingDirectory $name) -Destination $build }
@@ -56,6 +63,71 @@ try {
     $version = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '../VERSION')).Trim()
     & $MakeNSIS /V2 /INPUTCHARSET UTF8 "/DAPP_DIR=$AppDirectory" "/DVERSION=$version" "/DVERSION_NUMERIC=$(($version -split '-')[0]).0" "/DFILE_MANIFEST=$AppDirectory\Cage.install-files.json" "/DOUTPUT_FILE=$setup" (Join-Path $build 'Cage.nsi')
     Assert ($LASTEXITCODE -eq 0) 'Could not compile NSIS'
+    if ($PreviousAppDirectory) {
+        $previous = (Get-Item -LiteralPath $PreviousAppDirectory).FullName
+        Copy-Item -LiteralPath $previous -Destination $target -Recurse
+        $sentinel = Join-Path $target 'personal-upgrade-check.txt'
+        [IO.File]::WriteAllText($sentinel, $id)
+        $oldVersion = (Get-Content -Raw -LiteralPath (Join-Path $target 'version.txt')).Trim()
+        $expectedVersion = (Get-Content -Raw -LiteralPath (Join-Path $AppDirectory 'version.txt')).Trim()
+        $oldBackend = Join-Path $target 'resources/cage.exe'
+        $record = Join-Path $profileDir 'desktop-entry/control.json'
+        $old = Start-Process -FilePath (Join-Path $target 'Cage.exe') -WorkingDirectory $target -WindowStyle Hidden -PassThru
+        $fileLock = $null
+        $controller = $null
+        try {
+            $until = [DateTime]::UtcNow.AddSeconds(45)
+            do {
+                Start-Sleep -Milliseconds 100
+                $old.Refresh()
+                if ($old.HasExited) { throw 'The isolated old desktop exited before upgrade.' }
+            } until ((Test-Path -LiteralPath $record) -or [DateTime]::UtcNow -ge $until)
+            $pidRecord = (Get-Content -Raw -LiteralPath $record | ConvertFrom-Json).pid
+            $controller = Get-Process -Id $pidRecord
+            Assert ($controller.Path -eq $oldBackend) 'Unexpected old controller path.'
+            if ($old.MainWindowHandle -ne 0) { $null = $old.CloseMainWindow() }
+            do { Start-Sleep -Milliseconds 100; $old.Refresh() }
+            until ($old.MainWindowHandle -eq 0 -or $old.HasExited -or [DateTime]::UtcNow -ge $until)
+            Assert (!$old.HasExited -and $old.MainWindowHandle -eq 0 -and !$controller.HasExited) 'The old desktop and its controller must both be running in the tray case.'
+
+            # A reader such as an inventory tool can retain an executable briefly
+            # after the app exits. Keep that file open across the process handoff.
+            $fileLock = [IO.File]::Open((Join-Path $target 'resources/mihomo.exe'), 'Open', 'Read', 'Read')
+            $expectedExit = if ($Baseline) { 2 } else { 0 }
+            Run-Setup $target 'upgrade-running-desktop' $expectedExit {
+                if (!$old.WaitForExit(120000)) { throw 'The installer did not stop the old tray application.' }
+                Start-Sleep -Seconds 2
+                $fileLock.Dispose()
+            }
+            Assert ($controller.WaitForExit(5000)) 'The old controller survived the upgrade.'
+            Assert (([IO.File]::ReadAllText($sentinel)) -eq $id) 'The upgrade changed a personal file.'
+            $reports.oldVersion = $oldVersion
+            $reports.oldTrayExited = $old.HasExited
+            $reports.oldControllerExited = $controller.HasExited
+            if ($Baseline) {
+                Assert ($reports['upgrade-running-desktop'].phase -eq 'checking_stopped_processes') 'The baseline failed outside the expected locked-file check.'
+            } else {
+                Assert ((Get-Content -LiteralPath (Join-Path $target 'version.txt') -Raw).Trim() -eq $expectedVersion) 'Wrong replacement version.'
+                Assert ((Get-ItemProperty -LiteralPath $key).InstallLocation -eq $target) 'Upgrade registration missing.'
+                . (Join-Path $PSScriptRoot 'windows-common.ps1')
+                $previousTemp = $env:RUNNER_TEMP
+                $env:RUNNER_TEMP = $root
+                try { Assert-WindowsWorkbench $target } finally { $env:RUNNER_TEMP = $previousTemp }
+                $reports.newVersion = $expectedVersion
+                $reports.nativeWorkbench = $true
+            }
+            return
+        } finally {
+            if ($fileLock) { $fileLock.Dispose() }
+            # These are pinned handles to the isolated copies we started.
+            if (!$old.HasExited) { $old.Kill($true); $old.WaitForExit() }
+            $old.Dispose()
+            if ($controller) {
+                if (!$controller.HasExited -and !$controller.WaitForExit(3000)) { $controller.Kill(); $controller.WaitForExit() }
+                $controller.Dispose()
+            }
+        }
+    }
     Run-Setup $target 'fresh' 0
     $instance = [IO.Directory]::CreateDirectory((Join-Path $target 'CageData/state/windows-00000000000000000000000000000001')).FullName
     $disk = Join-Path $instance 'system.vhdx'
