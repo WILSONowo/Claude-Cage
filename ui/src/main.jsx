@@ -149,6 +149,11 @@ function App() {
     [quitting, setQuitting] = useState(null);
   const acceptedStart = useRef(null);
   const desktopCheck = useRef(null);
+  const desktopStartup = useRef(null);
+  function finishDesktopStartup(ready) {
+    desktopStartup.current?.(ready);
+    desktopStartup.current = null;
+  }
   // Keep feedback continuous until polling observes the accepted start job.
   const clientStatus = serverStatus && { ...serverStatus, keyboard: clientKeyboard(serverStatus.keyboard) };
   const hostGitOpen = startOptions !== null;
@@ -184,7 +189,7 @@ function App() {
   const current = tabs.find((t) => t.id === active),
     terminal = !desktopOpen && current?.kind === "terminal",
     busy = Boolean(status?.job?.running),
-    showHome = storageRecovery || !status?.vm_running || (desktopOpen ? desktopStartPending : home || !current);
+    showHome = storageRecovery || !desktopOpen && (!status?.vm_running || home || !current);
   const setupProgress = status?.job?.setup_progress && (busy || status.job.error);
 	const cliSessions = useCLISessions(Boolean(status && !busy && !storageRecovery), windowVisible);
   useEffect(() => {
@@ -194,6 +199,7 @@ function App() {
       setStartOptions(null);
       setStartRequest(null);
       acceptedStart.current = null;
+      finishDesktopStartup(false);
       setDesktopStartPending(false);
     }
   }, [storageRecovery]);
@@ -408,7 +414,7 @@ function App() {
     }
   };
   async function openDesktop() {
-    if (desktopCheck.current || desktopStartPending) return false;
+    if (desktopCheck.current || desktopStartPending || desktopStartup.current) return false;
     const request = api("/status");
     desktopCheck.current = request;
     try {
@@ -419,21 +425,19 @@ function App() {
         notify(latest.storage_recovery?.required ? "请先恢复环境存储。" : "环境正在执行其他操作，请稍后重试。");
         return false;
       }
-      if (!latest.vm_running) {
+      if (latest.vm_running) return true;
+      if (setupProxy) { openSettings("network"); return false; }
+      if (!account?.guest_system && latest.local_vm_storage && !isRemoteClient() && guestSystem !== null) {
         setConversation("");
         setDesktopOpen(false);
         setHome(true);
-        if (setupProxy) { openSettings("network"); return false; }
-        if (!account?.guest_system && latest.local_vm_storage && !isRemoteClient() && guestSystem !== null) {
-          notify("请先完成环境设置，再打开 Claude Desktop。");
-          return false;
-        }
-        setDesktopStartPending(true);
-        setStartOptions({});
+        notify("请先完成环境设置，再打开 Claude Desktop。");
+        return false;
       }
-      setDesktopOpen(true);
-      setHome(false);
-      return Boolean(latest.vm_running);
+      const completion = new Promise(resolve => { desktopStartup.current = resolve; });
+      setDesktopStartPending(true);
+      setStartOptions({});
+      return await completion;
     } catch (error) {
       notify(error.message);
       return false;
@@ -739,11 +743,9 @@ function App() {
           if (!accepted.desktop || !job?.running) {
             acceptedStart.current = null;
             if (accepted.desktop) {
-              if (!job || job.error || job.canceled || !next.vm_running) {
-                setDesktopOpen(false);
-                setHome(true);
-                if (!job || job.id !== next.job.id) notify(job?.error || "环境启动结果不可用，可在操作详情中查看记录。");
-              }
+              const ready = Boolean(job && !job.error && !job.canceled && next.vm_running);
+              if (!ready) notify(job?.error || "环境未启动，请查看操作详情后重试。");
+              finishDesktopStartup(ready);
               setDesktopStartPending(false);
             }
           }
@@ -1356,7 +1358,7 @@ function App() {
         <HostGitPreparation
           onClose={() => {
             setStartOptions(null);
-            if (desktopStartPending) { setDesktopStartPending(false); setDesktopOpen(false); setHome(true); }
+            if (desktopStartPending) { finishDesktopStartup(false); setDesktopStartPending(false); }
           }}
           onReady={async () => {
             setStartRequest({ id: null });
@@ -1367,7 +1369,7 @@ function App() {
               acceptedStart.current = { id: result.id, desktop: desktopStartPending };
               refreshStatus.current?.();
             } else if (desktopStartPending) {
-              setDesktopStartPending(false); setDesktopOpen(false); setHome(true);
+              finishDesktopStartup(false); setDesktopStartPending(false);
             }
           }}
         />
@@ -1526,7 +1528,7 @@ function App() {
             onTailscale={() => setTailscaleOpen(true)}
             desktopOpen={desktopOpen}
             onClaudeWeb={() => openBrowserPage("https://claude.ai/")}
-            onClaudeDesktop={openDesktop}
+            onClaudeDesktop={() => { setHome(false); setDesktopOpen(true); }}
             onEditor={openEditor}
             onSettings={openSettings}
             onAccountConfirm={confirm}
@@ -1557,7 +1559,7 @@ function App() {
           <main className={`workspace ${split ? "workspace-split" : ""}`} ref={workspaceBox}
             style={{ "--split-left": `${100 * (dualBrowser && nativeSplit?.fraction || 0.5)}%` }}>
             {dropSide && <div aria-hidden="true" className={`split-drop split-${dropSide}`}>{dropSide === "left" ? "放到左侧" : "放到右侧"}</div>}
-            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
+            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={!settingsOpen} onConfirm={confirm}
               sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
             {!storageRecovery && desktopOpen && !showHome && !macGuest && <ClaudeDesktop

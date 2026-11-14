@@ -103,7 +103,8 @@
   width: 100%; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .86rem;
 }
 .desktop-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; }
-.desktop-actions button { max-width: 100%; min-height: 2.45em; padding: .5em .9em; line-height: 1.4; }
+.desktop-actions button { max-width: 100%; height: 32px; min-height: 32px; padding: 0 10px;
+  border-radius: 7px; font-size: 13px; line-height: 1.25; }
 .desktop-actions svg { flex: none; }
 .desktop-progress {
   display: flex;
@@ -131,3 +132,6 @@
     overflow: auto;
   }
 }
+
+.desktop-reconnect-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.desktop-reconnect-actions button { margin: 0; }

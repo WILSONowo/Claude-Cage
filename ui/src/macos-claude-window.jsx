@@ -59,7 +59,7 @@ function matchWindowBackground(img, pane, canvasRef) {
   pane.style.backgroundColor = uniform && pixels[3] === 255 ? `rgb(${pixels[0]}, ${pixels[1]}, ${pixels[2]})` : "";
 }
 
-export function MacOSAppWindow({ browser = false, onOpenPage, visible, keyboard = "mac", remoteRef, sidebarCollapsed, onExpand, onConfirm, uploads = [], onStatus = () => {}, onFallback = () => {} }) {
+export function MacOSAppWindow({ browser = false, guestRunning = true, onCheckEnvironment, onOpenPage, visible, keyboard = "mac", remoteRef, sidebarCollapsed, onExpand, onConfirm, uploads = [], onStatus = () => {}, onFallback = () => {} }) {
   const appName = browser ? "Google Chrome" : "Claude Desktop";
   const base = browser ? "/macos-browser" : "/macos/claude";
   const windowVisible = useWindowVisibility();
@@ -103,8 +103,13 @@ export function MacOSAppWindow({ browser = false, onOpenPage, visible, keyboard 
   const pickerTarget = useRef(null);
   const generation = useRef(0);
   const launched = useRef(false);
+  const opening = useRef(false);
+  const [openingDesktop, setOpeningDesktop] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
+    if (!guestRunning) { setState(null); setImage(null); setError(""); return; }
     if (!screenVisible) return;
     if (browser) launched.current = false;
     const epoch = ++generation.current;
@@ -137,9 +142,8 @@ export function MacOSAppWindow({ browser = false, onOpenPage, visible, keyboard 
         }
         if (!live()) return;
         setState(current);
-        // Opening this tab focuses the signed guest application. A background
-        // Electron window can still be captured but cannot receive targeted input.
-        if (current.installed && !launched.current) {
+        // Browser navigation opens Chrome. Desktop launch is an explicit action.
+        if (browser && current.installed && !launched.current) {
           launched.current = true;
           await request("launch");
           nextStatus = 0;
@@ -191,8 +195,24 @@ export function MacOSAppWindow({ browser = false, onOpenPage, visible, keyboard 
       setInputChannel(null);
       frameConnection.current?.close(); frameConnection.current = null;
     };
-  }, [screenVisible, revision, base]);
+  }, [screenVisible, revision, base, guestRunning]);
 
+  async function openDesktop() {
+    if (opening.current) return;
+    opening.current = true;
+    setOpeningDesktop(true);
+    try {
+      if ((onCheckEnvironment && !await onCheckEnvironment()) || !mounted.current) return;
+      // The guest may already be running and only need its frame connection back.
+      const snapshot = await request("status").catch(() => null);
+      if (!mounted.current) return;
+      if (snapshot) setState(snapshot);
+      if (!snapshot || snapshot.installed && !snapshot.running) await request("launch");
+      setError("");
+      refresh(n => n + 1);
+    } catch (e) { if (mounted.current) setError(e.message); }
+    finally { opening.current = false; if (mounted.current) setOpeningDesktop(false); }
+  }
   async function action(name) {
     try { if (name === "stop") launched.current = true; await request(name); setError(""); refresh((n) => n + 1); }
     catch (e) { setError(e.message); }
@@ -292,15 +312,24 @@ export function MacOSAppWindow({ browser = false, onOpenPage, visible, keyboard 
     <DesktopToolbar title={appName} desktop={state} platform="macOS" zoom={zoom} setZoom={setZoom} onConfirm={onConfirm}
       onStop={browser ? undefined : () => action("stop")} refresh={() => refresh(n => n+1)} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
       {browser && <BrowserFavorites ready={Boolean(state?.installed)} onOpen={onOpenPage} />}
-      <MacOSLogin />
+      {guestRunning && <MacOSLogin />}
       {!browser && <button disabled={!state?.input || !image || transferring} onClick={() => void chooseFiles()}>添加附件</button>}
       {!browser && <input ref={picker} type="file" multiple hidden aria-label="选择 Claude 附件" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) void receive({ files, kind: "paste" }, pickerTarget.current || undefined).catch(fileFailure); }} />}
-      {(!state?.running || error) && <button onClick={() => action("launch")} disabled={!state?.installed}>{state?.running ? "重新连接应用" : "打开应用"}</button>}
+      {browser && (!state?.running || error) && <button onClick={() => action("launch")} disabled={!state?.installed}>{state?.running ? "重新连接应用" : "打开应用"}</button>}
       {state?.installed && !state.screen && <button onClick={() => action("request-screen")}>授权窗口画面</button>}
       {state?.installed && !state.input && <button onClick={() => action("request-input")}>授权键鼠</button>}
     </DesktopToolbar>
     {error && <p role="alert">{error}</p>}
     {fileError && <p role="alert">{fileError}</p>}
+    {!browser && (!state?.running || error) && <div className="desktop-empty">
+      <div className="desktop-empty-heading"><h2>Claude Desktop</h2></div>
+      <p>{guestRunning ? "在当前项目中使用 Chat 和 Code。" : "打开应用时会先启动 Cage 环境。"}</p>
+      <div className="desktop-actions">
+        {state?.installed !== false && <button className="primary" disabled={openingDesktop} onClick={openDesktop}>
+          {openingDesktop ? "正在打开…" : state?.running ? "重新连接画面" : "打开 Claude Desktop"}
+        </button>}
+      </div>
+    </div>}
     {state && !state.installed && <p>此虚拟 Mac 尚未安装 {appName}。</p>}
     {state?.running && !state.screen && <p>{messages.screen_recording_permission}</p>}
     {state?.running && state.screen && !state.input && <p>{messages.accessibility_permission}</p>}

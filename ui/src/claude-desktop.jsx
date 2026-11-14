@@ -147,7 +147,8 @@ export function ClaudeDesktop({
   const [statusError, setStatusError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [jobID, setJobID] = useState("");
-  const opened = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const pendingAction = useRef(false);
   const statusRequest = useRef(null);
   const statusRevision = useRef(0);
@@ -169,10 +170,9 @@ export function ClaudeDesktop({
       if (statusRequest.current === request) statusRequest.current = null;
     }
   };
-  const run = async (action, checkEnvironment = false) => {
-    if (pendingAction.current || status.job?.running) return;
+  const run = async (action, checkEnvironment = false, activate = false) => {
+    if (pendingAction.current || (!checkEnvironment && status.job?.running)) return;
     pendingAction.current = true;
-    opened.current = true;
     statusRevision.current++;
     statusRequest.current = null;
     setSubmitting(true);
@@ -181,6 +181,15 @@ export function ClaudeDesktop({
       if (checkEnvironment && onCheckEnvironment && !await onCheckEnvironment()) {
         pendingAction.current = false;
         return;
+      }
+      if (!mounted.current) return;
+      if (checkEnvironment && action === "start") {
+        const snapshot = await refresh();
+        if (!mounted.current) return;
+        if (snapshot?.installed === false || snapshot?.running && !activate) {
+          pendingAction.current = false;
+          return;
+        }
       }
       const job = await api(`/claude-desktop/${action}`, {});
       setJobID(job.id);
@@ -192,24 +201,12 @@ export function ClaudeDesktop({
     }
   };
   useEffect(() => {
-    if (!screenVisible) {
-      opened.current = false;
-      return;
-    }
-    if (!status.vm_running || status.job?.running) return;
+    if (!status.vm_running) { setDesktop(null); setStatusError(""); return; }
+    if (!screenVisible || status.job?.running) return;
     let disposed = false;
     let timer;
     const poll = async () => {
-      const value = await refresh(() => !disposed);
-      if (disposed) return;
-      if (value && !opened.current) {
-        opened.current = true;
-        // Explicitly opening the native Windows view also activates its app.
-        // Status polling while the view stays visible must not steal focus.
-        const activateNative = value.native_user_session && automatic;
-        if (value.installed && (!value.running || activateNative) && !value.failed && !jobID)
-          await run("start");
-      }
+      await refresh(() => !disposed);
       if (!disposed) timer = setTimeout(poll, 5000);
     };
     poll();
@@ -259,7 +256,7 @@ export function ClaudeDesktop({
     return () => { disposed = true; clearTimeout(timer); };
   }, [jobID, status.job?.id, status.job?.running, status.job?.error, status.job?.canceled]);
   const canInstall = desktop?.installed === false && !automatic;
-  const canOpen = desktop?.installed || (!desktop && Boolean(statusError));
+  const canOpen = !status.vm_running || !desktop || desktop.installed;
   return (
     <section className="claude-desktop-view" aria-label="Claude Desktop">
       <BrowserUploads requests={uploads} onStatus={onStatus} />
@@ -278,7 +275,7 @@ export function ClaudeDesktop({
         }}
       />}
       <DesktopToolbar desktop={desktop} platform={status.guest_system === "windows-11" ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
-        onConfirm={onConfirm} onStop={() => run("stop")} onActivate={() => run("start", true)} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
+        onConfirm={onConfirm} onStop={() => run("stop")} onActivate={() => run("start", true, true)} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
         {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
           if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存工作。Claude Desktop 会关闭，从官方软件源更新后重新打开。登录资料会保留。", confirm: "更新应用" })) run("update");
         }}>更新应用</button>}
@@ -292,10 +289,10 @@ export function ClaudeDesktop({
         </div>
       )}
       {desktop?.running && desktop.managed === false && !desktop.native_user_session && <div className="connection-banner" role="status">当前应用尚未接入 Cage 账户解锁。请先保存并关闭应用，再重新打开。</div>}
-      {busy && ownJob && (
+      {busy && (ownJob || submitting) && (
         <div className="desktop-progress" role="status">
           <RefreshCw size={16} className="spin" />
-          {status.job.message}
+          {ownJob || status.job?.running ? status.job.message : "正在检查并打开 Claude Desktop…"}
           <button className="text-button" onClick={onDetails}>
             查看进度
           </button>
@@ -318,17 +315,17 @@ export function ClaudeDesktop({
           <div className="desktop-empty">
             <div className="desktop-empty-heading">
               <Monitor size={26} aria-hidden="true" />
-              <h2>{desktop?.installed ? "Claude Desktop" : "在 Cage 中使用 Claude Desktop"}</h2>
+              <h2>Claude Desktop</h2>
             </div>
             <div className="desktop-intro">
-              <p>登录后可在当前项目中使用 Chat 和 Code。</p>
+              <p>{status.vm_running ? "在当前项目中使用 Chat 和 Code。" : "打开应用时会先启动 Cage 环境。"}</p>
               {desktop?.installed === false && <p>{automatic ? "请先在 Windows 客机中安装 Claude Desktop，再刷新状态。" : "应用将从 Anthropic 官方下载。"}</p>}
             </div>
             <div className="desktop-actions">
               {(canOpen || canInstall) && (
                 <button
                   className="primary"
-                  disabled={busy || !status.vm_running}
+                  disabled={submitting || Boolean(jobID)}
                   onClick={() => run(desktop?.installed === false ? "install" : "start", true)}
                 >
                   {desktop?.installed !== false ? (
@@ -348,7 +345,7 @@ export function ClaudeDesktop({
                   更新 / 修复安装
                 </button>
               )}
-              {(!desktop || automatic && !desktop.installed) && (
+              {status.vm_running && (statusError || automatic && desktop?.installed === false) && (
                 <button
                   className="quiet-button"
                   disabled={busy}
@@ -360,9 +357,8 @@ export function ClaudeDesktop({
             </div>
             {desktop?.installed && <p>{status.guest_system?.startsWith("windows")
               ? "在 Claude Desktop 应用内检查并安装更新。"
-              : "Linux 版通过系统软件源更新。可点击上方“更新应用”，或在 Cage 终端运行 sudo apt update && sudo apt install --only-upgrade claude-desktop。"}</p>}
+              : "更新应用会保留登录状态。"}</p>}
             <div className="desktop-note">
-              <p>关闭应用后仍保留登录状态。</p>
               <p>当前环境暂不支持 Cowork。</p>
             </div>
           </div>

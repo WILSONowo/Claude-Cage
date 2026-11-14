@@ -107,7 +107,7 @@ export function WorkspaceSidebar({
   if (ssh?.expanded) return null;
   const modes = (
     <div className="workspace-modes" aria-label="工作模式">
-      <button aria-pressed={desktopOpen} disabled={busy} onClick={onClaudeDesktop} aria-label="Claude Desktop" title="安装或打开 Claude Desktop">{compactHeader && guestSystem ? <GuestSystemIcon system={guestSystem} /> : <Monitor size={15} />}<span><span className="mode-prefix">Claude </span>Desktop</span></button>
+      <button aria-pressed={desktopOpen} onClick={onClaudeDesktop} aria-label="Claude Desktop" title="Claude Desktop">{compactHeader && guestSystem ? <GuestSystemIcon system={guestSystem} /> : <Monitor size={15} />}<span><span className="mode-prefix">Claude </span>Desktop</span></button>
       <button aria-pressed={!desktopOpen} onClick={onHome} aria-label="Code" title="Code"><Code2 size={15} /><span className="mode-label">Code</span></button>
     </div>
   );

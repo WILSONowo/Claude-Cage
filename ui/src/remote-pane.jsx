@@ -61,8 +61,8 @@ export default forwardRef(function RemoteView(
     setSizeError(false);
     const retry = () => {
       if (disposed || reconnectTimer) return;
-      setConnection("disconnected");
-      if (desktop && failures.current >= 5) return;
+      if (desktop && failures.current >= 5) { setConnection("disconnected"); return; }
+      setConnection(desktop ? "retrying" : "disconnected");
       reconnectTimer = setTimeout(
         () => setAttempt((v) => v + 1),
         Math.min(1000 * 2 ** failures.current++, 5000),
@@ -266,15 +266,15 @@ export default forwardRef(function RemoteView(
         <div className="view-overlay">
           <RefreshCw className={connection === "connecting" ? "spin" : ""} />
           <h3>
-            {connection === "connecting" ? "正在连接画面" : "画面连接已断开"}
+            {connection === "connecting" ? "正在连接画面" : connection === "retrying" ? "正在重试画面连接" : "画面连接已断开"}
           </h3>
-          {connection === "disconnected" && (
+          {connection !== "connecting" && (
             <>
-              <p>{connectionError || "后台任务仍在运行。"}</p>
-              <button className="primary" onClick={() => { failures.current = 0; setAttempt((v) => v + 1); }}>
-                重新连接画面
-              </button>
-              {desktop && onDetails && <button className="quiet-button" onClick={onDetails}>查看操作详情</button>}
+              <p>{connectionError || "后台任务仍在运行。"}{desktop && connection === "disconnected" && " 自动重试已暂停。"}</p>
+              <div className="desktop-reconnect-actions">
+                <button className="primary" onClick={() => { failures.current = 0; setAttempt((v) => v + 1); }}>重新连接画面</button>
+                {desktop && onDetails && <button className="quiet-button" onClick={onDetails}>查看操作详情</button>}
+              </div>
             </>
           )}
         </div>

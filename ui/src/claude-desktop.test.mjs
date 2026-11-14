@@ -20,12 +20,12 @@ const componentModule = new Function("dependencies", `
   return { ClaudeDesktop, DesktopToolbar };
 `);
 
-function fixture({ platform = "windows-11", native = true, visible = true, windowVisible = true, snapshotError = "", installed = true, historyError = "" } = {}) {
+function fixture({ platform = "windows-11", native = true, visible = true, windowVisible = true, snapshotError = "", vmRunning = true, installed = true, historyError = "" } = {}) {
   const hooks = [], effects = [], timers = new Map(), requests = [];
   let cursor = 0, dirty = false, nextTimer = 0, lastJob;
   const current = { installed, running: installed, failed: false, native_user_session: native };
   const props = {
-    status: { vm_running: true, guest_system: platform, job: { running: false } },
+    status: { vm_running: vmRunning, guest_system: platform, job: { running: false } },
     visible,
   };
   const createElement = (type, values, ...children) => ({ type, props: { ...values, children: children.flat() } });
@@ -112,19 +112,15 @@ function find(node, predicate) {
 const recoveryButton = (h) => find(h.toolbar(), (node) =>
   node.type === "button" && node.props.children.includes("恢复操作"));
 
-test("native Windows activates on explicit entry, but ordinary polling does not repeat it", async () => {
+test("navigation, polling and foregrounding only read native Windows desktop state", async () => {
   const h = fixture();
   await h.flush();
-  assert.equal(h.starts.length, 1);
-  await h.finish();
   await h.poll();
-  await h.poll();
-  assert.equal(h.starts.length, 1);
   await h.update({ visible: false });
   await h.poll();
-  assert.equal(h.starts.length, 1);
   await h.update({ visible: true });
-  assert.equal(h.starts.length, 2);
+  assert.ok(h.requests.filter(r => r.path === "/claude-desktop").length >= 2);
+  assert.equal(h.starts.length, 0);
 });
 
 test("hidden, non-Windows and non-native running views do not request foreground activation", async () => {
@@ -145,20 +141,18 @@ test("hidden, non-Windows and non-native running views do not request foreground
 test("recovery uses start with no credentials or stop/install request and is disabled while busy", async () => {
   const h = fixture();
   await h.flush();
-  assert.equal(recoveryButton(h).props.disabled, true);
-  await h.finish();
   let button = recoveryButton(h);
   assert.equal(button.props.disabled, false);
   await button.props.onClick();
   await h.flush();
-  assert.equal(h.starts.length, 2);
+  assert.equal(h.starts.length, 1);
   assert.deepEqual(h.starts.at(-1).body, {});
   assert.equal(recoveryButton(h).props.disabled, true);
   await h.finish();
   await h.update({ status: { ...h.props.status, job: { id: "other", kind: "project", running: true } } });
   button = recoveryButton(h);
   assert.equal(button.props.disabled, true);
-  assert.equal(h.starts.length, 2);
+  assert.equal(h.starts.length, 1);
 });
 
 test("recovery entry is confined to the running native Windows toolbar", async () => {
@@ -201,6 +195,8 @@ test("if another job replaces the accepted job, history recovery releases the to
   for (const historyError of ["", "历史读取失败"]) {
     const h = fixture({ historyError });
     await h.flush();
+    await recoveryButton(h).props.onClick();
+    await h.flush();
     await h.update({ status: { ...h.props.status, job: { id: "newer-job", kind: "project", running: false } } });
     await h.poll();
     assert.equal(h.requests.filter(r => r.path === "/jobs/history").length, 1);
@@ -216,4 +212,25 @@ test("missing desktop requires an explicit install on Linux and gives Windows gu
     assert.equal(h.requests.some(r => r.body !== undefined), false);
     assert.equal(Boolean(actionButton(h, "下载并安装")), platform === "linux");
   }
+});
+
+
+test("an offline desktop offers an enabled primary action and does not probe the guest until clicked", async () => {
+  const h = fixture({ vmRunning: false });
+  await h.flush();
+  const before = h.requests.length;
+  await h.poll();
+  const button = actionButton(h, "打开 Claude Desktop");
+  assert.equal(button.props.disabled, false);
+  assert.equal(h.requests.length, before);
+  assert.equal(h.starts.length, 0);
+});
+
+test("explicit open reuses a running Windows desktop without requesting activation", async () => {
+  const h = fixture();
+  // Click before the initial status fetch resolves.
+  await actionButton(h, "打开 Claude Desktop").props.onClick();
+  await h.flush();
+  assert.equal(h.starts.length, 0);
+  assert.ok(recoveryButton(h));
 });
