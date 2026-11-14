@@ -1,0 +1,607 @@
+diff --git a/pkg/cidata/cidata.go b/pkg/cidata/cidata.go
+index 1254443..1314442 100644
+--- a/pkg/cidata/cidata.go
++++ b/pkg/cidata/cidata.go
+@@ -25,7 +25,6 @@ import (
+ 
+ 	"github.com/lima-vm/lima/v2/pkg/debugutil"
+ 	"github.com/lima-vm/lima/v2/pkg/driver"
+-	"github.com/lima-vm/lima/v2/pkg/instance/hostname"
+ 	"github.com/lima-vm/lima/v2/pkg/iso9660util"
+ 	"github.com/lima-vm/lima/v2/pkg/limatype"
+ 	"github.com/lima-vm/lima/v2/pkg/limatype/filenames"
+@@ -140,7 +139,7 @@ func templateArgs(ctx context.Context, bootScripts bool, instDir, name string, i
+ 		Arch:               *instConfig.Arch,
+ 		BootScripts:        bootScripts,
+ 		Name:               name,
+-		Hostname:           hostname.FromInstName(name), // TODO: support customization
++		Hostname:           limayaml.GuestHostname(instConfig, name),
+ 		User:               *instConfig.User.Name,
+ 		Comment:            strutil.RemoveControlChars(*instConfig.User.Comment),
+ 		Home:               *instConfig.User.Home,
+@@ -289,7 +288,7 @@ func templateArgs(ctx context.Context, bootScripts bool, instDir, name string, i
+ 		})
+ 	}
+ 
+-	args.Networks = append(args.Networks, Network{MACAddress: limayaml.MACAddress(instDir), Interface: networks.SlirpNICName, Metric: 200})
++	args.Networks = append(args.Networks, Network{MACAddress: limayaml.GuestMACAddress(instConfig, instDir), Interface: networks.SlirpNICName, Metric: 200})
+ 	for i, nw := range instConfig.Networks {
+ 		if i == firstUsernetIndex {
+ 			continue
+diff --git a/pkg/driver/krunkit/krunkit_darwin_arm64.go b/pkg/driver/krunkit/krunkit_darwin_arm64.go
+index eb77f67..34e291e 100644
+--- a/pkg/driver/krunkit/krunkit_darwin_arm64.go
++++ b/pkg/driver/krunkit/krunkit_darwin_arm64.go
+@@ -114,7 +114,7 @@ func Cmdline(inst *limatype.Instance) (*exec.Cmd, error) {
+ func buildNetworkArgs(inst *limatype.Instance) ([]string, error) {
+ 	var args []string
+ 
+-	// Configure default usernetwork with limayaml.MACAddress(inst.Dir) for eth0 interface
++	// Configure default usernetwork with limayaml.GuestMACAddress(inst.Config, inst.Dir) for eth0 interface
+ 	firstUsernetIndex := limayaml.FirstUsernetIndex(inst.Config)
+ 	if firstUsernetIndex == -1 {
+ 		// slirp network using gvisor netstack
+@@ -127,7 +127,7 @@ func buildNetworkArgs(inst *limatype.Instance) ([]string, error) {
+ 			return nil, err
+ 		}
+ 
+-		args = append(args, "--device", fmt.Sprintf("virtio-net,type=unixgram,fd=%d,mac=%s", client.Fd(), limayaml.MACAddress(inst.Dir)))
++		args = append(args, "--device", fmt.Sprintf("virtio-net,type=unixgram,fd=%d,mac=%s", client.Fd(), limayaml.GuestMACAddress(inst.Config, inst.Dir)))
+ 	}
+ 
+ 	for _, nw := range inst.Networks {
+@@ -144,7 +144,7 @@ func buildNetworkArgs(inst *limatype.Instance) ([]string, error) {
+ 				if err != nil {
+ 					return nil, err
+ 				}
+-				mac = limayaml.MACAddress(inst.Dir)
++				mac = limayaml.GuestMACAddress(inst.Config, inst.Dir)
+ 			case networks.ModeShared, networks.ModeBridged:
+ 				socketVMNetInstalled, err := nwCfg.IsDaemonInstalled(networks.SocketVMNet)
+ 				if err != nil {
+@@ -201,7 +201,7 @@ func startUsernet(ctx context.Context, inst *limatype.Instance) (*usernet.Client
+ 		FdSocket: krunkitSock,
+ 		Async:    true,
+ 		DefaultLeases: map[string]string{
+-			networks.SlirpIPAddress: limayaml.MACAddress(inst.Dir),
++			networks.SlirpIPAddress: limayaml.GuestMACAddress(inst.Config, inst.Dir),
+ 		},
+ 		Subnet: networks.SlirpNetwork,
+ 	})
+diff --git a/pkg/driver/qemu/qemu.go b/pkg/driver/qemu/qemu.go
+index 7c09a48..4f2fa75 100644
+--- a/pkg/driver/qemu/qemu.go
++++ b/pkg/driver/qemu/qemu.go
+@@ -843,7 +843,7 @@ func cmdline(ctx context.Context, cfg Config, workingDir *string) (exe string, a
+ 		// https://github.com/lima-vm/lima/pull/3319/files#r1986388345
+ 		virtioNet = "virtio-net-ccw"
+ 	}
+-	args = append(args, "-device", virtioNet+",netdev=net0,mac="+limayaml.MACAddress(cfg.InstanceDir))
++	args = append(args, "-device", virtioNet+",netdev=net0,mac="+limayaml.GuestMACAddress(y, cfg.InstanceDir))
+ 
+ 	for i, nw := range y.Networks {
+ 		if nw.Lima != "" {
+@@ -1079,6 +1079,10 @@ func cmdline(ctx context.Context, cfg Config, workingDir *string) (exe string, a
+ 		args = append(args, "-device", "virtserialport,chardev=qga0,name="+filenames.VirtioPort)
+ 	}
+ 
++	if y.GuestIdentity != nil {
++		args = append(args, "-uuid", y.GuestIdentity.UUID)
++	}
++
+ 	// QEMU process
+ 	args = append(args, "-name", "lima-"+cfg.Name)
+ 	args = append(args, "-pidfile", filepath.Join(cfg.InstanceDir, filenames.PIDFile(*y.VMType)))
+diff --git a/pkg/driver/qemu/qemu_driver.go b/pkg/driver/qemu/qemu_driver.go
+index b2806de..9b24758 100644
+--- a/pkg/driver/qemu/qemu_driver.go
++++ b/pkg/driver/qemu/qemu_driver.go
+@@ -116,10 +116,13 @@ func startUsernet(ctx context.Context, inst *limatype.Instance, s *usernetSocket
+ 		Endpoint: s.endpoint,
+ 		Async:    true,
+ 		DefaultLeases: map[string]string{
+-			networks.SlirpIPAddress: limayaml.MACAddress(inst.Dir),
++			networks.SlirpIPAddress: limayaml.GuestMACAddress(inst.Config, inst.Dir),
+ 		},
+ 		Subnet: networks.SlirpNetwork,
+ 	}
++	if inst.Config.GuestIdentity != nil {
++		opts.GatewayMACAddress = inst.Config.GuestIdentity.GatewayMACAddress
++	}
+ 	if viaDgram {
+ 		opts.DgramConn = s.dgramConn
+ 	} else {
+diff --git a/pkg/driver/vz/vm_darwin.go b/pkg/driver/vz/vm_darwin.go
+index 6f4ec6a..987fdf1 100644
+--- a/pkg/driver/vz/vm_darwin.go
++++ b/pkg/driver/vz/vm_darwin.go
+@@ -192,13 +192,18 @@ func startUsernet(ctx context.Context, inst *limatype.Instance) (*usernet.Client
+ 	os.RemoveAll(endpointSock)
+ 	os.RemoveAll(vzSock)
+ 	ctx, cancel := context.WithCancel(ctx)
++	gatewayMAC := ""
++	if inst.Config.GuestIdentity != nil {
++		gatewayMAC = inst.Config.GuestIdentity.GatewayMACAddress
++	}
+ 	err = usernet.StartGVisorNetstack(ctx, &usernet.GVisorNetstackOpts{
+-		MTU:      1500,
+-		Endpoint: endpointSock,
+-		FdSocket: vzSock,
+-		Async:    true,
++		GatewayMACAddress: gatewayMAC,
++		MTU:               1500,
++		Endpoint:          endpointSock,
++		FdSocket:          vzSock,
++		Async:             true,
+ 		DefaultLeases: map[string]string{
+-			networks.SlirpIPAddress: limayaml.MACAddress(inst.Dir),
++			networks.SlirpIPAddress: limayaml.GuestMACAddress(inst.Config, inst.Dir),
+ 		},
+ 		Subnet: networks.SlirpNetwork,
+ 	})
+@@ -413,7 +418,7 @@ func newVirtioNetworkDeviceConfiguration(attachment vz.NetworkDeviceAttachment,
+ func attachNetwork(ctx context.Context, inst *limatype.Instance, vmConfig *vz.VirtualMachineConfiguration) error {
+ 	var configurations []*vz.VirtioNetworkDeviceConfiguration
+ 
+-	// Configure default usernetwork with limayaml.MACAddress(inst.Dir) for eth0 interface
++	// Configure default usernetwork with limayaml.GuestMACAddress(inst.Config, inst.Dir) for eth0 interface
+ 	firstUsernetIndex := limayaml.FirstUsernetIndex(inst.Config)
+ 	if firstUsernetIndex == -1 {
+ 		// slirp network using gvisor netstack
+@@ -425,7 +430,7 @@ func attachNetwork(ctx context.Context, inst *limatype.Instance, vmConfig *vz.Vi
+ 		if err != nil {
+ 			return err
+ 		}
+-		networkConfig, err := newVirtioFileNetworkDeviceConfiguration(networkConn, limayaml.MACAddress(inst.Dir))
++		networkConfig, err := newVirtioFileNetworkDeviceConfiguration(networkConn, limayaml.GuestMACAddress(inst.Config, inst.Dir))
+ 		if err != nil {
+ 			return err
+ 		}
+@@ -439,7 +444,7 @@ func attachNetwork(ctx context.Context, inst *limatype.Instance, vmConfig *vz.Vi
+ 		if err != nil {
+ 			return err
+ 		}
+-		networkConfig, err := newVirtioFileNetworkDeviceConfiguration(networkConn, limayaml.MACAddress(inst.Dir))
++		networkConfig, err := newVirtioFileNetworkDeviceConfiguration(networkConn, limayaml.GuestMACAddress(inst.Config, inst.Dir))
+ 		if err != nil {
+ 			return err
+ 		}
+diff --git a/pkg/guestidentity/identity.go b/pkg/guestidentity/identity.go
+new file mode 100644
+index 0000000..c5a2071
+--- /dev/null
++++ b/pkg/guestidentity/identity.go
+@@ -0,0 +1,71 @@
++// SPDX-License-Identifier: Apache-2.0
++
++// Package guestidentity creates public, per-environment machine identifiers.
++// These identifiers are not credentials and must never be used for authentication.
++package guestidentity
++
++import (
++	"crypto/rand"
++	"errors"
++	"fmt"
++	"io"
++	"net"
++	"regexp"
++	"strings"
++)
++
++type Identity struct {
++	Hostname          string `json:"hostname" yaml:"hostname"`
++	UUID              string `json:"uuid" yaml:"uuid"`
++	MACAddress        string `json:"macAddress" yaml:"macAddress"`
++	GatewayMACAddress string `json:"gatewayMacAddress" yaml:"gatewayMacAddress"`
++}
++
++// New creates a stable instance name, UUID and network addresses.
++// Persist its result at creation; reconnecting must reuse the saved identity.
++func New() (*Identity, error) { return generate(rand.Reader) }
++
++func generate(random io.Reader) (*Identity, error) {
++	var b [28]byte
++	if _, err := io.ReadFull(random, b[:]); err != nil {
++		return nil, err
++	}
++	b[6] = b[6]&0x0f | 0x40
++	b[8] = b[8]&0x3f | 0x80
++	mac := func(raw []byte) string {
++		raw[0] = raw[0]&0xfc | 0x02 // locally administered, unicast
++		return net.HardwareAddr(raw).String()
++	}
++	guest, gateway := mac(b[16:22]), mac(b[22:28])
++	if guest == gateway {
++		b[27] ^= 1
++		gateway = mac(b[22:28])
++	}
++	return &Identity{
++		Hostname:   fmt.Sprintf("cage-%x", b[:5]),
++		UUID:       fmt.Sprintf("%x-%x-%x-%x-%x", b[:4], b[4:6], b[6:8], b[8:10], b[10:16]),
++		MACAddress: guest, GatewayMACAddress: gateway,
++	}, nil
++}
++
++var hostnamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]{0,13}[A-Za-z0-9]$`)
++var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
++
++func (i *Identity) Validate() error {
++	if i == nil || !hostnamePattern.MatchString(i.Hostname) || !uuidPattern.MatchString(i.UUID) {
++		return errors.New("invalid guest hostname or UUID")
++	}
++	for _, text := range []string{i.MACAddress, i.GatewayMACAddress} {
++		mac, err := net.ParseMAC(text)
++		if err != nil || len(mac) != 6 || mac.String() != text || mac[0]&3 != 2 {
++			return errors.New("guest MAC must be a canonical locally administered unicast address")
++		}
++	}
++	if i.MACAddress == i.GatewayMACAddress {
++		return errors.New("guest and gateway MAC must differ")
++	}
++	return nil
++}
++
++// MachineID is the systemd/D-Bus representation of the environment UUID.
++func (i *Identity) MachineID() string { return strings.ReplaceAll(i.UUID, "-", "") }
+diff --git a/pkg/guestidentity/identity_test.go b/pkg/guestidentity/identity_test.go
+new file mode 100644
+index 0000000..9257428
+--- /dev/null
++++ b/pkg/guestidentity/identity_test.go
+@@ -0,0 +1,93 @@
++package guestidentity
++
++import (
++	"bytes"
++	"encoding/json"
++	"errors"
++	"io"
++	"net"
++	"strings"
++	"testing"
++)
++
++func TestNewIndependentIdentities(t *testing.T) {
++	names, ids, macs := map[string]bool{}, map[string]bool{}, map[string]bool{}
++	for range 1000 {
++		identity, err := New()
++		if err != nil {
++			t.Fatal(err)
++		}
++		if err := identity.Validate(); err != nil {
++			t.Fatal(err)
++		}
++		if !strings.HasPrefix(identity.Hostname, "cage-") {
++			t.Fatal("unexpected instance name")
++		}
++		if len(identity.Hostname) > 15 || names[identity.Hostname] || ids[identity.UUID] {
++			t.Fatal("duplicate or invalid machine identity")
++		}
++		names[identity.Hostname], ids[identity.UUID] = true, true
++		for _, value := range []string{identity.MACAddress, identity.GatewayMACAddress} {
++			address, err := net.ParseMAC(value)
++			if err != nil || len(address) != 6 || address[0]&3 != 2 || macs[value] {
++				t.Fatal("duplicate or invalid MAC")
++			}
++			macs[value] = true
++		}
++		if len(identity.MachineID()) != 32 {
++			t.Fatal("invalid systemd machine ID")
++		}
++		data, err := json.Marshal(identity)
++		if err != nil {
++			t.Fatal(err)
++		}
++		var restored Identity
++		if err := json.Unmarshal(data, &restored); err != nil || restored != *identity {
++			t.Fatal("identity did not round trip")
++		}
++	}
++}
++
++func TestRandomnessFailureAndMACCollision(t *testing.T) {
++	// Check every truncation of a deterministic valid generation, including
++	// failures after the hostname has already consumed its random bytes.
++	random := bytes.NewReader(make([]byte, 128))
++	identity, err := generate(random)
++	consumed := 128 - random.Len()
++	for size := range consumed {
++		if _, err := generate(bytes.NewReader(make([]byte, size))); !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
++			t.Fatalf("accepted short random input of %d bytes: %v", size, err)
++		}
++	}
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := identity.Validate(); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestValidateRejectsUnsafeIdentity(t *testing.T) {
++	identity, err := New()
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, mutate := range []func(*Identity){
++		func(i *Identity) { i.Hostname = "bad;command" },
++		func(i *Identity) { i.Hostname = strings.Repeat("a", 16) },
++		func(i *Identity) { i.UUID = "not-a-uuid" },
++		func(i *Identity) { i.MACAddress = "01:00:00:00:00:00" },
++		func(i *Identity) { i.MACAddress = "00:00:00:00:00:00" },
++		func(i *Identity) { i.GatewayMACAddress = i.MACAddress },
++	} {
++		broken := *identity
++		mutate(&broken)
++		if broken.Validate() == nil {
++			t.Fatal("accepted invalid identity")
++		}
++	}
++	var absent *Identity
++	if absent.Validate() == nil {
++		t.Fatal("accepted nil identity")
++	}
++}
+diff --git a/pkg/hostagent/hostagent.go b/pkg/hostagent/hostagent.go
+index 98e746d..b53dceb 100644
+--- a/pkg/hostagent/hostagent.go
++++ b/pkg/hostagent/hostagent.go
+@@ -39,7 +39,6 @@ import (
+ 	hostagentapi "github.com/lima-vm/lima/v2/pkg/hostagent/api"
+ 	"github.com/lima-vm/lima/v2/pkg/hostagent/dns"
+ 	"github.com/lima-vm/lima/v2/pkg/hostagent/events"
+-	"github.com/lima-vm/lima/v2/pkg/instance/hostname"
+ 	"github.com/lima-vm/lima/v2/pkg/limatype"
+ 	"github.com/lima-vm/lima/v2/pkg/limatype/filenames"
+ 	"github.com/lima-vm/lima/v2/pkg/limayaml"
+@@ -418,7 +417,7 @@ func (a *HostAgent) Run(ctx context.Context) error {
+ 			hosts = make(map[string]string)
+ 		}
+ 		hosts["host.lima.internal"] = networks.SlirpGateway
+-		name := hostname.FromInstName(a.instName) // TODO: support customization
++		name := limayaml.GuestHostname(a.instConfig, a.instName)
+ 		hosts[name] = networks.SlirpIPAddress
+ 		// The guest reaches this server on the host's loopback, past any
+ 		// usernet.Outbound policy.
+diff --git a/pkg/instance/clone.go b/pkg/instance/clone.go
+index 50ec485..a78fffa 100644
+--- a/pkg/instance/clone.go
++++ b/pkg/instance/clone.go
+@@ -5,6 +5,7 @@ package instance
+ 
+ import (
+ 	"context"
++	"encoding/json"
+ 	"errors"
+ 	"fmt"
+ 	"io/fs"
+@@ -15,11 +16,13 @@ import (
+ 
+ 	continuityfs "github.com/containerd/continuity/fs"
+ 
++	"github.com/lima-vm/lima/v2/pkg/guestidentity"
+ 	"github.com/lima-vm/lima/v2/pkg/limatype"
+ 	"github.com/lima-vm/lima/v2/pkg/limatype/dirnames"
+ 	"github.com/lima-vm/lima/v2/pkg/limatype/filenames"
+ 	"github.com/lima-vm/lima/v2/pkg/osutil"
+ 	"github.com/lima-vm/lima/v2/pkg/store"
++	"github.com/lima-vm/lima/v2/pkg/yqutil"
+ )
+ 
+ func CloneOrRename(ctx context.Context, oldInst *limatype.Instance, newInstName string, rename bool) (*limatype.Instance, error) {
+@@ -53,6 +56,25 @@ func CloneOrRename(ctx context.Context, oldInst *limatype.Instance, newInstName
+ 			newInstName, maxSockName, osutil.UnixPathMax, len(maxSockName))
+ 	}
+ 
++	var clonedConfig []byte
++	if !rename {
++		identity, err := guestidentity.New()
++		if err != nil {
++			return nil, err
++		}
++		data, err := json.Marshal(identity)
++		if err != nil {
++			return nil, err
++		}
++		original, err := os.ReadFile(filepath.Join(oldInst.Dir, filenames.LimaYAML))
++		if err != nil {
++			return nil, err
++		}
++		clonedConfig, err = yqutil.EvaluateExpression(ctx, ".guestIdentity = "+string(data), original)
++		if err != nil {
++			return nil, err
++		}
++	}
+ 	if err = os.Mkdir(newInstDir, 0o700); err != nil {
+ 		return nil, err
+ 	}
+@@ -78,6 +100,9 @@ func CloneOrRename(ctx context.Context, oldInst *limatype.Instance, newInstName
+ 		if d.IsDir() {
+ 			return os.MkdirAll(dst, d.Type().Perm())
+ 		}
++		if !rename && pathRel == filenames.LimaYAML {
++			return os.WriteFile(dst, clonedConfig, 0600)
++		}
+ 		// NullifyOnClone contains VzIdentifier.
+ 		// VzIdentifier file must not be just removed here, as pkg/limayaml depends on
+ 		// the existence of VzIdentifier for resolving the VM type.
+@@ -94,6 +119,7 @@ func CloneOrRename(ctx context.Context, oldInst *limatype.Instance, newInstName
+ 	if err = filepath.WalkDir(oldInst.Dir, walkDirFn); err != nil {
+ 		return nil, err
+ 	}
++
+ 	if rename {
+ 		if err = os.RemoveAll(oldInst.Dir); err != nil {
+ 			return nil, err
+diff --git a/pkg/limatype/lima_yaml.go b/pkg/limatype/lima_yaml.go
+index a155e40..c473139 100644
+--- a/pkg/limatype/lima_yaml.go
++++ b/pkg/limatype/lima_yaml.go
+@@ -7,6 +7,8 @@ import (
+ 	"net"
+ 	"runtime"
+ 
++	"github.com/lima-vm/lima/v2/pkg/guestidentity"
++
+ 	"github.com/lima-vm/go-qcow2reader/image"
+ 	"github.com/opencontainers/go-digest"
+ 	"github.com/sirupsen/logrus"
+@@ -60,6 +62,9 @@ type LimaYAML struct {
+ 	User                 User    `yaml:"user,omitempty" json:"user,omitempty"`
+ 	TPM                  *bool   `yaml:"tpm,omitempty" json:"tpm,omitempty" jsonschema:"nullable"`
+ 	OsOpts               OsOpts  `yaml:"osOpts,omitempty" json:"osOpts,omitempty"`
++
++	// GuestIdentity is optional; absent identities retain upstream defaults.
++	GuestIdentity *guestidentity.Identity `yaml:"guestIdentity,omitempty" json:"guestIdentity,omitempty"`
+ }
+ 
+ type BaseTemplates []LocatorWithDigest
+diff --git a/pkg/limayaml/identity.go b/pkg/limayaml/identity.go
+new file mode 100644
+index 0000000..caba92a
+--- /dev/null
++++ b/pkg/limayaml/identity.go
+@@ -0,0 +1,21 @@
++// SPDX-License-Identifier: Apache-2.0
++package limayaml
++
++import (
++	"github.com/lima-vm/lima/v2/pkg/instance/hostname"
++	"github.com/lima-vm/lima/v2/pkg/limatype"
++)
++
++func GuestHostname(y *limatype.LimaYAML, name string) string {
++	if y.GuestIdentity != nil {
++		return y.GuestIdentity.Hostname
++	}
++	return hostname.FromInstName(name)
++}
++
++func GuestMACAddress(y *limatype.LimaYAML, directory string) string {
++	if y.GuestIdentity != nil {
++		return y.GuestIdentity.MACAddress
++	}
++	return MACAddress(directory)
++}
+diff --git a/pkg/limayaml/identity_test.go b/pkg/limayaml/identity_test.go
+new file mode 100644
+index 0000000..23e8936
+--- /dev/null
++++ b/pkg/limayaml/identity_test.go
+@@ -0,0 +1,40 @@
++package limayaml
++
++import (
++	"context"
++	"github.com/goccy/go-yaml"
++	"testing"
++
++	"github.com/lima-vm/lima/v2/pkg/guestidentity"
++	"github.com/lima-vm/lima/v2/pkg/limatype"
++)
++
++func TestGuestIdentityYAMLRoundTripAndFallback(t *testing.T) {
++	identity, err := guestidentity.New()
++	if err != nil {
++		t.Fatal(err)
++	}
++	data, err := yaml.Marshal(limatype.LimaYAML{GuestIdentity: identity, Images: []limatype.Image{{File: limatype.File{Location: "https://example.com/disk.img", Arch: "x86_64"}}}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	config, err := LoadWithWarnings(context.Background(), data, "/tmp/test/lima.yaml")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := Validate(config, false); err != nil {
++		t.Fatal(err)
++	}
++	if GuestHostname(config, "management-name") != identity.Hostname || GuestMACAddress(config, "/tmp/test") != identity.MACAddress {
++		t.Fatal("identity was ignored")
++	}
++	config.GuestIdentity = nil
++	if GuestHostname(config, "legacy") != "lima-legacy" || GuestMACAddress(config, "/tmp/test") != MACAddress("/tmp/test") {
++		t.Fatal("legacy defaults changed")
++	}
++	config.GuestIdentity = identity
++	config.GuestIdentity.Hostname = "bad;command"
++	if Validate(config, false) == nil {
++		t.Fatal("invalid identity accepted")
++	}
++}
+diff --git a/pkg/limayaml/validate.go b/pkg/limayaml/validate.go
+index e03a841..88f1507 100644
+--- a/pkg/limayaml/validate.go
++++ b/pkg/limayaml/validate.go
+@@ -32,6 +32,9 @@ import (
+ 
+ func Validate(y *limatype.LimaYAML, warn bool) error {
+ 	var errs error
++	if y.GuestIdentity != nil {
++		errs = errors.Join(errs, y.GuestIdentity.Validate())
++	}
+ 
+ 	if len(y.Base) > 0 {
+ 		errs = errors.Join(errs, errors.New("field `base` must be empty for YAML validation"))
+diff --git a/pkg/networks/usernet/client.go b/pkg/networks/usernet/client.go
+index 6a2437c..bb9b9ca 100644
+--- a/pkg/networks/usernet/client.go
++++ b/pkg/networks/usernet/client.go
+@@ -33,7 +33,7 @@ type Client struct {
+ }
+ 
+ func (c *Client) ConfigureDriver(ctx context.Context, inst *limatype.Instance, sshLocalPort int) error {
+-	macAddress := limayaml.MACAddress(inst.Dir)
++	macAddress := limayaml.GuestMACAddress(inst.Config, inst.Dir)
+ 	ipAddress, err := c.ResolveIPAddress(ctx, macAddress)
+ 	if err != nil {
+ 		return err
+@@ -135,7 +135,7 @@ func (c *Client) WaitOpeningSSHPort(ctx context.Context, inst *limatype.Instance
+ 	timeoutSeconds := 600
+ 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+ 	defer cancel()
+-	macAddress := limayaml.MACAddress(inst.Dir)
++	macAddress := limayaml.GuestMACAddress(inst.Config, inst.Dir)
+ 	ipAddr, err := c.ResolveIPAddress(ctx, macAddress)
+ 	if err != nil {
+ 		return err
+diff --git a/pkg/networks/usernet/gvproxy.go b/pkg/networks/usernet/gvproxy.go
+index adea16f..8017c63 100644
+--- a/pkg/networks/usernet/gvproxy.go
++++ b/pkg/networks/usernet/gvproxy.go
+@@ -27,7 +27,8 @@ import (
+ )
+ 
+ type GVisorNetstackOpts struct {
+-	MTU int
++	GatewayMACAddress string
++	MTU               int
+ 
+ 	QemuSocket string
+ 	FdSocket   string
+@@ -122,7 +123,15 @@ func StartGVisorNetstack(ctx context.Context, gVisorOpts *GVisorNetstackOpts) er
+ 			}
+ 		}
+ 	}
+-	leases[gatewayIP] = gatewayMacAddr
++	gatewayMAC := gatewayMacAddr
++	if opts.GatewayMACAddress != "" {
++		mac, err := net.ParseMAC(opts.GatewayMACAddress)
++		if err != nil || len(mac) != 6 || mac[0]&3 != 2 {
++			return fmt.Errorf("invalid gateway MAC address")
++		}
++		gatewayMAC = mac.String()
++	}
++	leases[gatewayIP] = gatewayMAC
+ 
+ 	// The way gvisor-tap-vsock implemented slirp is different from tradition SLIRP,
+ 	// - GatewayIP handling all request, also answers DNS queries
+@@ -135,7 +144,7 @@ func StartGVisorNetstack(ctx context.Context, gVisorOpts *GVisorNetstackOpts) er
+ 		MTU:               opts.MTU,
+ 		Subnet:            opts.Subnet,
+ 		GatewayIP:         gatewayIP,
+-		GatewayMacAddress: gatewayMacAddr,
++		GatewayMacAddress: gatewayMAC,
+ 		DHCPStaticLeases:  leases,
+ 		Forwards:          map[string]string{},
+ 		DNS:               []types.Zone{},
