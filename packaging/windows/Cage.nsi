@@ -145,6 +145,13 @@ FunctionEnd
   Call un.WriteInstallDiagnostic
 !macroend
 
+!macro ReleaseInstallationMutex
+  ${If} $InstallationMutex != ""
+    System::Call 'kernel32::CloseHandle(p $InstallationMutex)'
+    StrCpy $InstallationMutex ""
+  ${EndIf}
+!macroend
+
 Function un.onUninstFailed
   StrCpy $InstallOutcome "failed"
   Call un.WriteInstallDiagnostic
@@ -165,6 +172,11 @@ Function .onInstSuccess
   Call WriteInstallDiagnostic
 FunctionEnd
 
+!macro AbortTransaction MESSAGE
+  !insertmacro ReleaseInstallationMutex
+  Abort "${MESSAGE}"
+!macroend
+
 !macro AcquireInstallationMutex
   ; NSIS and UpdateInstaller both reject an existing named object and keep
   ; their handle until the transaction ends. No caller waits for ownership.
@@ -172,25 +184,21 @@ FunctionEnd
   Pop $1
   ${If} $0 == 0
     SetErrorLevel 2
-    Abort "无法锁定 Cage 安装操作，请核对系统权限后重试。"
+    !insertmacro AbortTransaction "无法锁定 Cage 安装操作，请核对系统权限后重试。"
   ${EndIf}
   StrCpy $InstallationMutex $0
   ${If} $1 == 183
     SetErrorLevel 2
-    Abort "另一个 Cage 安装或卸载仍在进行，请等待完成后重试。"
+    !insertmacro AbortTransaction "另一个 Cage 安装或卸载仍在进行，请等待完成后重试。"
   ${EndIf}
 !macroend
 
 Function .onGUIEnd
-  ${If} $InstallationMutex != ""
-    System::Call 'kernel32::CloseHandle(p $InstallationMutex)'
-  ${EndIf}
+  !insertmacro ReleaseInstallationMutex
 FunctionEnd
 
 Function un.onGUIEnd
-  ${If} $InstallationMutex != ""
-    System::Call 'kernel32::CloseHandle(p $InstallationMutex)'
-  ${EndIf}
+  !insertmacro ReleaseInstallationMutex
 FunctionEnd
 
 Function LoadShortcutOptions
@@ -225,7 +233,7 @@ Function LoadShortcutOptions
     ${If} $1 != "0"
     ${AndIf} $1 != "1"
       SetErrorLevel 2
-      Abort "DESKTOPSHORTCUT must be 0 or 1."
+      !insertmacro AbortTransaction "DESKTOPSHORTCUT must be 0 or 1."
     ${EndIf}
     StrCpy $DesktopShortcut $1
   ${EndIf}
@@ -235,7 +243,7 @@ Function LoadShortcutOptions
     ${If} $1 != "0"
     ${AndIf} $1 != "1"
       SetErrorLevel 2
-      Abort "STARTMENUSHORTCUT must be 0 or 1."
+      !insertmacro AbortTransaction "STARTMENUSHORTCUT must be 0 or 1."
     ${EndIf}
     StrCpy $StartMenuShortcuts $1
   ${EndIf}
@@ -283,18 +291,41 @@ Function SetDefaultInstallDirectory
   ${EndIf}
 FunctionEnd
 
-!macro CheckStopped FILE INSTALL
+!macro CheckStopped FILE ID INSTALL
   ${If} ${FileExists} "$INSTDIR\${FILE}"
-    ; Exclusive write access also detects images whose VM/controller has no window.
-    System::Call 'kernel32::CreateFileW(w "$INSTDIR\${FILE}", i 0x40000000, i 0, p 0, i 3, i 0, p 0) p .r0'
+    ; An exiting process or a scanner can retain its image after controller handoff.
+    StrCpy $3 0
+    check_${ID}:
+    System::Call 'kernel32::CreateFileW(w "$INSTDIR\${FILE}", i 0x40000000, i 0, p 0, i 3, i 0, p 0) p .r0 ?e'
+    Pop $1
     ${If} $0 == -1
-      StrCpy $HelperExit "application_file_in_use"
+      ${If} $1 == 5
+      ${OrIf} $1 == 32
+      ${OrIf} $1 == 33
+      ${OrIf} $1 == 1224
+        ${If} $3 < 80
+          ${If} $3 == 0
+            DetailPrint "正在等待 ${FILE} 释放…"
+          ${EndIf}
+          Sleep 250
+          IntOp $3 $3 + 1
+          Goto check_${ID}
+        ${EndIf}
+      ${EndIf}
+      StrCpy $HelperExit "${ID}_win32_$1"
 !if ${INSTALL} == 1
-      ; The verified target remains untouched. Remove only this run's new payload.
+      ${If} $DiagnosticFile == ""
+        GetTempFileName $DiagnosticFile "$TEMP"
+      ${EndIf}
+      Call WriteInstallDiagnostic
+      DetailPrint "安装诊断：$DiagnosticFile"
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "暂时无法替换 ${FILE}（Windows 错误 $1）。重试会再次检查并等待文件释放。" /SD IDCANCEL IDRETRY retry_replacement
       RMDir /r "$StageDir"
+!else
+      Call un.WriteInstallDiagnostic
 !endif
       SetErrorLevel 2
-      Abort "程序文件仍被占用。请先在工作台停止环境、从托盘退出 Cage，然后重试。"
+      !insertmacro AbortTransaction "无法访问 ${FILE}（$HelperExit）。原安装已保留。"
     ${EndIf}
     System::Call 'kernel32::CloseHandle(p r0)'
   ${EndIf}
@@ -341,7 +372,7 @@ Function CheckDestination
   ${OrIf} $INSTDIR == $0
   ${OrIf} $INSTDIR == "$0\"
     SetErrorLevel 2
-    Abort "Choose a dedicated application folder."
+    !insertmacro AbortTransaction "Choose a dedicated application folder."
   ${EndIf}
   StrCpy $ExistingInstall "0"
   IfFileExists "$INSTDIR\Cage.install-id" existing
@@ -359,7 +390,7 @@ Function CheckDestination
     Goto done
   foreign:
     SetErrorLevel 2
-    Abort "The destination contains files from another installation. Choose an empty folder."
+    !insertmacro AbortTransaction "The destination contains files from another installation. Choose an empty folder."
   done:
     ClearErrors
 FunctionEnd
@@ -371,20 +402,20 @@ Function RestorePreservedFiles
   ${If} $0 != 0
     DetailPrint "$1"
     SetErrorLevel 2
-    Abort "安装恢复尚未完成。文件分别保留在 $BackupDir 和 $StageDir，请保留这两个目录后重试。"
+    !insertmacro AbortTransaction "安装恢复尚未完成。文件分别保留在 $BackupDir 和 $StageDir，请保留这两个目录后重试。"
   ${EndIf}
   ClearErrors
   Rename "$BackupDir" "$INSTDIR"
   ${If} ${Errors}
     SetErrorLevel 2
-    Abort "原安装目录未能恢复。文件保留在 $BackupDir，新程序保留在 $StageDir。"
+    !insertmacro AbortTransaction "原安装目录未能恢复。文件保留在 $BackupDir，新程序保留在 $StageDir。"
   ${EndIf}
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation complete -Target "$INSTDIR" -Receipt "$TransactionRecord" $DiagnosticArguments'
   Pop $0
   Pop $1
   ${If} $0 != 0
     SetErrorLevel 2
-    Abort "仍有文件需要核对，安装回执保留在 $TransactionRecord。请保留相关目录后处理。"
+    !insertmacro AbortTransaction "仍有文件需要核对，安装回执保留在 $TransactionRecord。请保留相关目录后处理。"
   ${EndIf}
 FunctionEnd
 
@@ -404,13 +435,17 @@ Function PrepareManualReplacement
     ${If} $0 == 109
     ${AndIf} $2 == ""
       MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "环境正在运行。请先保存工作。停止此环境、关闭 Cage 并继续安装？" /SD IDCANCEL IDOK confirm_stop
+    ${ElseIf} $0 == 112
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "此安装仍有虚拟机在运行。请在工作台保存并停止环境，然后重试。" /SD IDCANCEL IDRETRY retry_close
+    ${ElseIf} $0 == 113
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法确认代理进程归属。请关闭占用此安装 resources\mihomo.exe 的代理，然后重试。" /SD IDCANCEL IDRETRY retry_close
     ${Else}
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法安全关闭此安装的 Cage。请保存工作，在对应工作台停止环境，并从托盘退出 Cage 后重试。" /SD IDCANCEL IDRETRY retry_close
     ${EndIf}
     Call WriteInstallDiagnostic
     SetErrorLevel 2
     RMDir /r "$StageDir"
-    Abort "Cage 未关闭，原安装已保留。"
+    !insertmacro AbortTransaction "Cage 未关闭，原安装已保留。"
   confirm_stop:
     StrCpy $2 "-StopEnvironment"
     Goto retry_close
@@ -422,7 +457,7 @@ Section "Cage" Main
   StrCpy $TransactionRecord "$INSTDIR.cage-installation.json"
   ${If} ${FileExists} "$TransactionRecord"
     SetErrorLevel 2
-    Abort "存在未处理的安装事务记录：$TransactionRecord。请先按记录恢复保留的目录，再重试。"
+    !insertmacro AbortTransaction "存在未处理的安装事务记录：$TransactionRecord。请先按记录恢复保留的目录，再重试。"
   ${EndIf}
   !insertmacro InstallPhase "checking_destination"
   Call CheckDestination
@@ -448,7 +483,7 @@ Section "Cage" Main
       ${Else}
         MessageBox MB_OK|MB_ICONEXCLAMATION "无法确认现有 Windows 虚拟机的位置。请将新版 Cage 安装到另一个空目录，并保留原目录。" /SD IDOK
       ${EndIf}
-      Abort "请保留原目录，并将新程序安装到另一个空目录。"
+      !insertmacro AbortTransaction "请保留原目录，并将新程序安装到另一个空目录。"
     ${EndIf}
   ${EndIf}
   ${GetParent} "$INSTDIR" $0
@@ -469,7 +504,7 @@ Section "Cage" Main
     SetOutPath "$TEMP"
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "Could not unpack Cage. Check free disk space and folder permissions."
+    !insertmacro AbortTransaction "Could not unpack Cage. Check free disk space and folder permissions."
   ${EndIf}
 
   ; Install the bundled offline runtime only when WebView2 is absent.
@@ -491,7 +526,7 @@ Section "Cage" Main
         SetOutPath "$TEMP"
         RMDir /r "$StageDir"
         SetErrorLevel 2
-        Abort "Microsoft WebView2 installation failed ($0). Install the runtime and retry."
+        !insertmacro AbortTransaction "Microsoft WebView2 installation failed ($0). Install the runtime and retry."
       ${EndIf}
     ${EndIf}
   ${EndIf}
@@ -499,14 +534,15 @@ Section "Cage" Main
   SetOutPath "$TEMP"
   StrCpy $BackupDir ""
   ${If} $ExistingInstall == "1"
+    retry_replacement:
     ${If} $UpdateMode != "1"
       Call PrepareManualReplacement
     ${EndIf}
     !insertmacro InstallPhase "checking_stopped_processes"
-    !insertmacro CheckStopped "Cage.exe" 1
-    !insertmacro CheckStopped "resources\cage.exe" 1
-    !insertmacro CheckStopped "resources\mihomo.exe" 1
-    !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe" 1
+    !insertmacro CheckStopped "Cage.exe" desktop 1
+    !insertmacro CheckStopped "resources\cage.exe" backend 1
+    !insertmacro CheckStopped "resources\mihomo.exe" proxy 1
+    !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe" vm 1
     ${GetParent} "$INSTDIR" $0
     GetTempFileName $BackupDir "$0"
     Delete "$BackupDir"
@@ -523,7 +559,7 @@ Section "Cage" Main
     SetOutPath "$TEMP"
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "无法安全保留现有文件，安装已停止。原安装目录已保留，请检查磁盘空间、文件占用和安装日志。"
+    !insertmacro AbortTransaction "无法安全保留现有文件，安装已停止。原安装目录已保留，请检查磁盘空间、文件占用和安装日志。"
   ${EndIf}
   SetOutPath "$TEMP"
   ${If} $ExistingInstall == "1"
@@ -538,7 +574,7 @@ Section "Cage" Main
       Pop $1
       RMDir /r "$StageDir"
       SetErrorLevel 2
-      Abort "无法移动旧程序目录（$HelperExit）。请退出占用目录的程序后重试，或把新版安装到另一个空目录。"
+      !insertmacro AbortTransaction "无法移动旧程序目录（$HelperExit）。请退出占用目录的程序后重试，或把新版安装到另一个空目录。"
     ${EndIf}
     DetailPrint "正在迁入个人文件并保留原有链接…"
     !insertmacro InstallPhase "moving_personal_files"
@@ -552,7 +588,7 @@ Section "Cage" Main
       Call RestorePreservedFiles
       RMDir /r "$StageDir"
       SetErrorLevel 2
-      Abort "个人文件未能迁入新程序目录，原安装已恢复。请关闭占用文件的程序后重试。"
+      !insertmacro AbortTransaction "个人文件未能迁入新程序目录，原安装已恢复。请关闭占用文件的程序后重试。"
     ${EndIf}
   ${Else}
     RMDir "$INSTDIR"
@@ -566,7 +602,7 @@ Section "Cage" Main
     ${EndIf}
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "Could not install Cage. The previous installation has been restored."
+    !insertmacro AbortTransaction "Could not install Cage. The previous installation has been restored."
   ${EndIf}
   ${If} $BackupDir != ""
     !insertmacro InstallPhase "cleaning_previous_application"
@@ -580,7 +616,7 @@ Section "Cage" Main
     ${If} $0 != 0
       DetailPrint "旧目录中仍有需要保留的文件：$BackupDir"
       SetErrorLevel 2
-      Abort "安装仍有待恢复的文件。请保留 $TransactionRecord 及其中记录的目录，再处理恢复。"
+      !insertmacro AbortTransaction "安装仍有待恢复的文件。请保留 $TransactionRecord 及其中记录的目录，再处理恢复。"
     ${EndIf}
   ${Else}
     !insertmacro InstallPhase "completing_file_transaction"
@@ -591,7 +627,7 @@ Section "Cage" Main
     Call WriteInstallDiagnostic
     ${If} $0 != 0
       SetErrorLevel 2
-      Abort "安装回执未能完成，记录保留在 $TransactionRecord。"
+      !insertmacro AbortTransaction "安装回执未能完成，记录保留在 $TransactionRecord。"
     ${EndIf}
   ${EndIf}
   !insertmacro InstallPhase "registering_installation"
@@ -622,6 +658,7 @@ Section "Cage" Main
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "DesktopShortcut" $DesktopShortcut
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "StartMenuShortcuts" $StartMenuShortcuts
   !insertmacro InstallPhase "completed"
+  !insertmacro ReleaseInstallationMutex
   SetErrorLevel 0
 SectionEnd
 
@@ -644,13 +681,13 @@ Function un.onInit
     StrCpy $HelperExit "identity_mismatch"
     Call un.WriteInstallDiagnostic
     SetErrorLevel 2
-    Abort "This is not a Cage installation folder."
+    !insertmacro AbortTransaction "This is not a Cage installation folder."
   ${EndIf}
   !insertmacro UninstallPhase "checking_stopped_processes"
-  !insertmacro CheckStopped "Cage.exe" 0
-  !insertmacro CheckStopped "resources\cage.exe" 0
-  !insertmacro CheckStopped "resources\mihomo.exe" 0
-  !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe" 0
+  !insertmacro CheckStopped "Cage.exe" desktop 0
+  !insertmacro CheckStopped "resources\cage.exe" backend 0
+  !insertmacro CheckStopped "resources\mihomo.exe" proxy 0
+  !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe" vm 0
 FunctionEnd
 
 Section "Uninstall"
@@ -661,7 +698,7 @@ Section "Uninstall"
     StrCpy $HelperExit "pending_install_transaction"
     Call un.WriteInstallDiagnostic
     SetErrorLevel 2
-    Abort "存在待恢复的安装事务，请先处理 $INSTDIR.cage-installation.json 中记录的目录。"
+    !insertmacro AbortTransaction "存在待恢复的安装事务，请先处理 $INSTDIR.cage-installation.json 中记录的目录。"
   ${EndIf}
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
@@ -680,7 +717,7 @@ Section "Uninstall"
   DetailPrint "$1"
   ${If} $0 != 0
     SetErrorLevel 2
-    Abort "部分程序文件正在使用或无法读取，卸载未完成。个人文件已保留，请关闭占用程序后重试。"
+    !insertmacro AbortTransaction "部分程序文件正在使用或无法读取，卸载未完成。个人文件已保留，请关闭占用程序后重试。"
   ${EndIf}
   !insertmacro UninstallPhase "removing_shortcuts_and_registration"
   ReadRegStr $0 HKCU "${UNINSTALL_KEY}" "InstallLocation"
