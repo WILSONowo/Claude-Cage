@@ -17,13 +17,13 @@ const componentModule = new Function("dependencies", `
   ${code.replace(/^import[\s\S]*?;\s*$/gm, "")
     .replace(/^export\s*\{[\s\S]*?\};?\s*$/gm, "")
     .replace(/^export /gm, "")}
-  return { ClaudeDesktop, DesktopToolbar, DesktopOpening };
+  return { ClaudeDesktop, DesktopToolbar };
 `);
 
-function fixture({ platform = "windows-11", native = true, visible = true, windowVisible = true, snapshotError = "", vmRunning = true, installed = true, historyError = "" } = {}) {
+function fixture({ platform = "windows-11", native = true, visible = true, windowVisible = true, snapshotError = "", vmRunning = true, installed = true, running = installed, historyError = "" } = {}) {
   const hooks = [], effects = [], timers = new Map(), requests = [];
   let cursor = 0, dirty = false, nextTimer = 0, lastJob;
-  const current = { installed, running: installed, failed: false, native_user_session: native };
+  const current = { installed, running, failed: false, native_user_session: native };
   const props = {
     status: { vm_running: vmRunning, guest_system: platform, job: { running: false } },
     visible,
@@ -70,7 +70,6 @@ function fixture({ platform = "windows-11", native = true, visible = true, windo
   const module = componentModule(dependencies);
   const h = {
     props, requests,
-    progress() { return find(h.tree, node => node.type === module.DesktopOpening); },
     get starts() { return requests.filter((r) => r.path === "/claude-desktop/start"); },
     render() { cursor = 0; dirty = false; h.tree = module.ClaudeDesktop(props); },
     async flush() {
@@ -237,17 +236,37 @@ test("explicit open reuses a running Windows desktop without requesting activati
 });
 
 test("cold launch shows environment preparation immediately and allows retry after failure", async () => {
-  let rejectCheck;
+  let rejectCheck, stage;
   const h = fixture({ vmRunning: false });
-  await h.update({ onCheckEnvironment: () => new Promise((_resolve, reject) => { rejectCheck = reject; }) });
+  await h.update({ onOpeningChange: next => { stage = next; }, onCheckEnvironment: () => new Promise((_resolve, reject) => { rejectCheck = reject; }) });
   const pending = actionButton(h, "打开 Claude Desktop").props.onClick();
   await h.flush();
-  assert.equal(h.progress().props.preparing, true);
+  assert.equal(stage, "check");
   assert.equal(h.starts.length, 0);
   rejectCheck(new Error("客机启动失败"));
   await pending;
   await h.flush();
-  assert.equal(h.progress(), undefined);
+  assert.equal(stage, "");
   assert.equal(actionButton(h, "打开 Claude Desktop").props.disabled, false);
   assert.ok(find(h.tree, node => node.props.message === "客机启动失败"));
+});
+
+test("an explicitly opened desktop completes in the background without rendering a second view", async () => {
+  let resolveCheck;
+  const h = fixture({ vmRunning: false, running: false });
+  await h.update({ onCheckEnvironment: () => new Promise(resolve => { resolveCheck = resolve; }) });
+  const pending = actionButton(h, "打开 Claude Desktop").props.onClick();
+  await h.flush();
+  await h.update({ visible: false, status: { ...h.props.status, vm_running: true } });
+  assert.equal(h.tree, null);
+  assert.equal(h.starts.length, 0);
+  resolveCheck(true);
+  await pending;
+  await h.flush();
+  assert.equal(h.tree, null);
+  assert.equal(h.starts.length, 1);
+  await h.finish();
+  await h.update({ visible: true });
+  await h.poll();
+  assert.equal(h.starts.length, 1);
 });

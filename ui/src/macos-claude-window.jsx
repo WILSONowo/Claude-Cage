@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
-import { DesktopOpening, DesktopToolbar, useDesktopZoom } from "./claude-desktop";
+import { DesktopToolbar, useDesktopZoom } from "./claude-desktop";
 import { MacOSLogin } from "./macos-login";
 import { api, native, nativeAvailable } from "./api";
 import { BrowserFavorites } from "./browser-favorites";
@@ -106,9 +106,9 @@ export function MacOSAppWindow({ browser = false, guestRunning = true, onCheckEn
   const opening = useRef(false);
   const [openingDesktop, setOpeningDesktop] = useState(false);
   useEffect(() => {
-    onOpeningChange?.(Boolean(openingDesktop));
-    return () => onOpeningChange?.(false);
-  }, [Boolean(openingDesktop), onOpeningChange]);
+    onOpeningChange?.(openingDesktop);
+    return () => onOpeningChange?.("");
+  }, [openingDesktop, onOpeningChange]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -326,7 +326,6 @@ export function MacOSAppWindow({ browser = false, guestRunning = true, onCheckEn
     </DesktopToolbar>
     {error && <p role="alert">{error}</p>}
     {fileError && <p role="alert">{fileError}</p>}
-    {!browser && openingDesktop && <DesktopOpening preparing={openingDesktop === "check" && !guestRunning} />}
     {!browser && !openingDesktop && (!state?.running || error) && <div className="desktop-empty">
       <div className="desktop-empty-heading"><h2>Claude Desktop</h2></div>
       <p>{guestRunning ? "在当前项目中使用 Chat 和 Code。" : "打开应用时会先启动 Cage 环境。"}</p>

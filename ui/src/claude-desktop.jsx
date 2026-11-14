@@ -122,14 +122,6 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
   );
 }
 
-export function DesktopOpening({ preparing }) {
-  return <div className="welcome" role="status">
-    <div className="welcome-content">
-      <h1 className="welcome-heading">{preparing ? "正在准备 Cage 环境" : "正在打开 Claude Desktop…"}</h1>
-    </div>
-  </div>;
-}
-
 export function ClaudeDesktop({
   uploads = [],
   status,
@@ -158,9 +150,9 @@ export function ClaudeDesktop({
   const [jobID, setJobID] = useState("");
   const [launchStage, setLaunchStage] = useState("");
   useEffect(() => {
-    onOpeningChange?.(Boolean(launchStage));
-    return () => onOpeningChange?.(false);
-  }, [Boolean(launchStage), onOpeningChange]);
+    onOpeningChange?.(launchStage);
+    return () => onOpeningChange?.("");
+  }, [launchStage, onOpeningChange]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const pendingAction = useRef(false);
@@ -278,6 +270,7 @@ export function ClaudeDesktop({
   }, [jobID, status.job?.id, status.job?.running, status.job?.error, status.job?.canceled]);
   const canInstall = desktop?.installed === false && !automatic;
   const canOpen = !status.vm_running || !desktop || desktop.installed;
+  if (!visible) return null;
   return (
     <section className="claude-desktop-view" aria-label="Claude Desktop">
       <BrowserUploads requests={uploads} onStatus={onStatus} />
@@ -320,7 +313,7 @@ export function ClaudeDesktop({
         </div>
       )}
       <div className="desktop-screen">
-        {launchStage ? <DesktopOpening preparing={launchStage === "check" && !status.vm_running} /> : desktop?.running && status.vm_running ? (
+        {desktop?.running && status.vm_running ? (
           <RemoteView
             ref={remoteRef}
             desktop

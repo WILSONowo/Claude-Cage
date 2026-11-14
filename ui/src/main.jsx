@@ -150,7 +150,13 @@ function App() {
   const acceptedStart = useRef(null);
   const desktopCheck = useRef(null);
   const desktopOpening = useRef(false);
-  const trackDesktopLaunch = useCallback(opening => { desktopOpening.current = opening; }, []);
+  const [desktopStage, setDesktopStage] = useState("");
+  const desktopSelected = useRef(false);
+  desktopSelected.current = desktopOpen;
+  const trackDesktopLaunch = useCallback(stage => {
+    desktopOpening.current = Boolean(stage);
+    setDesktopStage(stage);
+  }, []);
   const desktopStartup = useRef(null);
   const [desktopNeedsChoice, setDesktopNeedsChoice] = useState(false);
   const [hostGitDialog, setHostGitDialog] = useState(false);
@@ -163,6 +169,10 @@ function App() {
     else desktopStartup.current?.resolve(ready);
     desktopStartup.current = null;
   }
+  useEffect(() => () => {
+    desktopCheck.current = null;
+    finishDesktopStartup(false);
+  }, []);
   // Keep feedback continuous until polling observes the accepted start job.
   const clientStatus = serverStatus && { ...serverStatus, keyboard: clientKeyboard(serverStatus.keyboard) };
   const hostGitOpen = startOptions !== null;
@@ -200,9 +210,20 @@ function App() {
     busy = Boolean(status?.job?.running),
     showHome = storageRecovery || !desktopOpen && (!status?.vm_running || home || !current);
   const setupProgress = status?.job?.setup_progress && (busy || status.job.error);
+  const environmentStarting = busy && ["start", "guest-install"].includes(status.job.kind);
+  let sharedJob = null;
+  if (environmentStarting) sharedJob = status.job;
+  else if (desktopStage === "check" || desktopStartPending) sharedJob = { kind: "start" };
+  else if (desktopStage === "app") {
+    sharedJob = status?.job?.kind === "claude-desktop-start" ? status.job : { kind: "claude-desktop-start" };
+  }
+  const showingStart = Boolean(sharedJob && !storageRecovery && (desktopOpen || showHome && !conversation));
+  const keepDesktop = !storageRecovery && (desktopOpen || Boolean(desktopStage));
+  const desktopVisible = desktopOpen && !showingStart && !settingsOpen;
 	const cliSessions = useCLISessions(Boolean(status && !busy && !storageRecovery), windowVisible);
   useEffect(() => {
     if (storageRecovery) {
+      desktopCheck.current = null;
       setDesktopOpen(false);
       setHome(true);
       setStartOptions(null);
@@ -243,6 +264,7 @@ function App() {
       setLayout({ active: request.id });
       setDesktopOpen(false);
     } else if (request.view === "desktop") {
+      if (!desktopSelected.current && desktopOpening.current) return;
       setDesktopOpen(true);
     } else return;
     setHome(false);
@@ -367,7 +389,6 @@ function App() {
     setSettingsOpen(true);
   };
   const select = async (id, focusContent = true) => {
-    desktopCheck.current = null;
     const tab = tabs.find((t) => t.id === id);
     if (tab && tab.kind !== "terminal") browserDismissed.current = false;
     setDesktopOpen(false);
@@ -475,7 +496,6 @@ function App() {
     url = settings?.browser_home_url || "https://www.bing.com/",
     incognito = Boolean(current?.incognito),
   ) => {
-    desktopCheck.current = null;
     browserDismissed.current = false;
     const result = await action("/browser/new", { url, incognito });
     if (result) {
@@ -931,7 +951,7 @@ function App() {
       if (!Array.isArray(b?.tabs)) return;
       browserStreamReady.current = true;
       setBrowserError("");
-      if (!b.handoff?.sequence && b.desktopFocus === true) {
+      if (!b.handoff?.sequence && b.desktopFocus === true && (desktopSelected.current || !desktopOpening.current)) {
         setDesktopOpen(true);
         setHome(false);
         setSettingsOpen(false);
@@ -1546,7 +1566,7 @@ function App() {
             busy={busy || storageRecovery}
             ready={status.ready}
             running={running}
-            onHome={() => { desktopCheck.current = null; setConversation(""); setDesktopOpen(false); setHome(true); }}
+            onHome={() => { setConversation(""); setDesktopOpen(false); setHome(true); }}
             onOpenProject={(path = "") => setProjectDialog({ path })}
             onSelect={select}
             onClose={closeTab}
@@ -1597,13 +1617,13 @@ function App() {
           <main className={`workspace ${split ? "workspace-split" : ""}`} ref={workspaceBox}
             style={{ "--split-left": `${100 * (dualBrowser && nativeSplit?.fraction || 0.5)}%` }}>
             {dropSide && <div aria-hidden="true" className={`split-drop split-${dropSide}`}>{dropSide === "left" ? "放到左侧" : "放到右侧"}</div>}
-            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
-              onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={!settingsOpen} onConfirm={confirm}
+            {keepDesktop && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={desktopVisible ? remote : undefined}
+              onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={desktopVisible} onConfirm={confirm}
               sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
-            {!storageRecovery && desktopOpen && !showHome && !macGuest && <ClaudeDesktop
+            {keepDesktop && !macGuest && <ClaudeDesktop
               uploads={desktopFiles.uploads}
               onProjectOpened={() => refreshStatus.current?.()}
-              status={status} visible={!settingsOpen} remoteRef={remote}
+              status={status} visible={desktopVisible} remoteRef={desktopVisible ? remote : undefined}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })}
               onConfirm={confirm} onDetails={() => setDetails(true)} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch}
               sidebarCollapsed={sidebarCollapsed}
@@ -1687,10 +1707,26 @@ function App() {
                 })}
               </>
             )}
+            {showingStart && <div className="welcome">
+              <div className="welcome-content">
+                {sharedJob.setup_progress ? <>
+                  <h1>正在安装 Cage 环境</h1>
+                  <SetupProgress job={sharedJob} onDetails={() => setDetails(true)} onStop={stop}
+                    onRetry={() => setStartOptions(sharedJob.kind === "guest-install" ? { guest_system: sharedJob.setup_progress.system } : {})} disconnected={Boolean(connectionError)} />
+                </> : <>
+                  <h1 className="welcome-heading">{jobHeadings[sharedJob.kind]}</h1>
+                  <div className="welcome-subtitle" role="status">
+                    <LoaderCircle className="spin home-job-spinner" size={16} aria-hidden="true" />
+                    <SafetyMessage message={connectionError || sharedJob.message || "请稍候…"} />
+                  </div>
+                  <button className="text-button details-link" onClick={() => setDetails(true)}>查看操作详情</button>
+                </>}
+              </div>
+            </div>}
             {showHome && conversation && !storageRecovery && !setupProgress && <DesktopConversation
               key={conversation} id={conversation} drafts={conversationDrafts} ready={status.ready}
               visible={windowVisible && !settingsOpen} onBack={() => setConversation("")} onOpenWeb={openBrowserPage} />}
-            {showHome && (!conversation || storageRecovery || setupProgress) && (
+            {!showingStart && showHome && (!conversation || storageRecovery || setupProgress) && (
               <div className="welcome">
                 <div className="welcome-content">
                   {storageRecovery ? <>
