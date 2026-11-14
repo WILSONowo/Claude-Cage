@@ -775,26 +775,31 @@ function App() {
         const next = await api("/status");
         if (!live) return;
         jobRunning = next.job.running;
-        setStatus(previous => sameSnapshot(previous, next) ? previous : next);
         if (accepted && accepted === acceptedStart.current) {
-          setStartRequest(null);
           let job = next.job;
-          if (accepted.desktop && job.id !== accepted.id) {
-            let history;
-            try { history = await api("/jobs/history"); }
-            catch (error) { if (live) notify(error.message); }
+          if (job.id !== accepted.id) {
+            // A status snapshot can predate the accepted POST. A different
+            // current ID proves completion only if our ID is in the history.
+            const history = await api("/jobs/history");
             if (!live || accepted !== acceptedStart.current) return;
-            job = history?.find(item => item.id === accepted.id);
+            job = Array.isArray(history) ? history.find(item => item.id === accepted.id) : null;
+            if (!job) {
+              jobRunning = true;
+              setConnectionError("");
+              return;
+            }
           }
-          if (!accepted.desktop || !job?.running) {
+          setStartRequest(null);
+          if (!accepted.desktop || !job.running) {
             acceptedStart.current = null;
             if (accepted.desktop) {
-              const ready = Boolean(job && !job.error && !job.canceled && next.vm_running);
-              finishDesktopStartup(ready, ready ? "" : job?.error || "环境未启动，请查看操作详情后重试。");
+              const ready = Boolean(!job.error && !job.canceled && next.vm_running);
+              finishDesktopStartup(ready, ready ? "" : job.error || "环境未启动，请查看操作详情后重试。");
               setDesktopStartPending(false);
             }
           }
         }
+        setStatus(previous => sameSnapshot(previous, next) ? previous : next);
         setConnectionError("");
         if (
           !next.job.running &&
