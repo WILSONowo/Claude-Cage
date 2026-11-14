@@ -30,7 +30,7 @@ for (const platform of ["debian-13", "windows-11", "macos"]) {
     });
     try {
       const navigate = page.getByRole("button", { name: "Claude Desktop", exact: true });
-      const primary = page.getByRole("button", { name: "打开 Claude Desktop", exact: true });
+      const primary = page.getByRole("button", { name: scenario === "cold" ? "启动环境并打开 Claude Desktop" : "打开 Claude Desktop", exact: true });
       const envStarts = () => state.requests.filter(request => request.path === "/start").length;
       await navigate.click();
       if (scenario === "warm-running") {
@@ -70,4 +70,63 @@ for (const platform of ["debian-13", "windows-11", "macos"]) {
       console.log(platform, scenario, { launches, environmentStarts: envStarts() });
     } finally { await browser.close(); }
   }
+}
+
+// Before 0.1.22, leaving Home unmounted the guest picker and cleared its choice.
+// Older Linux accounts then went back to Home without ever requesting /start.
+for (const scenario of ["legacy", "legacy-retry", "already-starting"]) {
+  const { page, browser, state, errors } = await createWorkbench({
+    clientContext: { mode: "local", connection_id: "local", client_platform: "windows", server_platform: "windows", connection: { state: "disconnected" } },
+    beforeNavigate: async (page, state) => {
+      state.status.local_vm_storage = true;
+      await page.emulateMedia({ colorScheme: "dark" });
+      await page.route("**/api/environment/guest-systems", route => route.fulfill({ json: { fresh: false } }));
+      let appRunning = false;
+      await page.route("**/api/claude-desktop", route => route.fulfill({ json: { installed: true, managed: true, running: appRunning } }));
+      await page.route("**/api/claude-desktop/start", route => {
+        assert.ok(state.status.vm_running);
+        appRunning = true;
+        return route.fulfill({ json: state.status.job = { id: "app", kind: "claude-desktop-start", running: false } });
+      });
+    },
+  });
+  try {
+    let starts = 0;
+    await page.route("**/api/start", route => {
+      starts++;
+      state.status.job = { id: "env-" + starts, kind: "start", running: true, message: "正在启动测试环境 " + starts };
+      return route.fulfill({ json: state.status.job });
+    });
+    if (scenario === "already-starting") state.status.job = { id: "existing", kind: "start", running: true, message: "正在启动测试环境" };
+    await page.getByRole("button", { name: "Claude Desktop", exact: true }).click();
+    const start = page.getByRole("button", { name: "启动环境并打开 Claude Desktop", exact: true });
+    const readyColor = await start.evaluate(button => {
+      const pixel = document.createElement("canvas").getContext("2d");
+      pixel.fillStyle = getComputedStyle(button).backgroundColor;
+      pixel.fillRect(0, 0, 1, 1);
+      return [...pixel.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    });
+    assert.ok(Math.max(...readyColor) - Math.min(...readyColor) > 25, "the default dark CTA must use the theme accent");
+    assert.equal(starts, 0);
+    const first = scenario === "already-starting" ? null : page.waitForRequest(r => new URL(r.url()).pathname === "/api/start", { timeout: 10000 });
+    await start.click();
+    await first;
+    const region = page.getByRole("region", { name: "Claude Desktop 启动进度" });
+    const progress = region.getByText(scenario === "already-starting" ? "正在启动测试环境" : "正在启动测试环境 1", { exact: true });
+    await progress.waitFor({ timeout: 10000 });
+    assert.equal(starts, scenario === "already-starting" ? 0 : 1);
+    if (scenario === "legacy-retry") {
+      Object.assign(state.status.job, { running: false, error: "测试：环境未启动" });
+      await start.waitFor({ timeout: 10000 });
+      const second = page.waitForRequest(r => new URL(r.url()).pathname === "/api/start", { timeout: 10000 });
+      await start.click();
+      await second;
+      await region.getByText("正在启动测试环境 2", { exact: true }).waitFor();
+    }
+    Object.assign(state.status, { vm_running: true, ready: true });
+    state.status.job.running = false;
+    await page.getByRole("button", { name: "关闭应用", exact: true }).waitFor();
+    assert.equal(starts, { "legacy": 1, "legacy-retry": 2, "already-starting": 0 }[scenario]);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
 }
