@@ -89,7 +89,18 @@ func (m *jobManager) submit(operation sync.Locker, kind string, pauseVersion uin
 	m.afterSuccess = afterSuccess
 	m.state = Job{ID: randomToken()[:12], Kind: kind, Label: jobName(kind), StartedAt: time.Now(), Running: true, Message: "正在准备…"}
 	execution := &jobExecution{owner: m, id: m.state.ID, ctx: ctx, pauseVersion: pauseVersion}
-	execution.log = diagnostics.NewStream(diagnostics.Default(), "task/"+kind, "info", func(line string) {
+	execution.log = diagnostics.NewStreamWithConsumer(diagnostics.Default(), "task/"+kind, "info", func(line string) {
+		if m.state.ID == execution.id {
+			m.state.Log += line
+			if len(m.state.Log) > 24000 {
+				start := len(m.state.Log) - 24000
+				for start < len(m.state.Log) && !utf8.RuneStart(m.state.Log[start]) {
+					start++
+				}
+				m.state.Log = m.state.Log[start:]
+			}
+		}
+	}, func(line string) bool {
 		if m.state.ID == execution.id {
 			if m.state.SetupProgress != nil {
 				if p := parseSetupProgress(line); p != nil {
@@ -104,19 +115,12 @@ func (m *jobManager) submit(operation sync.Locker, kind string, pauseVersion uin
 					execution.progressUpdated = now
 					m.state.SetupProgress = p
 					if strings.HasPrefix(line, "CAGE_") {
-						return
+						return true
 					}
 				}
 			}
-			m.state.Log += line
-			if len(m.state.Log) > 24000 {
-				start := len(m.state.Log) - 24000
-				for start < len(m.state.Log) && !utf8.RuneStart(m.state.Log[start]) {
-					start++
-				}
-				m.state.Log = m.state.Log[start:]
-			}
 		}
+		return false
 	})
 	diagnostics.Log("info", "task", kind+" started")
 	m.workers.Add(1)
