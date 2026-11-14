@@ -19,13 +19,9 @@ import (
 )
 
 func macOSInstallRecoveryRoute(method, path string) bool {
-	if path == "/api/diagnostics" || path == "/api/diagnostics/export" ||
-		strings.HasPrefix(path, "/api/diagnostics/events") {
-		return true
-	}
 	if method == http.MethodGet {
 		switch path {
-		case "/api/account", "/api/status", "/api/proxy", "/api/proxy/connections", "/api/proxy/logs",
+		case "/api/account", "/api/appearance", "/api/diagnostics", "/api/diagnostics/export", "/api/status", "/api/proxy", "/api/proxy/connections", "/api/proxy/logs",
 			"/api/environment/initialization", "/api/environment/guest-systems", "/api/host/git",
 			"/api/macos/install-recovery", "/api/remote/manifest":
 			return true
@@ -34,7 +30,7 @@ func macOSInstallRecoveryRoute(method, path string) bool {
 	}
 	if method == http.MethodPost {
 		switch path {
-		case "/api/account/unlock", "/api/account/lock", "/api/environment/initialization",
+		case "/api/diagnostics/events", "/api/account/unlock", "/api/account/lock", "/api/environment/initialization",
 			"/api/environment/guest-systems/activate", "/api/host/git", "/api/stop", "/api/start",
 			"/api/macos/install-recovery", "/api/session", "/api/launch", "/api/handoff":
 			return true
@@ -91,7 +87,10 @@ func (s *Server) macOSInstallRecovery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var input guestos.MacLoginRequest
-		if !readJSON(w, r, &input) || input.Action != "prepare" {
+		if !readJSON(w, r, &input) {
+			return
+		}
+		if input.Action != "prepare" {
 			http.Error(w, "请先确认原安装记录", http.StatusConflict)
 			return
 		}

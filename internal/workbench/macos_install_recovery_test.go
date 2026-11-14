@@ -168,12 +168,17 @@ func trustedRecoveryAPIRequest(s *Server, method, path, body string) *httptest.R
 // The recovery mode must let an unstarted installation be re-selected from the
 // recovery page, while every other destructive guest-system call stays gated.
 func TestMacOSInstallRecoveryRouteAllowsOnlyUnstartedReselect(t *testing.T) {
+	if !macOSInstallRecoveryRoute(http.MethodGet, "/api/appearance") {
+		t.Fatal("recovery must use the saved workbench theme")
+	}
 	if !macOSInstallRecoveryRoute(http.MethodDelete, "/api/environment/guest-systems") {
 		t.Fatal("recovery mode must allow re-selecting an unstarted guest system")
 	}
 	for _, give := range []struct{ method, path string }{
 		{http.MethodDelete, "/api/environment/guest-systems/activate"},
 		{http.MethodDelete, "/api/account"},
+		{http.MethodPost, "/api/appearance"},
+		{http.MethodDelete, "/api/diagnostics/export"},
 		{http.MethodPut, "/api/environment/guest-systems"},
 		{http.MethodPost, "/api/environment"},
 	} {
