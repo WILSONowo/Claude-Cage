@@ -22,8 +22,6 @@ cd xterm.js && npm ci && npm run build && npm run esbuild
 cp lib/xterm.mjs <this directory>/xterm-6.0.0-ime.mjs
 ```
 
-`scripts/patch-xterm-ime.mjs` copies this file over the installed
-`@xterm/xterm` ESM entry during `npm ci`/`npm install`. Remove the vendor file
-and the `postinstall` entry once a released xterm contains the fix.
+Vite resolves the terminal module to this build. Addons and styles continue to use the pinned npm packages. Remove the alias and this directory once the published release includes the fix.
 
 License: MIT, same as `@xterm/xterm`.
