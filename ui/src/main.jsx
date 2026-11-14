@@ -123,6 +123,7 @@ function App() {
     [startOptions, setStartOptions] = useState(null),
     [guestSystem, setGuestSystem] = useState(undefined),
     [startRequest, setStartRequest] = useState(null),
+    [desktopStartPending, setDesktopStartPending] = useState(false),
     [settingsSection, setSettingsSection] = useState("keyboard"),
     [home, setHome] = useState(true),
     [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -146,6 +147,8 @@ function App() {
     [details, setDetails] = useState(false),
     [safetyOpen, setSafetyOpen] = useState(false),
     [quitting, setQuitting] = useState(null);
+  const acceptedStart = useRef(null);
+  const desktopCheck = useRef(null);
   // Keep feedback continuous until polling observes the accepted start job.
   const clientStatus = serverStatus && { ...serverStatus, keyboard: clientKeyboard(serverStatus.keyboard) };
   const hostGitOpen = startOptions !== null;
@@ -181,7 +184,7 @@ function App() {
   const current = tabs.find((t) => t.id === active),
     terminal = !desktopOpen && current?.kind === "terminal",
     busy = Boolean(status?.job?.running),
-    showHome = storageRecovery || !desktopOpen && (home || !status?.vm_running || !current);
+    showHome = storageRecovery || !status?.vm_running || (desktopOpen ? desktopStartPending : home || !current);
   const setupProgress = status?.job?.setup_progress && (busy || status.job.error);
 	const cliSessions = useCLISessions(Boolean(status && !busy && !storageRecovery), windowVisible);
   useEffect(() => {
@@ -190,6 +193,8 @@ function App() {
       setHome(true);
       setStartOptions(null);
       setStartRequest(null);
+      acceptedStart.current = null;
+      setDesktopStartPending(false);
     }
   }, [storageRecovery]);
   const other = tabs.find(tab => tab.id === layout.other);
@@ -346,6 +351,7 @@ function App() {
     setSettingsOpen(true);
   };
   const select = async (id, focusContent = true) => {
+    desktopCheck.current = null;
     const tab = tabs.find((t) => t.id === id);
     if (tab && tab.kind !== "terminal") browserDismissed.current = false;
     setDesktopOpen(false);
@@ -401,10 +407,45 @@ function App() {
       return null;
     }
   };
+  async function openDesktop() {
+    if (desktopCheck.current || desktopStartPending) return false;
+    const request = api("/status");
+    desktopCheck.current = request;
+    try {
+      const latest = await request;
+      if (desktopCheck.current !== request) return false;
+      setStatus(latest);
+      if (latest.storage_recovery?.required || latest.job?.running) {
+        notify(latest.storage_recovery?.required ? "请先恢复环境存储。" : "环境正在执行其他操作，请稍后重试。");
+        return false;
+      }
+      if (!latest.vm_running) {
+        setConversation("");
+        setDesktopOpen(false);
+        setHome(true);
+        if (setupProxy) { openSettings("network"); return false; }
+        if (!account?.guest_system && latest.local_vm_storage && !isRemoteClient() && guestSystem !== null) {
+          notify("请先完成环境设置，再打开 Claude Desktop。");
+          return false;
+        }
+        setDesktopStartPending(true);
+        setStartOptions({});
+      }
+      setDesktopOpen(true);
+      setHome(false);
+      return Boolean(latest.vm_running);
+    } catch (error) {
+      notify(error.message);
+      return false;
+    } finally {
+      if (desktopCheck.current === request) desktopCheck.current = null;
+    }
+  }
   const openBrowserPage = async (
     url = settings?.browser_home_url || "https://www.bing.com/",
     incognito = Boolean(current?.incognito),
   ) => {
+    desktopCheck.current = null;
     browserDismissed.current = false;
     const result = await action("/browser/new", { url, incognito });
     if (result) {
@@ -680,11 +721,33 @@ function App() {
       polling = true;
       let jobRunning = false;
       try {
+        const accepted = acceptedStart.current;
         const next = await api("/status");
         if (!live) return;
         jobRunning = next.job.running;
         setStatus(previous => sameSnapshot(previous, next) ? previous : next);
-        setStartRequest(pending => pending?.id && pending.id === next.job.id ? null : pending);
+        if (accepted && accepted === acceptedStart.current) {
+          setStartRequest(null);
+          let job = next.job;
+          if (accepted.desktop && job.id !== accepted.id) {
+            let history;
+            try { history = await api("/jobs/history"); }
+            catch (error) { if (live) notify(error.message); }
+            if (!live || accepted !== acceptedStart.current) return;
+            job = history?.find(item => item.id === accepted.id);
+          }
+          if (!accepted.desktop || !job?.running) {
+            acceptedStart.current = null;
+            if (accepted.desktop) {
+              if (!job || job.error || job.canceled || !next.vm_running) {
+                setDesktopOpen(false);
+                setHome(true);
+                if (!job || job.id !== next.job.id) notify(job?.error || "环境启动结果不可用，可在操作详情中查看记录。");
+              }
+              setDesktopStartPending(false);
+            }
+          }
+        }
         setConnectionError("");
         if (
           !next.job.running &&
@@ -1291,13 +1354,21 @@ function App() {
     <>
       {hostGitOpen && (
         <HostGitPreparation
-          onClose={() => setStartOptions(null)}
+          onClose={() => {
+            setStartOptions(null);
+            if (desktopStartPending) { setDesktopStartPending(false); setDesktopOpen(false); setHome(true); }
+          }}
           onReady={async () => {
             setStartRequest({ id: null });
             setStartOptions(null);
             const result = await action("/start", startOptions);
             setStartRequest(result ? { id: result.id } : null);
-            if (result) refreshStatus.current?.();
+            if (result) {
+              acceptedStart.current = { id: result.id, desktop: desktopStartPending };
+              refreshStatus.current?.();
+            } else if (desktopStartPending) {
+              setDesktopStartPending(false); setDesktopOpen(false); setHome(true);
+            }
           }}
         />
       )}
@@ -1435,7 +1506,7 @@ function App() {
             busy={busy || storageRecovery}
             ready={status.ready}
             running={running}
-            onHome={() => { setConversation(""); setDesktopOpen(false); setHome(true); }}
+            onHome={() => { desktopCheck.current = null; setConversation(""); setDesktopOpen(false); setHome(true); }}
             onOpenProject={(path = "") => setProjectDialog({ path })}
             onSelect={select}
             onClose={closeTab}
@@ -1455,7 +1526,7 @@ function App() {
             onTailscale={() => setTailscaleOpen(true)}
             desktopOpen={desktopOpen}
             onClaudeWeb={() => openBrowserPage("https://claude.ai/")}
-            onClaudeDesktop={() => { setHome(false); setDesktopOpen(true); }}
+            onClaudeDesktop={openDesktop}
             onEditor={openEditor}
             onSettings={openSettings}
             onAccountConfirm={confirm}
@@ -1486,15 +1557,15 @@ function App() {
           <main className={`workspace ${split ? "workspace-split" : ""}`} ref={workspaceBox}
             style={{ "--split-left": `${100 * (dualBrowser && nativeSplit?.fraction || 0.5)}%` }}>
             {dropSide && <div aria-hidden="true" className={`split-drop split-${dropSide}`}>{dropSide === "left" ? "放到左侧" : "放到右侧"}</div>}
-            {!storageRecovery && desktopOpen && macGuest && <MacOSAppWindow key="claude-desktop" uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
+            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={!settingsOpen} onConfirm={confirm}
               sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
-            {!storageRecovery && desktopOpen && !macGuest && <ClaudeDesktop
+            {!storageRecovery && desktopOpen && !showHome && !macGuest && <ClaudeDesktop
               uploads={desktopFiles.uploads}
               onProjectOpened={() => refreshStatus.current?.()}
               status={status} visible={!settingsOpen} remoteRef={remote}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })}
-              onConfirm={confirm} onDetails={() => setDetails(true)}
+              onConfirm={confirm} onDetails={() => setDetails(true)} onCheckEnvironment={openDesktop}
               sidebarCollapsed={sidebarCollapsed}
               onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)}
             />}

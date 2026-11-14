@@ -20,10 +20,10 @@ const componentModule = new Function("dependencies", `
   return { ClaudeDesktop, DesktopToolbar };
 `);
 
-function fixture({ platform = "windows-11", native = true, visible = true, windowVisible = true } = {}) {
+function fixture({ platform = "windows-11", native = true, visible = true, windowVisible = true, snapshotError = "", installed = true, historyError = "" } = {}) {
   const hooks = [], effects = [], timers = new Map(), requests = [];
   let cursor = 0, dirty = false, nextTimer = 0, lastJob;
-  const current = { installed: true, running: true, failed: false, native_user_session: native };
+  const current = { installed, running: installed, failed: false, native_user_session: native };
   const props = {
     status: { vm_running: true, guest_system: platform, job: { running: false } },
     visible,
@@ -49,7 +49,15 @@ function fixture({ platform = "windows-11", native = true, visible = true, windo
     },
     api: async (path, body) => {
       requests.push({ path, body });
-      if (path === "/claude-desktop") return { ...current };
+      if (path === "/claude-desktop") {
+        if (snapshotError) throw new Error(snapshotError);
+        return { ...current };
+      }
+      if (path === "/status") return props.status;
+      if (path === "/jobs/history") {
+        if (historyError) throw new Error(historyError);
+        return [{ ...lastJob }];
+      }
       assert.equal(path, "/claude-desktop/start", "recovery must not close or reinstall the existing application");
       lastJob = { id: `activation-${requests.length}`, kind: "claude-desktop-start", running: false };
       return lastJob;
@@ -158,5 +166,54 @@ test("recovery entry is confined to the running native Windows toolbar", async (
     const h = fixture(settings);
     await h.flush();
     assert.equal(recoveryButton(h), undefined);
+  }
+});
+
+
+const actionButton = (h, text) => find(h.tree, node =>
+  node.type === "button" && node.props.children.includes(text));
+
+test("an unreadable guest snapshot still allows one checked start, with no install", async () => {
+  const h = fixture({ platform: "linux", snapshotError: "应用状态超时" });
+  await h.flush();
+  const open = actionButton(h, "打开 Claude Desktop");
+  assert.ok(open);
+  assert.equal(actionButton(h, "下载并安装"), undefined);
+  let checks = 0;
+  await h.update({ onCheckEnvironment: async () => { checks++; return true; } });
+  const retry = actionButton(h, "打开 Claude Desktop");
+  await Promise.all([retry.props.onClick(), retry.props.onClick()]);
+  await h.flush();
+  assert.equal(checks, 1);
+  assert.equal(h.starts.length, 1);
+});
+
+test("an offline preflight lets the workbench start the VM before submitting app work", async () => {
+  const h = fixture({ snapshotError: "读取应用状态失败" });
+  await h.update({ onCheckEnvironment: async () => false });
+  await actionButton(h, "打开 Claude Desktop").props.onClick();
+  await h.flush();
+  assert.equal(h.starts.length, 0);
+  assert.equal(actionButton(h, "打开 Claude Desktop").props.disabled, false);
+});
+
+test("if another job replaces the accepted job, history recovery releases the toolbar", async () => {
+  for (const historyError of ["", "历史读取失败"]) {
+    const h = fixture({ historyError });
+    await h.flush();
+    await h.update({ status: { ...h.props.status, job: { id: "newer-job", kind: "project", running: false } } });
+    await h.poll();
+    assert.equal(h.requests.filter(r => r.path === "/jobs/history").length, 1);
+    assert.equal(recoveryButton(h).props.disabled, false);
+    assert.equal(h.starts.length, 1);
+  }
+});
+
+test("missing desktop requires an explicit install on Linux and gives Windows guest guidance", async () => {
+  for (const platform of ["linux", "windows-11"]) {
+    const h = fixture({ platform, installed: false });
+    await h.flush();
+    assert.equal(h.requests.some(r => r.body !== undefined), false);
+    assert.equal(Boolean(actionButton(h, "下载并安装")), platform === "linux");
   }
 });

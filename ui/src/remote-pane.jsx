@@ -16,7 +16,7 @@ function canFocusCanvas(canvas) {
 }
 
 export default forwardRef(function RemoteView(
-  { visible, focused = true, keyboard, guestPlatform = "linux", systemClipboard = true, tabId, copyScope = tabId, onStatus, onFallback, desktop = false, zoom = 1 },
+  { visible, focused = true, keyboard, guestPlatform = "linux", systemClipboard = true, tabId, copyScope = tabId, onStatus, onFallback, onDetails, desktop = false, zoom = 1 },
   ref,
 ) {
   const windowVisible = useWindowVisibility();
@@ -48,7 +48,7 @@ export default forwardRef(function RemoteView(
       onFallback(input.current?.text() || "", "可使用本机剪贴板复制、粘贴。"),
   }));
   useEffect(() => {
-    if (!screenVisible) return;
+    if (!screenVisible) { failures.current = 0; return; }
     const container = box.current;
     if (!container) return;
     let disposed = false,
@@ -60,9 +60,9 @@ export default forwardRef(function RemoteView(
     setConnection("connecting");
     setSizeError(false);
     const retry = () => {
-      if (disposed) return;
+      if (disposed || reconnectTimer) return;
       setConnection("disconnected");
-      clearTimeout(reconnectTimer);
+      if (desktop && failures.current >= 5) return;
       reconnectTimer = setTimeout(
         () => setAttempt((v) => v + 1),
         Math.min(1000 * 2 ** failures.current++, 5000),
@@ -271,9 +271,10 @@ export default forwardRef(function RemoteView(
           {connection === "disconnected" && (
             <>
               <p>{connectionError || "后台任务仍在运行。"}</p>
-              <button className="primary" onClick={() => setAttempt((v) => v + 1)}>
+              <button className="primary" onClick={() => { failures.current = 0; setAttempt((v) => v + 1); }}>
                 重新连接画面
               </button>
+              {desktop && onDetails && <button className="quiet-button" onClick={onDetails}>查看操作详情</button>}
             </>
           )}
         </div>
