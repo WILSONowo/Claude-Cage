@@ -44,6 +44,7 @@ version_ge() {
 existing="$current/bin/claude"
 [[ -x $existing ]] || existing="$runtime/bin/claude"
 installed=''
+claude=''
 if [[ -x $existing ]]; then
     if [[ -L $existing ]]; then
         existing=$(readlink "$existing")
@@ -54,8 +55,10 @@ if [[ -x $existing ]]; then
     [[ $installed =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
 fi
 if [[ $components == --components ]]; then
-    [[ -x $runtime/bin/python3 && -n $installed && -x $runtime/bin/git ]] || { echo '请先更新环境工具，再同步组件。' >&2; exit 1; }
-    claude=$existing
+    [[ -x $runtime/bin/python3 && -x $runtime/bin/git ]] || { echo '请先更新环境工具，再同步组件。' >&2; exit 1; }
+    # Component maintenance must preserve a deliberately uninstalled CLI.
+    # The existing Python and Git runtime is still required; no tool is fetched.
+    if [[ -n $installed ]]; then claude=$existing; fi
 else
 cp "$kit"/{claude,uv.tar.gz,python.tar.gz,git.tar.gz,gh.zip} .
 check() { [[ $(shasum -a 256 "$2" | cut -d' ' -f1) == "$1" ]]; }
@@ -129,7 +132,11 @@ GIT
     chmod -R a+rX,go-w tools
     publish_dir tools "$runtime"
 fi
-revision=$({ shasum -a 256 macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py client_runtime.py "$claude"; if [[ -x $github/bin/gh ]]; then echo gh-2.103.3; fi; } | shasum -a 256 | cut -c1-16)
+revision=$({
+    shasum -a 256 macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py client_runtime.py
+    if [[ -n $claude ]]; then shasum -a 256 "$claude"; else printf 'claude=absent\n'; fi
+    if [[ -x $github/bin/gh ]]; then echo gh-2.103.3; fi
+} | shasum -a 256 | cut -c1-16)
 target="$base/cage-cli-2.$revision"
 if [[ -d $target ]]; then
     intact=yes
@@ -141,7 +148,9 @@ if [[ -d $target ]]; then
     for name in python3 git; do
         if [[ ! -L $target/bin/$name || $(readlink "$target/bin/$name") != "$runtime/bin/$name" ]]; then intact=no; fi
     done
-    if [[ ! -L $target/bin/claude || $(readlink "$target/bin/claude") != "$claude" ]]; then intact=no; fi
+    if [[ -n $claude ]]; then
+        if [[ ! -L $target/bin/claude || $(readlink "$target/bin/claude") != "$claude" ]]; then intact=no; fi
+    elif [[ -e $target/bin/claude || -L $target/bin/claude ]]; then intact=no; fi
     if [[ -x $github/bin/gh ]] && [[ ! -L $target/bin/gh || $(readlink "$target/bin/gh") != "$github/bin/gh" ]]; then intact=no; fi
     if [[ $intact == no ]]; then
         # Keep the damaged directory available for rollback while publishing a
@@ -152,7 +161,7 @@ fi
 if [[ ! -d $target ]]; then
     mkdir -p helpers/bin
     for name in python3 git; do ln -s "$runtime/bin/$name" "helpers/bin/$name"; done
-    ln -s "$claude" helpers/bin/claude
+    if [[ -n $claude ]]; then ln -s "$claude" helpers/bin/claude; fi
     if [[ -x $github/bin/gh ]]; then ln -s "$github/bin/gh" helpers/bin/gh; fi
     install -m 644 macos-cli.py cli_channel.py cli_channel.resume.md client_runtime.py helpers/
     install -m 644 claude_account_resume.md helpers/cli_channel.account-resume.md
@@ -173,4 +182,4 @@ for name in claude git gh; do
     [[ -x $current/bin/$name ]] || continue
     if [[ ! -e /usr/local/bin/$name && ! -L /usr/local/bin/$name ]]; then ln -s "$current/bin/$name" "/usr/local/bin/$name"; fi
 done
-"$current/bin/claude" --version
+if [[ -n $claude ]]; then "$current/bin/claude" --version; fi

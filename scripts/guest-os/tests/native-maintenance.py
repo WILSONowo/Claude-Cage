@@ -277,6 +277,35 @@ hdiutil() {
         self.assertEqual((application / 'account-marker').read_text(), 'keep existing application')
         self.assertEqual((self.root / 'Users/cage/account.json').read_text(), 'account-and-login-marker')
 
+    def test_component_update_preserves_an_uninstalled_claude_cli(self):
+        manifest = self.prepare_installer()
+        (self.root / 'usr/local/libexec/cage-cli-runtime-2.1.311-py3.13.18-git2.56.0/bin/claude').unlink()
+        previous = os.readlink(self.root / 'usr/local/libexec/cage-cli')
+        failed = self.run_install(fail=True)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(os.readlink(self.root / 'usr/local/libexec/cage-cli'), previous)
+        for _ in range(2):
+            result = self.run_install()
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(json.loads((self.root / 'var/db/cage-components.json').read_text()), manifest)
+            for name in ('usr/local/libexec/cage-cli/bin/claude', 'usr/local/bin/claude'):
+                self.assertFalse(os.path.lexists(self.root / name))
+            for name in ('python3', 'git', 'cage-claude-account'):
+                self.assertTrue(os.access(self.root / 'usr/local/libexec/cage-cli/bin' / name, os.X_OK))
+            self.assertEqual((self.root / 'Users/cage/account.json').read_text(), 'account-and-login-marker')
+            self.assertEqual((self.root / 'Users/cage/project.txt').read_text(), 'project-marker')
+
+    def test_component_update_still_requires_the_existing_runtime(self):
+        self.prepare_installer()
+        runtime = self.root / 'usr/local/libexec/cage-cli-runtime-2.1.311-py3.13.18-git2.56.0/bin'
+        (runtime / 'claude').unlink()
+        (runtime / 'python3').unlink()
+        previous = os.readlink(self.root / 'usr/local/libexec/cage-cli')
+        result = self.run_install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(os.readlink(self.root / 'usr/local/libexec/cage-cli'), previous)
+        self.assertFalse((self.root / 'var/db/cage-components.json').exists())
+
     def test_existing_guest_failure_rollback_retry_and_new_helpers(self):
         manifest = self.prepare_installer()
         previous = os.readlink(self.root / 'usr/local/libexec/cage-cli')
