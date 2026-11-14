@@ -14,6 +14,7 @@ for (const platform of ["debian-13", "windows-11", "macos"]) {
         state.status.vm_running = state.status.ready = scenario !== "cold";
         await page.route("**/api/claude-desktop", route => { guestReads++; return route.fulfill({ json: snapshot() }); });
         await page.route("**/api/claude-desktop/vnc-credentials", route => route.fulfill({ status: 503, body: "Display pending" }));
+        await page.route("**/api/vnc-credentials", route => route.fulfill({ status: 503, body: "Browser display pending" }));
         await page.route("**/api/claude-desktop/start", route => {
           assert.ok(state.status.vm_running);
           launches++; appRunning = true;
@@ -50,6 +51,21 @@ for (const platform of ["debian-13", "windows-11", "macos"]) {
       }
       assert.equal(launches, scenario === "warm-running" ? 0 : 1);
       assert.equal(envStarts(), scenario === "cold" ? 1 : 0);
+      if (scenario === "warm-running" && platform === "debian-13") {
+        const reconnect = page.getByRole("button", { name: "重新连接画面", exact: true });
+        const details = page.getByRole("button", { name: "查看操作详情", exact: true });
+        await reconnect.waitFor();
+        const [first, second] = await Promise.all([reconnect.boundingBox(), details.boundingBox()]);
+        assert.equal(first.height, 32);
+        assert.equal(second.height, 32);
+        assert.equal(first.y, second.y);
+        assert.equal(second.x - first.x - first.width, 8);
+        await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
+        await page.locator(".claude-desktop-view").waitFor({ state: "detached" });
+        await reconnect.waitFor();
+        assert.equal(await reconnect.evaluate(button => button.getBoundingClientRect().height), 32);
+        assert.equal(await details.count(), 0);
+      }
       assert.deepEqual(errors, []);
       console.log(platform, scenario, { launches, environmentStarts: envStarts() });
     } finally { await browser.close(); }

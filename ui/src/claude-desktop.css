@@ -134,4 +134,9 @@
 }
 
 .desktop-reconnect-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
-.desktop-reconnect-actions button { margin: 0; }
+.desktop-reconnect-actions > button {
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding-block: 0;
+}
