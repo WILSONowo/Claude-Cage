@@ -17,7 +17,7 @@ const componentModule = new Function("dependencies", `
   ${code.replace(/^import[\s\S]*?;\s*$/gm, "")
     .replace(/^export\s*\{[\s\S]*?\};?\s*$/gm, "")
     .replace(/^export /gm, "")}
-  return { ClaudeDesktop, DesktopToolbar, DesktopLaunchProgress };
+  return { ClaudeDesktop, DesktopToolbar, DesktopOpening };
 `);
 
 function fixture({ platform = "windows-11", native = true, visible = true, windowVisible = true, snapshotError = "", vmRunning = true, installed = true, historyError = "" } = {}) {
@@ -70,7 +70,7 @@ function fixture({ platform = "windows-11", native = true, visible = true, windo
   const module = componentModule(dependencies);
   const h = {
     props, requests,
-    progress() { return find(h.tree, node => node.type === module.DesktopLaunchProgress); },
+    progress() { return find(h.tree, node => node.type === module.DesktopOpening); },
     get starts() { return requests.filter((r) => r.path === "/claude-desktop/start"); },
     render() { cursor = 0; dirty = false; h.tree = module.ClaudeDesktop(props); },
     async flush() {
@@ -221,7 +221,7 @@ test("an offline desktop offers an enabled primary action and does not probe the
   await h.flush();
   const before = h.requests.length;
   await h.poll();
-  const button = actionButton(h, "启动环境并打开 Claude Desktop");
+  const button = actionButton(h, "打开 Claude Desktop");
   assert.equal(button.props.disabled, false);
   assert.equal(h.requests.length, before);
   assert.equal(h.starts.length, 0);
@@ -236,20 +236,18 @@ test("explicit open reuses a running Windows desktop without requesting activati
   assert.ok(recoveryButton(h));
 });
 
-test("cold launch shows progress immediately, exposes details and allows retry after failure", async () => {
+test("cold launch shows environment preparation immediately and allows retry after failure", async () => {
   let rejectCheck;
   const h = fixture({ vmRunning: false });
-  const onDetails = () => {};
-  await h.update({ onDetails, onCheckEnvironment: () => new Promise((_resolve, reject) => { rejectCheck = reject; }) });
-  const pending = actionButton(h, "启动环境并打开 Claude Desktop").props.onClick();
+  await h.update({ onCheckEnvironment: () => new Promise((_resolve, reject) => { rejectCheck = reject; }) });
+  const pending = actionButton(h, "打开 Claude Desktop").props.onClick();
   await h.flush();
-  assert.equal(h.progress().props.onDetails, onDetails);
-  assert.equal(h.progress().props.openingApp, false);
+  assert.equal(h.progress().props.preparing, true);
   assert.equal(h.starts.length, 0);
   rejectCheck(new Error("客机启动失败"));
   await pending;
   await h.flush();
   assert.equal(h.progress(), undefined);
-  assert.equal(actionButton(h, "启动环境并打开 Claude Desktop").props.disabled, false);
+  assert.equal(actionButton(h, "打开 Claude Desktop").props.disabled, false);
   assert.ok(find(h.tree, node => node.props.message === "客机启动失败"));
 });

@@ -122,21 +122,12 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
   );
 }
 
-export function DesktopLaunchProgress({ job, openingApp, onDetails }) {
-  const stage = openingApp ? 2 : job?.running && !job.checking && ["start", "guest-install"].includes(job.kind) ? 1 : 0;
-  const stages = ["检查环境", "启动环境", "打开应用"];
-  const message = job?.running ? job.message : "";
-  return <section className="desktop-launch-progress" aria-label="Claude Desktop 启动进度">
-    <div role="status">
-      <RefreshCw className="spin" size={22} aria-hidden="true" />
-      <h2>{["正在检查 Cage 环境", "正在启动 Cage 环境", "正在打开 Claude Desktop"][stage]}</h2>
+export function DesktopOpening({ preparing }) {
+  return <div className="welcome" role="status">
+    <div className="welcome-content">
+      <h1 className="welcome-heading">{preparing ? "正在准备 Cage 环境" : "正在打开 Claude Desktop…"}</h1>
     </div>
-    <ol aria-label="启动阶段">{stages.map((label, index) =>
-      <li key={label} aria-current={stage === index ? "step" : undefined}>{label}</li>
-    )}</ol>
-    {message && <p><SafetyMessage message={message} /></p>}
-    <button className="quiet-button" onClick={onDetails}>查看操作详情</button>
-  </section>;
+  </div>;
 }
 
 export function ClaudeDesktop({
@@ -329,7 +320,7 @@ export function ClaudeDesktop({
         </div>
       )}
       <div className="desktop-screen">
-        {launchStage ? <DesktopLaunchProgress job={status.job} openingApp={launchStage === "app"} onDetails={onDetails} /> : desktop?.running && status.vm_running ? (
+        {launchStage ? <DesktopOpening preparing={launchStage === "check" && !status.vm_running} /> : desktop?.running && status.vm_running ? (
           <RemoteView
             ref={remoteRef}
             desktop
@@ -363,7 +354,7 @@ export function ClaudeDesktop({
                   ) : (
                     <Download size={16} />
                   )}
-                  {!status.vm_running ? "启动环境并打开 Claude Desktop" : desktop?.installed !== false ? "打开 Claude Desktop" : "下载并安装"}
+                  {desktop?.installed !== false ? "打开 Claude Desktop" : "下载并安装"}
                 </button>
               )}
               {desktop?.installed && !status.guest_system?.startsWith("windows") && (

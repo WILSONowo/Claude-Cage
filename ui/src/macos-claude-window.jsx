@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
-import { DesktopLaunchProgress, DesktopToolbar, useDesktopZoom } from "./claude-desktop";
+import { DesktopOpening, DesktopToolbar, useDesktopZoom } from "./claude-desktop";
 import { MacOSLogin } from "./macos-login";
 import { api, native, nativeAvailable } from "./api";
 import { BrowserFavorites } from "./browser-favorites";
@@ -59,7 +59,7 @@ function matchWindowBackground(img, pane, canvasRef) {
   pane.style.backgroundColor = uniform && pixels[3] === 255 ? `rgb(${pixels[0]}, ${pixels[1]}, ${pixels[2]})` : "";
 }
 
-export function MacOSAppWindow({ browser = false, guestRunning = true, onCheckEnvironment, onOpeningChange, job, onDetails, onOpenPage, visible, keyboard = "mac", remoteRef, sidebarCollapsed, onExpand, onConfirm, uploads = [], onStatus = () => {}, onFallback = () => {} }) {
+export function MacOSAppWindow({ browser = false, guestRunning = true, onCheckEnvironment, onOpeningChange, onOpenPage, visible, keyboard = "mac", remoteRef, sidebarCollapsed, onExpand, onConfirm, uploads = [], onStatus = () => {}, onFallback = () => {} }) {
   const appName = browser ? "Google Chrome" : "Claude Desktop";
   const base = browser ? "/macos-browser" : "/macos/claude";
   const windowVisible = useWindowVisibility();
@@ -326,13 +326,13 @@ export function MacOSAppWindow({ browser = false, guestRunning = true, onCheckEn
     </DesktopToolbar>
     {error && <p role="alert">{error}</p>}
     {fileError && <p role="alert">{fileError}</p>}
-    {!browser && openingDesktop && <DesktopLaunchProgress job={job} openingApp={openingDesktop === "app"} onDetails={onDetails} />}
+    {!browser && openingDesktop && <DesktopOpening preparing={openingDesktop === "check" && !guestRunning} />}
     {!browser && !openingDesktop && (!state?.running || error) && <div className="desktop-empty">
       <div className="desktop-empty-heading"><h2>Claude Desktop</h2></div>
       <p>{guestRunning ? "在当前项目中使用 Chat 和 Code。" : "打开应用时会先启动 Cage 环境。"}</p>
       <div className="desktop-actions">
         {state?.installed !== false && <button className="primary" disabled={openingDesktop} onClick={openDesktop}>
-          {!guestRunning ? "启动环境并打开 Claude Desktop" : state?.running ? "重新连接画面" : "打开 Claude Desktop"}
+          {state?.running ? "重新连接画面" : "打开 Claude Desktop"}
         </button>}
       </div>
     </div>}

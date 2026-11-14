@@ -167,7 +167,7 @@ function App() {
   const clientStatus = serverStatus && { ...serverStatus, keyboard: clientKeyboard(serverStatus.keyboard) };
   const hostGitOpen = startOptions !== null;
   const status = clientStatus && (hostGitOpen || startRequest)
-    ? { ...clientStatus, job: { running: true, kind: "start", checking: hostGitOpen, message: hostGitOpen
+    ? { ...clientStatus, job: { running: true, kind: "start", message: hostGitOpen
       ? isRemoteClient() ? "正在检查云端主机 Git 安全保护…" : "正在检查本机 Git 安全保护…" : "正在启动 Cage 环境…" } }
     : clientStatus;
   const system = status?.guest_system || account?.guest_system;
@@ -1597,7 +1597,7 @@ function App() {
           <main className={`workspace ${split ? "workspace-split" : ""}`} ref={workspaceBox}
             style={{ "--split-left": `${100 * (dualBrowser && nativeSplit?.fraction || 0.5)}%` }}>
             {dropSide && <div aria-hidden="true" className={`split-drop split-${dropSide}`}>{dropSide === "left" ? "放到左侧" : "放到右侧"}</div>}
-            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch} job={status.job} onDetails={() => setDetails(true)} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
+            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={!settingsOpen} onConfirm={confirm}
               sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
             {!storageRecovery && desktopOpen && !showHome && !macGuest && <ClaudeDesktop

@@ -30,7 +30,7 @@ for (const platform of ["debian-13", "windows-11", "macos"]) {
     });
     try {
       const navigate = page.getByRole("button", { name: "Claude Desktop", exact: true });
-      const primary = page.getByRole("button", { name: scenario === "cold" ? "启动环境并打开 Claude Desktop" : "打开 Claude Desktop", exact: true });
+      const primary = page.getByRole("button", { name: "打开 Claude Desktop", exact: true });
       const envStarts = () => state.requests.filter(request => request.path === "/start").length;
       await navigate.click();
       if (scenario === "warm-running") {
@@ -99,21 +99,15 @@ for (const scenario of ["legacy", "legacy-retry", "already-starting"]) {
     });
     if (scenario === "already-starting") state.status.job = { id: "existing", kind: "start", running: true, message: "正在启动测试环境" };
     await page.getByRole("button", { name: "Claude Desktop", exact: true }).click();
-    const start = page.getByRole("button", { name: "启动环境并打开 Claude Desktop", exact: true });
-    const readyColor = await start.evaluate(button => {
-      const pixel = document.createElement("canvas").getContext("2d");
-      pixel.fillStyle = getComputedStyle(button).backgroundColor;
-      pixel.fillRect(0, 0, 1, 1);
-      return [...pixel.getImageData(0, 0, 1, 1).data].slice(0, 3);
-    });
-    assert.ok(Math.max(...readyColor) - Math.min(...readyColor) > 25, "the default dark CTA must use the theme accent");
+    const start = page.getByRole("button", { name: "打开 Claude Desktop", exact: true });
+    assert.ok(await start.isEnabled());
     assert.equal(starts, 0);
     const first = scenario === "already-starting" ? null : page.waitForRequest(r => new URL(r.url()).pathname === "/api/start", { timeout: 10000 });
     await start.click();
     await first;
-    const region = page.getByRole("region", { name: "Claude Desktop 启动进度" });
-    const progress = region.getByText(scenario === "already-starting" ? "正在启动测试环境" : "正在启动测试环境 1", { exact: true });
-    await progress.waitFor({ timeout: 10000 });
+    const preparing = page.getByRole("heading", { name: "正在准备 Cage 环境", exact: true });
+    await preparing.waitFor();
+    assert.equal(await page.getByRole("list", { name: "启动阶段" }).count(), 0);
     assert.equal(starts, scenario === "already-starting" ? 0 : 1);
     if (scenario === "legacy-retry") {
       Object.assign(state.status.job, { running: false, error: "测试：环境未启动" });
@@ -121,7 +115,7 @@ for (const scenario of ["legacy", "legacy-retry", "already-starting"]) {
       const second = page.waitForRequest(r => new URL(r.url()).pathname === "/api/start", { timeout: 10000 });
       await start.click();
       await second;
-      await region.getByText("正在启动测试环境 2", { exact: true }).waitFor();
+      await preparing.waitFor();
     }
     Object.assign(state.status, { vm_running: true, ready: true });
     state.status.job.running = false;
