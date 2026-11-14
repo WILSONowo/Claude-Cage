@@ -46,6 +46,15 @@ func TestLinuxDesktopCredentialsRequireLiveNativeDisplay(t *testing.T) {
 			t.Fatalf("display credentials: %v %q", err, output)
 		}
 	}
+	for _, tc := range []struct {
+		exit     int
+		inactive bool
+	}{{3, true}, {1, false}} {
+		output, err := exec.Command("bash", "-c", "systemctl() { return "+strconv.Itoa(tc.exit)+"; }\n"+script).CombinedOutput()
+		if tc.inactive && (err != nil || strings.TrimSpace(string(output)) != "service-inactive") || !tc.inactive && err == nil {
+			t.Fatalf("unexpected service status handling for exit %d", tc.exit)
+		}
+	}
 	old := listen("vnc.sock")
 	check("display-unavailable")
 	old.Close() // reproduces the stale scraping socket on an older guest

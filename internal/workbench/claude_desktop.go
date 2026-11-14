@@ -196,7 +196,12 @@ func (s *Server) runDesktopScript(script string, timeout time.Duration) error {
 const linuxDesktopRFBSocket = "/run/cage-desktop/display.sock"
 
 const linuxDesktopCredentials = `set -eu
-systemctl is-active --quiet cage-claude-desktop.service
+if systemctl is-active --quiet cage-claude-desktop.service; then :
+else
+  status=$?
+  if [ "$status" -eq 3 ]; then echo service-inactive; exit 0; fi
+  exit "$status"
+fi
 # A socket inode can survive a crash. A listening stream in /proc/net/unix
 # checks the actual endpoint without opening an extra unauthenticated viewer.
 if ! awk '$4=="00010000" && $5=="0001" && $8=="` + linuxDesktopRFBSocket + `" {found=1} END {exit !found}' /proc/net/unix; then
@@ -220,13 +225,20 @@ func (s *Server) claudeDesktopCredentials(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	b, err := s.guestQuick(ctx, linuxDesktopCredentials)
-	password, scale, _ := strings.Cut(strings.TrimSpace(string(b)), "\n")
-	if err == nil && password == "display-unavailable" {
-		http.Error(w, "Claude Desktop 的显示服务未就绪，请关闭应用后重新打开。", http.StatusServiceUnavailable)
+	if err != nil {
+		http.Error(w, "暂时无法从客机读取 Claude Desktop 画面连接信息。", http.StatusBadGateway)
 		return
 	}
-	if err != nil || len(password) != 8 {
-		http.Error(w, "Claude Desktop 尚未启动", 409)
+	password, scale, _ := strings.Cut(strings.TrimSpace(string(b)), "\n")
+	switch {
+	case password == "service-inactive":
+		http.Error(w, "Claude Desktop 尚未启动", http.StatusConflict)
+		return
+	case password == "display-unavailable":
+		http.Error(w, "Claude Desktop 的显示服务尚未就绪。", http.StatusServiceUnavailable)
+		return
+	case len(password) != 8:
+		http.Error(w, "客机返回的 Claude Desktop 画面凭据无效。", http.StatusBadGateway)
 		return
 	}
 	// With a settings manager the viewer chooses the density of its own screen.
