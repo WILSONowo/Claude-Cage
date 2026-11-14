@@ -816,7 +816,7 @@ function App() {
         }
         if (next.ready) {
           const before = browserSnapshot.current;
-          const fetchBrowser = forceBrowser || !browserStreamReady.current || !initialized.current;
+          const fetchBrowser = !next.environment_update_required && (forceBrowser || !browserStreamReady.current || !initialized.current);
           const [browserResult, t] = await Promise.all([
             fetchBrowser ? api("/browser/tabs").then(result => {
               if (live) setBrowserError("");
