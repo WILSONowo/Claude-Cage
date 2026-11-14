@@ -7,8 +7,32 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/sylvinus/agent-vm/internal/managedproxy"
 	"golang.org/x/sys/windows"
 )
+
+// The installer runs from a different directory than the retiring backend.
+// Only the offline profile owner may release its proxy. A restarted controller
+// must never lose networking between the VM check and proxy shutdown.
+func ReleaseOrphanProxyForUpdate(configPath, installDir string) (DesktopResult, error) {
+	profile := filepath.Dir(configPath)
+	lock, err := openControllerLock(profile, os.O_CREATE|os.O_RDWR)
+	if err != nil {
+		return DesktopResult{}, err
+	}
+	defer lock.Close()
+	if err := lockController(lock); err != nil {
+		return DesktopResult{}, errors.New("本机后台正在使用此配置，无法单独关闭代理")
+	}
+	defer unlockController(lock)
+	if controllerHasVM(profile) {
+		return DesktopResult{}, errors.New("环境仍在运行或状态无法确认，请先在工作台停止环境")
+	}
+	if err := managedproxy.ReleaseOrphanForUpdate(profile, installDir); err != nil {
+		return DesktopResult{}, err
+	}
+	return DesktopResult{Status: "prepared"}, nil
+}
 
 func lockController(f *os.File) error {
 	return windows.LockFileEx(windows.Handle(f.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, new(windows.Overlapped))

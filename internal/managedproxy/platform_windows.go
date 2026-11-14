@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/sylvinus/agent-vm/internal/diagnostics"
 	"github.com/sylvinus/agent-vm/internal/host"
@@ -54,8 +55,24 @@ func identifyCore(handle windows.Handle) (string, int64, error) {
 // Stop opens one process handle and validates both its image and creation time
 // before termination. A reused PID cannot terminate an unrelated application.
 func stopWindowsCore(profile string) error {
+	return stopRecordedWindowsCore(profile, "")
+}
+
+// Require a record belonging to both this profile and the installation being
+// replaced. Other processes using the same binary remain untouched.
+func ReleaseOrphanForUpdate(profile, installDir string) error {
+	if !filepath.IsAbs(installDir) {
+		return errors.New("未指定要更新的安装目录")
+	}
+	return stopRecordedWindowsCore(profile, filepath.Join(installDir, "resources", "mihomo.exe"))
+}
+
+func stopRecordedWindowsCore(profile, targetCore string) error {
 	path := windowsCoreRecordPath(profile)
 	if _, err := os.Lstat(path); os.IsNotExist(err) {
+		if targetCore != "" {
+			return errors.New("此配置缺少代理进程记录，无法确认占用进程属于 Cage")
+		}
 		return nil
 	}
 	if err := host.CheckPrivateFile(path); err != nil {
@@ -69,18 +86,24 @@ func stopWindowsCore(profile string) error {
 	if len(b) > 4096 || json.Unmarshal(b, &record) != nil || record.PID == 0 || record.Created == 0 {
 		return errors.New("Cage 代理进程记录无效")
 	}
-	core, err := CorePath()
-	if err != nil {
-		return err
+	core := targetCore
+	if core == "" {
+		core, err = CorePath()
+		if err != nil {
+			return err
+		}
 	}
 	if !strings.EqualFold(filepath.Clean(core), filepath.Clean(record.Executable)) {
 		return errors.New("Cage 代理进程不属于当前安装目录")
 	}
 	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, record.PID)
 	if errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
+		if targetCore != "" {
+			return errors.New("记录的代理已退出，无法确认其余占用进程的归属")
+		}
 		return removeStaleCore(profile, path)
 	}
-	if errors.Is(err, windows.ERROR_ACCESS_DENIED) && !recordedCoreRunning(record) {
+	if targetCore == "" && errors.Is(err, windows.ERROR_ACCESS_DENIED) && !recordedCoreRunning(record) {
 		// The core runs as the current user, so a PID that cannot be
 		// terminated now belongs to another account's process.
 		return removeStaleCore(profile, path)
@@ -94,9 +117,15 @@ func stopWindowsCore(profile string) error {
 		return err
 	}
 	if !sameCore(record, image, created) {
+		if targetCore != "" {
+			return errors.New("代理进程身份已变化，已保留当前进程")
+		}
 		// The recorded core exited and its PID was reused, typically after a
 		// reboot. Forget the stale record and leave the other process alone.
 		return removeStaleCore(profile, path)
+	}
+	if targetCore != "" && !usesWindowsProxyProfile(handle, profile) {
+		return errors.New("代理未使用此配置目录，已保留当前进程")
 	}
 	var code uint32
 	if err := windows.GetExitCodeProcess(handle, &code); err != nil {
@@ -118,6 +147,23 @@ func stopWindowsCore(profile string) error {
 		return err
 	}
 	return os.Remove(path)
+}
+
+// Restoring a profile backup can duplicate a still-valid process record.
+// Confirm the actual -d and -f arguments on the same pinned process.
+func usesWindowsProxyProfile(handle windows.Handle, profile string) bool {
+	// Windows command lines are limited to 32,767 UTF-16 code units. The
+	// returned UNICODE_STRING and its string both reside in this buffer.
+	buffer := make([]byte, 65536+unsafe.Sizeof(windows.NTUnicodeString{}))
+	header := unsafe.Pointer(&buffer[0])
+	var n uint32
+	if windows.NtQueryInformationProcess(handle, windows.ProcessCommandLineInformation, header, uint32(len(buffer)), &n) != nil {
+		return false
+	}
+	args, err := windows.DecomposeCommandLine((*windows.NTUnicodeString)(header).String())
+	dir := Dir(profile)
+	return err == nil && len(args) == 5 && args[1] == "-d" && strings.EqualFold(filepath.Clean(args[2]), dir) &&
+		args[3] == "-f" && strings.EqualFold(filepath.Clean(args[4]), filepath.Join(dir, "config.yaml"))
 }
 
 func sameCore(record windowsCoreRecord, image string, created int64) bool {

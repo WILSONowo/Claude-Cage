@@ -9,7 +9,94 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"golang.org/x/sys/windows"
 )
+
+func TestMain(m *testing.M) {
+	if os.Getenv("CAGE_ORPHAN_PROXY_TEST_HELPER") == "1" && len(os.Args) == 5 && os.Args[1] == "-d" {
+		time.Sleep(time.Minute)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+func TestInstallerReleasesOnlyRecordedOrphanProxy(t *testing.T) {
+	install := t.TempDir()
+	exe := filepath.Join(install, "resources", "mihomo.exe")
+	if err := os.Mkdir(filepath.Dir(exe), 0700); err != nil {
+		t.Fatal(err)
+	}
+	source, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(exe, image, 0700); err != nil {
+		t.Fatal(err)
+	}
+	start := func(profile string) (*exec.Cmd, windowsCoreRecord) {
+		cmd := exec.Command(exe, "-d", Dir(profile), "-f", filepath.Join(Dir(profile), "config.yaml"))
+		cmd.Env = append(os.Environ(), "CAGE_ORPHAN_PROXY_TEST_HELPER=1")
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+		pid := uint32(cmd.Process.Pid)
+		h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer windows.CloseHandle(h)
+		path, created, err := identifyCore(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cmd, windowsCoreRecord{PID: pid, Executable: path, Created: created}
+	}
+	profile := t.TempDir()
+	owned, record := start(profile)
+	_, other := start(t.TempDir())
+	if err := ReleaseOrphanForUpdate(profile, install); err == nil {
+		t.Fatal("accepted an unrecorded proxy")
+	}
+	writeRecord := func(r windowsCoreRecord) {
+		b, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := Write(windowsCoreRecordPath(profile), b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stale := record
+	stale.Created--
+	writeRecord(stale)
+	if err := ReleaseOrphanForUpdate(profile, install); err == nil || !recordedCoreRunning(record) {
+		t.Fatal("accepted a reused PID")
+	}
+	writeRecord(other)
+	if err := ReleaseOrphanForUpdate(profile, install); err == nil || !recordedCoreRunning(other) {
+		t.Fatal("accepted a record copied from another profile")
+	}
+	writeRecord(record)
+	if err := ReleaseOrphanForUpdate(profile, t.TempDir()); err == nil || !recordedCoreRunning(record) {
+		t.Fatal("accepted a different installation")
+	}
+	if err := ReleaseOrphanForUpdate(profile, install); err != nil {
+		t.Fatal(err)
+	}
+	if err := owned.Wait(); err != nil || !recordedCoreRunning(other) {
+		t.Fatal("failed to release only the recorded proxy", err)
+	}
+	if _, err := os.Stat(windowsCoreRecordPath(profile)); !os.IsNotExist(err) {
+		t.Fatalf("proxy ownership record remained: %v", err)
+	}
+}
 
 func TestRemoveStaleCoreRetainsRecordOnSocketFailure(t *testing.T) {
 	profile := t.TempDir()

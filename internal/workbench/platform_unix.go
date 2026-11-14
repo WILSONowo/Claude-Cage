@@ -10,6 +10,10 @@ import (
 	"syscall"
 )
 
+func ReleaseOrphanProxyForUpdate(configPath, installDir string) (DesktopResult, error) {
+	return DesktopResult{}, errors.New("此选项仅用于 Windows 安装程序")
+}
+
 func lockController(f *os.File) error {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 }

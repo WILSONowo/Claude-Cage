@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -440,18 +441,28 @@ func run() int {
 		return 0
 	}
 	if args[0] == "prepare-update" {
-		stop, returnJSON := false, false
-		for _, argument := range args[1:] {
-			switch argument {
-			case "--stop":
-				stop = true
-			case "--json":
-				returnJSON = true
-			default:
-				return fail(fmt.Errorf("unknown prepare-update option: %s", argument))
+		flags := flag.NewFlagSet("prepare-update", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		var stop, returnJSON bool
+		flags.BoolVar(&stop, "stop", false, "")
+		flags.BoolVar(&returnJSON, "json", false, "")
+		var target *string
+		flags.Func("release-orphan-proxy", "", func(value string) error {
+			if !filepath.IsAbs(value) || target != nil {
+				return errors.New("expected one absolute installation path")
 			}
+			target = &value
+			return nil
+		})
+		if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 || stop && target != nil {
+			return fail(errors.New("invalid prepare-update options"))
 		}
-		result, err := workbench.PrepareDesktopUpdate(path, stop)
+		var result workbench.DesktopResult
+		if target != nil {
+			result, err = workbench.ReleaseOrphanProxyForUpdate(path, *target)
+		} else {
+			result, err = workbench.PrepareDesktopUpdate(path, stop)
+		}
 		if err != nil {
 			if returnJSON {
 				diagnostics.Log("error", "command", err.Error())
