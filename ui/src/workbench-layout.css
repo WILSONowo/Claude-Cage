@@ -336,7 +336,7 @@
   .settings-page .settings-footer > .primary { flex: 0 1 auto; }
 }
 
-:root[data-theme="dark"] :is(.desktop-actions, .safety-actions) .primary {
+:root[data-theme="dark"] .safety-actions .primary {
   background: color-mix(in srgb, var(--button) 83%, var(--paper)); color: var(--button-ink);
 }
 

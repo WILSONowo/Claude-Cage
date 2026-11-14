@@ -4,12 +4,17 @@ import { api } from "./api";
 import { isRemoteClient } from "./client-context.mjs";
 import { Modal } from "./modal";
 
-export function HostGitPreparation({ onClose, onReady }) {
+export function HostGitPreparation({ onClose, onReady, onDialogChange }) {
   const machine = isRemoteClient() ? "云端主机" : "本机";
   const [state, setState] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const alive = useRef(true);
+  const dialogVisible = Boolean(state && !state.ready || error);
+  useEffect(() => {
+    onDialogChange?.(dialogVisible);
+    return () => onDialogChange?.(false);
+  }, [dialogVisible, onDialogChange]);
   const check = async (enable = false) => {
     setBusy(true);
     setError("");
@@ -35,7 +40,7 @@ export function HostGitPreparation({ onClose, onReady }) {
     };
   }, []);
   // The welcome page shows progress; open a dialog only when input is needed.
-  if (!state && !error) return null;
+  if (!dialogVisible) return null;
   return (
     <Modal
       title={`启动前，保护${machine} Git`}

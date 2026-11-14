@@ -122,6 +122,23 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
   );
 }
 
+export function DesktopLaunchProgress({ job, openingApp, onDetails }) {
+  const stage = openingApp ? 2 : job?.running && !job.checking && ["start", "guest-install"].includes(job.kind) ? 1 : 0;
+  const stages = ["检查环境", "启动环境", "打开应用"];
+  const message = job?.running ? job.message : "";
+  return <section className="desktop-launch-progress" aria-label="Claude Desktop 启动进度">
+    <div role="status">
+      <RefreshCw className="spin" size={22} aria-hidden="true" />
+      <h2>{["正在检查 Cage 环境", "正在启动 Cage 环境", "正在打开 Claude Desktop"][stage]}</h2>
+    </div>
+    <ol aria-label="启动阶段">{stages.map((label, index) =>
+      <li key={label} aria-current={stage === index ? "step" : undefined}>{label}</li>
+    )}</ol>
+    {message && <p><SafetyMessage message={message} /></p>}
+    <button className="quiet-button" onClick={onDetails}>查看操作详情</button>
+  </section>;
+}
+
 export function ClaudeDesktop({
   uploads = [],
   status,
@@ -133,6 +150,7 @@ export function ClaudeDesktop({
   onConfirm,
   onDetails,
   onCheckEnvironment,
+  onOpeningChange,
   onExpand,
   sidebarCollapsed,
 }) {
@@ -147,6 +165,11 @@ export function ClaudeDesktop({
   const [statusError, setStatusError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [jobID, setJobID] = useState("");
+  const [launchStage, setLaunchStage] = useState("");
+  useEffect(() => {
+    onOpeningChange?.(Boolean(launchStage));
+    return () => onOpeningChange?.(false);
+  }, [Boolean(launchStage), onOpeningChange]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const pendingAction = useRef(false);
@@ -176,18 +199,22 @@ export function ClaudeDesktop({
     statusRevision.current++;
     statusRequest.current = null;
     setSubmitting(true);
+    if (action === "start") setLaunchStage(checkEnvironment ? "check" : "app");
     setError("");
     try {
       if (checkEnvironment && onCheckEnvironment && !await onCheckEnvironment()) {
         pendingAction.current = false;
+        setLaunchStage("");
         return;
       }
       if (!mounted.current) return;
       if (checkEnvironment && action === "start") {
+        setLaunchStage("app");
         const snapshot = await refresh();
         if (!mounted.current) return;
         if (snapshot?.installed === false || snapshot?.running && !activate) {
           pendingAction.current = false;
+          setLaunchStage("");
           return;
         }
       }
@@ -195,6 +222,7 @@ export function ClaudeDesktop({
       setJobID(job.id);
     } catch (e) {
       pendingAction.current = false;
+      setLaunchStage("");
       setError(e.message);
     } finally {
       setSubmitting(false);
@@ -221,6 +249,7 @@ export function ClaudeDesktop({
     const finish = (job) => {
       pendingAction.current = false;
       setJobID("");
+      setLaunchStage("");
       if (!job || job.error || job.canceled) {
         setError(job?.error || (job?.canceled ? "操作已取消。" : "无法确认本次操作的结果，请刷新应用状态。"));
       } else if (["claude-desktop-install", "claude-desktop-update"].includes(job.kind) && !status.job?.running) {
@@ -247,6 +276,7 @@ export function ClaudeDesktop({
         if (disposed) return;
         pendingAction.current = false;
         setJobID("");
+        setLaunchStage("");
         setError(e.message);
         return;
       }
@@ -289,7 +319,7 @@ export function ClaudeDesktop({
         </div>
       )}
       {desktop?.running && desktop.managed === false && !desktop.native_user_session && <div className="connection-banner" role="status">当前应用尚未接入 Cage 账户解锁。请先保存并关闭应用，再重新打开。</div>}
-      {busy && (ownJob || submitting) && (
+      {busy && !launchStage && (ownJob || submitting) && (
         <div className="desktop-progress" role="status">
           <RefreshCw size={16} className="spin" />
           {ownJob || status.job?.running ? status.job.message : "正在检查并打开 Claude Desktop…"}
@@ -299,7 +329,7 @@ export function ClaudeDesktop({
         </div>
       )}
       <div className="desktop-screen">
-        {desktop?.running && status.vm_running ? (
+        {launchStage ? <DesktopLaunchProgress job={status.job} openingApp={launchStage === "app"} onDetails={onDetails} /> : desktop?.running && status.vm_running ? (
           <RemoteView
             ref={remoteRef}
             desktop
@@ -333,7 +363,7 @@ export function ClaudeDesktop({
                   ) : (
                     <Download size={16} />
                   )}
-                  {desktop?.installed !== false ? "打开 Claude Desktop" : "下载并安装"}
+                  {!status.vm_running ? "启动环境并打开 Claude Desktop" : desktop?.installed !== false ? "打开 Claude Desktop" : "下载并安装"}
                 </button>
               )}
               {desktop?.installed && !status.guest_system?.startsWith("windows") && (

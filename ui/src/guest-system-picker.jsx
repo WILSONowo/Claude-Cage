@@ -45,6 +45,22 @@ export function HostCloneSummary({ pending, onChange }) {
   </div>;
 }
 
+export function guestSystemChoice(view) {
+  if (!view.fresh && !view.pending) return null;
+  const pending = view.pending;
+  return { guest_system: pending?.system || "debian-13", media: pending?.media || "",
+    sha256: pending?.sha256 || "", editor_terms: Boolean(pending?.editor_terms),
+    clone: Boolean(pending?.source && !pending?.source_kind), clone_key: "", clone_ready: false,
+    activate: view.activate, pending: Boolean(pending) };
+}
+
+export function guestStartOptions(choice) {
+  if (!choice) return {};
+  if (choice.guest_system === "debian-13" && !choice.clone) return { guest_system: choice.guest_system };
+  return { guest_system: choice.guest_system, media: choice.media, sha256: choice.sha256,
+    clone_key: choice.clone_key, editor_terms: choice.editor_terms };
+}
+
 export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false, deferMatch = false }) {
   const [view, setView] = useState(null);
   const [error, setError] = useState("");
@@ -62,10 +78,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
       if (!active) return;
       setView(next);
       if (next.fresh || next.pending) {
-        onChange(current => !next.pending && current && !current.pending ? current : ({ guest_system: next.pending?.system || "debian-13", media: next.pending?.media || "",
-          sha256: next.pending?.sha256 || "", editor_terms: Boolean(next.pending?.editor_terms),
-          clone: Boolean(next.pending?.source && !next.pending?.source_kind), clone_key: "", clone_ready: false,
-          activate: next.activate, pending: Boolean(next.pending) }));
+        onChange(current => !next.pending && current && !current.pending ? current : guestSystemChoice(next));
       } else onChange(null);
     }).catch((e) => {
       if (!active) return;

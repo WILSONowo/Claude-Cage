@@ -140,3 +140,27 @@
   margin: 0;
   padding-block: 0;
 }
+
+.desktop-actions button.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.desktop-actions button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 90%, var(--ink)); }
+.desktop-launch-progress {
+  width: min(calc(100% - 32px), 32rem);
+  margin: clamp(24px, 9vh, 80px) auto;
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-bg);
+}
+.desktop-launch-progress > div { display: flex; align-items: center; gap: 10px; }
+.desktop-launch-progress svg { color: var(--accent); flex: none; }
+.desktop-launch-progress h2 { margin: 0; font-size: 1.25rem; }
+.desktop-launch-progress ol { display: grid; grid-template-columns: repeat(3, 1fr); list-style: none; margin: 0; padding: 0; gap: 8px; }
+.desktop-launch-progress li { border-top: 2px solid var(--line); padding-top: 6px; color: var(--muted); }
+.desktop-launch-progress li[aria-current] { border-color: var(--accent); color: var(--ink); }
+.desktop-launch-progress p { margin: 0; overflow-wrap: anywhere; }
+.desktop-launch-progress button { justify-self: start; }

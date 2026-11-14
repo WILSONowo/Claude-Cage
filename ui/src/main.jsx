@@ -1,6 +1,6 @@
 import { WorkbenchOperationLog } from "./operation-log";
 import { shortcut, primaryModifier } from "./platform.mjs";
-import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Clock3,
   FileCode2,
@@ -24,7 +24,7 @@ import { Modal } from "./modal";
 import { usePasswordVault } from "./password-vault";
 
 import { SetupProgress } from "./setup-progress";
-import { GuestSystemPicker, validGuestChoice } from "./guest-system-picker";
+import { GuestSystemPicker, guestSystemChoice, guestStartOptions, validGuestChoice } from "./guest-system-picker";
 import claudeMark from "./claude-mark.svg";
 import { EnvironmentShield } from "./environment-shield";
 import { TailscalePanel } from "./tailscale";
@@ -149,16 +149,25 @@ function App() {
     [quitting, setQuitting] = useState(null);
   const acceptedStart = useRef(null);
   const desktopCheck = useRef(null);
+  const desktopOpening = useRef(false);
+  const trackDesktopLaunch = useCallback(opening => { desktopOpening.current = opening; }, []);
   const desktopStartup = useRef(null);
-  function finishDesktopStartup(ready) {
-    desktopStartup.current?.(ready);
+  const [desktopNeedsChoice, setDesktopNeedsChoice] = useState(false);
+  const [hostGitDialog, setHostGitDialog] = useState(false);
+  function waitForDesktopEnvironment() {
+    setDesktopStartPending(true);
+    return new Promise((resolve, reject) => { desktopStartup.current = { resolve, reject }; });
+  }
+  function finishDesktopStartup(ready, message = "") {
+    if (message) desktopStartup.current?.reject(new Error(message));
+    else desktopStartup.current?.resolve(ready);
     desktopStartup.current = null;
   }
   // Keep feedback continuous until polling observes the accepted start job.
   const clientStatus = serverStatus && { ...serverStatus, keyboard: clientKeyboard(serverStatus.keyboard) };
   const hostGitOpen = startOptions !== null;
   const status = clientStatus && (hostGitOpen || startRequest)
-    ? { ...clientStatus, job: { running: true, kind: "start", message: hostGitOpen
+    ? { ...clientStatus, job: { running: true, kind: "start", checking: hostGitOpen, message: hostGitOpen
       ? isRemoteClient() ? "正在检查云端主机 Git 安全保护…" : "正在检查本机 Git 安全保护…" : "正在启动 Cage 环境…" } }
     : clientStatus;
   const system = status?.guest_system || account?.guest_system;
@@ -198,6 +207,7 @@ function App() {
       setHome(true);
       setStartOptions(null);
       setStartRequest(null);
+      setDesktopNeedsChoice(false);
       acceptedStart.current = null;
       finishDesktopStartup(false);
       setDesktopStartPending(false);
@@ -415,32 +425,48 @@ function App() {
   };
   async function openDesktop() {
     if (desktopCheck.current || desktopStartPending || desktopStartup.current) return false;
+    if (hostGitOpen || startRequest) {
+      // Register the continuation before the existing preflight/POST can finish.
+      if (acceptedStart.current) acceptedStart.current.desktop = true;
+      return waitForDesktopEnvironment();
+    }
     const request = api("/status");
     desktopCheck.current = request;
     try {
       const latest = await request;
       if (desktopCheck.current !== request) return false;
       setStatus(latest);
-      if (latest.storage_recovery?.required || latest.job?.running) {
-        notify(latest.storage_recovery?.required ? "请先恢复环境存储。" : "环境正在执行其他操作，请稍后重试。");
-        return false;
+      if (latest.storage_recovery?.required) throw new Error("请先恢复环境存储。");
+      if (latest.job?.running) {
+        if (!latest.job.id || !["start", "guest-install"].includes(latest.job.kind)) {
+          throw new Error("环境正在执行其他操作，完成后可重试。");
+        }
+        acceptedStart.current = { id: latest.job.id, desktop: true };
+        const completion = waitForDesktopEnvironment();
+        refreshStatus.current?.();
+        return await completion;
       }
       if (latest.vm_running) return true;
       if (setupProxy) { openSettings("network"); return false; }
-      if (!account?.guest_system && latest.local_vm_storage && !isRemoteClient() && guestSystem !== null) {
-        setConversation("");
-        setDesktopOpen(false);
-        setHome(true);
-        notify("请先完成环境设置，再打开 Claude Desktop。");
+      let choice = guestSystem;
+      if (!account?.guest_system && latest.local_vm_storage && !isRemoteClient() && choice === undefined) {
+        try { choice = guestSystemChoice(await api("/environment/guest-systems")); }
+        catch (error) {
+          if (![403, 404].includes(error.status)) throw error;
+          choice = null;
+        }
+        if (desktopCheck.current !== request) return false;
+        setGuestSystem(choice);
+      }
+      if (choice?.activate) {
+        await api("/environment/guest-systems/activate", {});
+        await native("reconnect");
         return false;
       }
-      const completion = new Promise(resolve => { desktopStartup.current = resolve; });
-      setDesktopStartPending(true);
-      setStartOptions({});
+      const completion = waitForDesktopEnvironment();
+      if (validGuestChoice(choice)) setStartOptions(guestStartOptions(choice));
+      else setDesktopNeedsChoice(true);
       return await completion;
-    } catch (error) {
-      notify(error.message);
-      return false;
     } finally {
       if (desktopCheck.current === request) desktopCheck.current = null;
     }
@@ -744,8 +770,7 @@ function App() {
             acceptedStart.current = null;
             if (accepted.desktop) {
               const ready = Boolean(job && !job.error && !job.canceled && next.vm_running);
-              if (!ready) notify(job?.error || "环境未启动，请查看操作详情后重试。");
-              finishDesktopStartup(ready);
+              finishDesktopStartup(ready, ready ? "" : job?.error || "环境未启动，请查看操作详情后重试。");
               setDesktopStartPending(false);
             }
           }
@@ -817,7 +842,7 @@ function App() {
             ];
             return sameSnapshot(previous, ordered) ? previous : ordered;
           });
-          if (fresh && !browserDismissed.current && initialized.current && b.active && b.active !== activeRef.current && !browserIds.current.has(b.active)) {
+          if (fresh && !desktopOpening.current && !browserDismissed.current && initialized.current && b.active && b.active !== activeRef.current && !browserIds.current.has(b.active)) {
             setDesktopOpen(false);
             setHome(false);
           }
@@ -1354,21 +1379,34 @@ function App() {
     onRecover={() => recoverEditor(tab)} />;
   const dialogs = (
     <>
+      {desktopNeedsChoice && <Modal title="确认客机设置" onClose={() => {
+        setDesktopNeedsChoice(false); finishDesktopStartup(false); setDesktopStartPending(false);
+      }} footer={<button className="primary" disabled={!guestSystem || !validGuestChoice(guestSystem)} onClick={() => {
+        setDesktopNeedsChoice(false); setStartOptions(guestStartOptions(guestSystem));
+      }}>继续启动</button>}>
+        <GuestSystemPicker system={guestSystem} onChange={setGuestSystem} preserveOnUnmount />
+      </Modal>}
       {hostGitOpen && (
         <HostGitPreparation
+          onDialogChange={setHostGitDialog}
           onClose={() => {
             setStartOptions(null);
-            if (desktopStartPending) { finishDesktopStartup(false); setDesktopStartPending(false); }
+            if (desktopStartup.current) { finishDesktopStartup(false); setDesktopStartPending(false); }
           }}
           onReady={async () => {
             setStartRequest({ id: null });
             setStartOptions(null);
-            const result = await action("/start", startOptions);
+            let result;
+            try { result = await api("/start", startOptions); }
+            catch (error) {
+              if (desktopStartup.current) finishDesktopStartup(false, error.message);
+              else notify(error.message);
+            }
             setStartRequest(result ? { id: result.id } : null);
             if (result) {
-              acceptedStart.current = { id: result.id, desktop: desktopStartPending };
+              acceptedStart.current = { id: result.id, desktop: Boolean(desktopStartup.current) };
               refreshStatus.current?.();
-            } else if (desktopStartPending) {
+            } else {
               finishDesktopStartup(false); setDesktopStartPending(false);
             }
           }}
@@ -1480,8 +1518,8 @@ function App() {
     <div className={`app ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <div
         className="workbench-shell"
-        inert={settingsOpen || hostGitOpen || undefined}
-        aria-hidden={settingsOpen || hostGitOpen || undefined}
+        inert={settingsOpen || hostGitDialog || desktopNeedsChoice || undefined}
+        aria-hidden={settingsOpen || hostGitDialog || desktopNeedsChoice || undefined}
       >
         {
           <WorkspaceSidebar sidebarCollapsed={sidebarCollapsed}
@@ -1559,7 +1597,7 @@ function App() {
           <main className={`workspace ${split ? "workspace-split" : ""}`} ref={workspaceBox}
             style={{ "--split-left": `${100 * (dualBrowser && nativeSplit?.fraction || 0.5)}%` }}>
             {dropSide && <div aria-hidden="true" className={`split-drop split-${dropSide}`}>{dropSide === "left" ? "放到左侧" : "放到右侧"}</div>}
-            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
+            {!storageRecovery && desktopOpen && !showHome && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch} job={status.job} onDetails={() => setDetails(true)} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={!settingsOpen} onConfirm={confirm}
               sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
             {!storageRecovery && desktopOpen && !showHome && !macGuest && <ClaudeDesktop
@@ -1567,7 +1605,7 @@ function App() {
               onProjectOpened={() => refreshStatus.current?.()}
               status={status} visible={!settingsOpen} remoteRef={remote}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })}
-              onConfirm={confirm} onDetails={() => setDetails(true)} onCheckEnvironment={openDesktop}
+              onConfirm={confirm} onDetails={() => setDetails(true)} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch}
               sidebarCollapsed={sidebarCollapsed}
               onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)}
             />}
@@ -1728,7 +1766,7 @@ function App() {
                         </small>
                       </span>
                     </div>
-                    {!running && !account?.guest_system && status.local_vm_storage && !isRemoteClient() && <GuestSystemPicker system={guestSystem} onChange={setGuestSystem} />}
+                    {!running && !account?.guest_system && status.local_vm_storage && !isRemoteClient() && <GuestSystemPicker system={guestSystem} onChange={setGuestSystem} preserveOnUnmount />}
                     {!running && !nativeGuestLabel && status.local_vm_storage && !isRemoteClient() && <button className="storage-entry text-button" onClick={() => openSettings("project")}>选择环境存储位置</button>}
                     <div className="start-project-footer">
                       <span>
@@ -1743,11 +1781,7 @@ function App() {
                           if (!running && guestSystem?.activate) {
                             api("/environment/guest-systems/activate", {}).then(() => native("reconnect")).catch((e) => setToast(e.message));
                           } else if (!running && setupProxy) openSettings("network");
-                          else setStartOptions(!running && guestSystem?.guest_system === "debian-13" && !guestSystem.clone ? { guest_system: "debian-13" } : !running && guestSystem ? {
-                            guest_system: guestSystem.guest_system, media: guestSystem.media, sha256: guestSystem.sha256,
-                            clone_key: guestSystem.clone_key,
-                            editor_terms: guestSystem.editor_terms,
-                          } : {});
+                          else setStartOptions(guestStartOptions(running ? null : guestSystem));
                         }}
                       >
                         {!running && setupProxy ? <Globe2 size={16} /> : running ? <RefreshCw size={16} /> : <Power size={16} />}
