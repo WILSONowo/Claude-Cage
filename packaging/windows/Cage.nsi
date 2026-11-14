@@ -283,14 +283,18 @@ Function SetDefaultInstallDirectory
   ${EndIf}
 FunctionEnd
 
-!macro CheckStopped FILE
+!macro CheckStopped FILE INSTALL
   ${If} ${FileExists} "$INSTDIR\${FILE}"
     ; Exclusive write access also detects images whose VM/controller has no window.
     System::Call 'kernel32::CreateFileW(w "$INSTDIR\${FILE}", i 0x40000000, i 0, p 0, i 3, i 0, p 0) p .r0'
     ${If} $0 == -1
       StrCpy $HelperExit "application_file_in_use"
+!if ${INSTALL} == 1
+      ; The verified target remains untouched. Remove only this run's new payload.
+      RMDir /r "$StageDir"
+!endif
       SetErrorLevel 2
-      Abort "Quit Cage and stop its environment before installing or uninstalling."
+      Abort "程序文件仍被占用。请先在工作台停止环境、从托盘退出 Cage，然后重试。"
     ${EndIf}
     System::Call 'kernel32::CloseHandle(p r0)'
   ${EndIf}
@@ -352,11 +356,6 @@ Function CheckDestination
       Goto foreign
     ${EndIf}
     StrCpy $ExistingInstall "1"
-    ; Never stop processes by their name or force-close user workloads.
-    !insertmacro CheckStopped "Cage.exe"
-    !insertmacro CheckStopped "resources\cage.exe"
-    !insertmacro CheckStopped "resources\mihomo.exe"
-    !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe"
     Goto done
   foreign:
     SetErrorLevel 2
@@ -389,6 +388,34 @@ Function RestorePreservedFiles
   ${EndIf}
 FunctionEnd
 
+Function PrepareManualReplacement
+  !insertmacro InstallPhase "closing_target_application"
+  DetailPrint "正在检查并等待当前安装的 Cage 退出…"
+  StrCpy $2 ""
+  retry_close:
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\close-installation.ps1" -Target "$INSTDIR" -Backend "$StageDir\resources\cage.exe" $2'
+    Pop $0
+    Pop $1
+    StrCpy $HelperExit $0
+    ${If} $0 == 0
+      Return
+    ${EndIf}
+    DetailPrint "$1"
+    ${If} $0 == 109
+    ${AndIf} $2 == ""
+      MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "环境正在运行。请先保存工作。停止此环境、关闭 Cage 并继续安装？" /SD IDCANCEL IDOK confirm_stop
+    ${Else}
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法安全关闭此安装的 Cage。请保存工作，在对应工作台停止环境，并从托盘退出 Cage 后重试。" /SD IDCANCEL IDRETRY retry_close
+    ${EndIf}
+    Call WriteInstallDiagnostic
+    SetErrorLevel 2
+    RMDir /r "$StageDir"
+    Abort "Cage 未关闭，原安装已保留。"
+  confirm_stop:
+    StrCpy $2 "-StopEnvironment"
+    Goto retry_close
+FunctionEnd
+
 Section "Cage" Main
   !insertmacro InstallPhase "acquiring_installation_lock"
   !insertmacro AcquireInstallationMutex
@@ -401,6 +428,8 @@ Section "Cage" Main
   Call CheckDestination
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
+  File /oname=close-installation.ps1 "close-installation.ps1"
+  File /oname=installer-process.cs "installer-process.cs"
   File /oname=installation-files.ps1 "installation-files.ps1"
   File /oname=verified-file-deletion.cs "verified-file-deletion.cs"
   SetOutPath "$TEMP"
@@ -470,6 +499,14 @@ Section "Cage" Main
   SetOutPath "$TEMP"
   StrCpy $BackupDir ""
   ${If} $ExistingInstall == "1"
+    ${If} $UpdateMode != "1"
+      Call PrepareManualReplacement
+    ${EndIf}
+    !insertmacro InstallPhase "checking_stopped_processes"
+    !insertmacro CheckStopped "Cage.exe" 1
+    !insertmacro CheckStopped "resources\cage.exe" 1
+    !insertmacro CheckStopped "resources\mihomo.exe" 1
+    !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe" 1
     ${GetParent} "$INSTDIR" $0
     GetTempFileName $BackupDir "$0"
     Delete "$BackupDir"
@@ -610,10 +647,10 @@ Function un.onInit
     Abort "This is not a Cage installation folder."
   ${EndIf}
   !insertmacro UninstallPhase "checking_stopped_processes"
-  !insertmacro CheckStopped "Cage.exe"
-  !insertmacro CheckStopped "resources\cage.exe"
-  !insertmacro CheckStopped "resources\mihomo.exe"
-  !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe"
+  !insertmacro CheckStopped "Cage.exe" 0
+  !insertmacro CheckStopped "resources\cage.exe" 0
+  !insertmacro CheckStopped "resources\mihomo.exe" 0
+  !insertmacro CheckStopped "resources\runtime\qemu\qemu-system-x86_64.exe" 0
 FunctionEnd
 
 Section "Uninstall"

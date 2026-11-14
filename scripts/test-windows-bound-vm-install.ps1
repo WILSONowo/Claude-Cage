@@ -28,6 +28,10 @@ function Run-Setup([string]$installDir, [string]$phase, [int]$expected) {
 }
 try {
     foreach ($name in 'Cage.ico','installation-files.ps1','verified-file-deletion.cs') { Copy-Item -LiteralPath (Join-Path $PackagingDirectory $name) -Destination $build }
+    foreach ($name in 'close-installation.ps1','installer-process.cs') {
+        $file = Join-Path $PackagingDirectory $name
+        if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination $build }
+    }
     $source = Get-Content -Raw -LiteralPath (Join-Path $PackagingDirectory 'Cage.nsi')
     $source = $source.Replace('Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage',$keyName).Replace('Global\Cage.Installation',('Local\CageInstallerTests.' + $id))
     $source = $source.Replace('SetCompressorDictSize 32', 'SetCompress off')
