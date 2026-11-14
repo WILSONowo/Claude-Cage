@@ -5,12 +5,13 @@ import { SearchField } from "./search-field";
 import { Check, ChevronDown } from "lucide-react";
 import "./inline-select.css";
 
-// Keep keyboard focus on the control; the popup does not change page layout.
+// Keep keyboard focus on the control in either layout.
 export function InlineSelect({
   children,
   value,
   onValueChange,
   disabled,
+  inline = false,
   editable = false,
   filterable = true,
   displayLabel,
@@ -45,7 +46,7 @@ export function InlineSelect({
   const active = filtered.findIndex(
     (item) => item.value === cursor && !item.disabled,
   );
-  const position = useSelectPopup(visible, control, list, filtered.length);
+  const position = useSelectPopup(visible && !inline, control, list, filtered.length);
   useEffect(() => {
     if (visible && active >= 0) {
       const row = list.current.querySelector(`[data-index="${active}"]`);
@@ -137,6 +138,7 @@ export function InlineSelect({
       visible && active >= 0 ? id + "-" + active : undefined,
     onKeyDown: keydown,
   };
+  const renderList = (options) => inline ? options : createPortal(options, document.body);
   return (
     <span ref={root} className="inline-select">
       {editable ? (
@@ -168,8 +170,8 @@ export function InlineSelect({
           <ChevronDown size={14} aria-hidden="true" />
         </button>
       )}
-      {visible && createPortal(
-        <span ref={list} className="select-surface" style={position}>
+      {visible && renderList(
+        <span ref={list} className={inline ? "select-surface is-inline" : "select-surface"} style={inline ? undefined : position}>
           {searchable && <SearchField inputRef={filterInput} label="搜索选项" placeholder="搜索选项"
             value={filter} onValueChange={next => { setFilter(next); setCursor(null); }}
             role="combobox" aria-expanded={visible} aria-controls={id} aria-autocomplete="list"
@@ -207,7 +209,7 @@ export function InlineSelect({
           ))}
           </span>
           {!filtered.length && <span className="select-empty" role="status">{needle ? "没有匹配的选项" : "暂无选项"}</span>}
-        </span>, document.body
+        </span>
       )}
     </span>
   );

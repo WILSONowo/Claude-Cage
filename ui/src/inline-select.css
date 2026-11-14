@@ -29,3 +29,4 @@
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-reduced-motion="false"]) .select-surface { animation: none; }
 }
+.select-surface.is-inline { position: static; width: 100%; box-sizing: border-box; margin-top: 4px; max-height: min(14rem, 32vh); box-shadow: none; }
