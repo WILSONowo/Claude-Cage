@@ -30,7 +30,8 @@ If recovery is interrupted, a .cage-installation.json record beside the
 application folder identifies the retained installation, staged and backup
 folders. Keep the record and those folders until recovery is complete.
 Automatic updates stop application launch while recovery remains incomplete.
-Stop the environment and quit Cage before running an installer manually.
+A manual upgrade closes the running copy of Cage in the selected folder.
+If the environment is active, save your work before confirming the stop.
 In-app updates stop the environment after your confirmation, verify the new
 installer and publisher, and restart the application after installation.
 If installation fails while the original program is intact, Cage reopens it
