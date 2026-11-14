@@ -4,11 +4,41 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/sylvinus/agent-vm/internal/guestos"
 )
+
+const macOSBrowserUpdateRemedy = "请先保存工作并结束运行中的终端，在设置的“版本与组件”中更新环境组件，再重新检测；仅重启不会安装缺失文件。外网保持关闭。"
+
+func (s *Server) requireMacOSBrowserComponents(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	const base = guestos.MacOSBrowserTools + "/controller/"
+	const probe = "if test -f " + base + "macos-browser-window.mjs && test -f " + base + "browser-check.html; then exit 0; else exit 78; fi"
+	err := s.macOSSSHCommand(ctx, "-T", s.sshTarget(), "--", probe).Run()
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	var exited *exec.ExitError
+	if !errors.As(err, &exited) || exited.ExitCode() != 78 {
+		return fmt.Errorf("无法核验 macOS 客机浏览器组件，请确认客机已登录并恢复连接后重试: %w", err)
+	}
+	failure := fmt.Errorf("%w %s", errGuestUpdateRequired, macOSBrowserUpdateRemedy)
+	s.mu.Lock()
+	s.guestUpdateRequired = true
+	s.guestUpdateError = failure.Error()
+	s.mu.Unlock()
+	return failure
+}
 
 type macBrowserRequest struct {
 	Timezone  string `json:"timezone,omitempty"`

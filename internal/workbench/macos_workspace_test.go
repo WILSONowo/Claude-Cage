@@ -251,6 +251,9 @@ func (g *macWorkspaceGuest) execute(channel ssh.Channel, command string) uint32 
 				return 0
 			}
 		}
+	case strings.Contains(command, "test -f "+guestos.MacOSBrowserTools+"/controller/macos-browser-window.mjs") &&
+		strings.Contains(command, "browser-check.html"):
+		return 0
 	case strings.Contains(command, "macos-native-browser.mjs"):
 		scanner := bufio.NewScanner(channel)
 		for scanner.Scan() {

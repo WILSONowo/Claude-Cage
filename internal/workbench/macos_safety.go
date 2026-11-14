@@ -237,7 +237,10 @@ func (s *Server) syncMacOSBrowserLanguage(ctx context.Context, language string) 
 func (s *Server) macOSBrowserObservation(ctx context.Context, cfg cage.Config, network bool) (browserObservation, error) {
 	var observation browserObservation
 	data, err := s.nativeBrowserClient().request(ctx, "POST", "/audit", map[string]any{"timezone": cfg.Timezone, "network": network})
-	if err != nil || json.Unmarshal(data, &observation) != nil || observation.Platform == "" {
+	if err != nil {
+		return observation, err
+	}
+	if json.Unmarshal(data, &observation) != nil || observation.Platform == "" {
 		return observation, errors.New("无法在虚拟 Mac 的实际浏览器页面读取观测结果")
 	}
 	return observation, nil

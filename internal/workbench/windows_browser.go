@@ -25,6 +25,9 @@ func (s *Server) nativeBrowserClient() *windowsBrowserClient {
 		if s.macosGuest != nil {
 			ctx, cancel := context.WithCancel(s.lifetimeContextLocked())
 			s.windowsBrowserControl = &windowsBrowserClient{ctx: ctx, cancel: cancel, ownsBrowser: true, start: func(ctx context.Context) (*exec.Cmd, error) {
+				if err := s.requireMacOSBrowserComponents(ctx); err != nil {
+					return nil, err
+				}
 				const base = guestos.MacOSBrowserTools + "/"
 				// Older guests launch their headless browser even on a tabs/health poll.
 				const command = "test -f " + base + "controller/macos-browser-window.mjs || exit 78; exec " +

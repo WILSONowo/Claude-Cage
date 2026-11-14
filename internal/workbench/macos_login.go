@@ -54,6 +54,7 @@ type macSetupPermissions struct {
 
 type macLoginLease struct {
 	request     guestos.MacLoginRequest
+	socket      string
 	stopAccount func() bool
 	stopService func() bool
 }
@@ -76,7 +77,7 @@ func (s *Server) revokeMacLogin(session string) {
 	s.macLoginLease = nil
 	s.mu.Unlock()
 	lease.stop()
-	connection, err := net.DialTimeout("unix", filepath.Join(s.instanceDir(), "cage-login.sock"), 2*time.Second)
+	connection, err := net.DialTimeout("unix", lease.socket, 2*time.Second)
 	if err != nil {
 		return
 	}
@@ -88,7 +89,7 @@ func (s *Server) revokeMacLogin(session string) {
 func (s *Server) trackMacLogin(epoch context.Context, input guestos.MacLoginRequest, result guestos.MacLoginReply) {
 	if input.Action == "open" && result.Session != "" {
 		lifetime := s.lifetimeContext()
-		lease := &macLoginLease{request: guestos.MacLoginRequest{Action: "close", Session: result.Session, Setup: input.Setup, Maintenance: input.Maintenance}}
+		lease := &macLoginLease{request: guestos.MacLoginRequest{Action: "close", Session: result.Session, Setup: input.Setup, Maintenance: input.Maintenance}, socket: filepath.Join(s.instanceDir(), "cage-login.sock")}
 		s.mu.Lock()
 		previous := s.macLoginLease
 		s.macLoginLease = lease
