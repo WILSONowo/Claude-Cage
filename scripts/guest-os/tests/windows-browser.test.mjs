@@ -964,6 +964,57 @@ integration("default HiDPI capture retains the unscaled screenshot path", async 
   }
 });
 
+integration("a viewer's screen density replaces the configured one in a single change", async t => {
+  const f = await fixture(t), { id, page } = await f.open();
+  const state = target => target.evaluate(() => [devicePixelRatio, innerWidth, innerHeight, screen.width, screen.height]);
+  const pixels = (target, jpeg) => target.evaluate(async data => {
+    const image = new Image(); image.src = "data:image/jpeg;base64," + data; await image.decode();
+    return [image.naturalWidth, image.naturalHeight];
+  }, jpeg);
+  await f.call("frame", {}, "GET");
+  await page.evaluate(() => {
+    window.ratios = [];
+    const watch = () => {
+      ratios.push(devicePixelRatio);
+      matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", watch, { once: true });
+    };
+    watch();
+  });
+  assert.deepEqual(await f.call("resize", { width: 1000, height: 600, scale: 1.25 }), { ok: true, scale: 1.25 });
+  let frame = await f.call("frame", {}, "GET");
+  assert.deepEqual([frame.width, frame.height, frame.scale], [1000, 600, 1.25]);
+  assert.deepEqual(await pixels(page, frame.jpeg), [1000, 600]);
+  assert.deepEqual(await state(page), [1.25, 800, 480, 800, 480]);
+  // A page must not see Playwright's density between the old one and the viewer's.
+  assert.deepEqual(await page.evaluate(() => ratios), [2, 1.25]);
+  assert.equal((await f.call("health", {}, "GET")).capture.streamed_frames, 0);
+  await f.click(id, page, "#first");
+  await page.keyboard.insertText("viewer density");
+  assert.equal(await page.locator("#first").inputValue(), "viewer density");
+
+  // The same size at another density, in Chromium's steps of 1/64.
+  assert.equal((await f.call("resize", { width: 1000, height: 600, scale: 1.8 })).scale, 1.796875);
+  assert.equal(await page.evaluate(() => devicePixelRatio), 1.796875);
+  await f.call("resize", { width: 1000, height: 600, scale: 1 });
+  frame = await f.call("frame", {}, "GET");
+  assert.deepEqual(await pixels(page, frame.jpeg), [1000, 600]);
+  assert.deepEqual(await state(page), [1, 1000, 600, 1000, 600]);
+  // Only a display configured for one pixel per CSS pixel streams its compositor.
+  assert.equal((await f.call("health", {}, "GET")).capture.streamed_frames, 0);
+
+  // Tabs and private windows opened afterwards join the same density.
+  const second = await f.open("/second");
+  assert.deepEqual(await state(second.page), [1, 1000, 600, 1000, 600]);
+  const hidden = await f.open("/private", true);
+  assert.deepEqual(await state(hidden.page), [1, 1000, 600, 1000, 600]);
+
+  for (const scale of [0.5, 4.5, "2", null, NaN])
+    await assert.rejects(f.call("resize", { width: 1000, height: 600, scale }), { code: "invalid_input" });
+  // A viewer that names no density sized its display for the configured one.
+  assert.deepEqual(await f.call("resize", { width: 1000, height: 600 }), { ok: true });
+  for (const target of [page, second.page, hidden.page]) assert.deepEqual(await state(target), [2, 500, 300, 500, 300]);
+});
+
 integration("default one-to-one frames stream without screenshot polling", async t => {
   const f = await fixture(t, {}, { displayScale: 1 }), { id, page } = await f.open();
   const frame = await f.call("frame", {}, "GET");

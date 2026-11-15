@@ -456,9 +456,11 @@ func (s *Server) handler() http.Handler {
 			http.Error(w, "环境尚未就绪", 409)
 			return
 		}
+		// A Windows guest's browser takes the viewer's density with each size;
+		// one that predates it answers without a density and keeps its own.
 		// A Linux guest scrolls its page by the viewer's distance, outside the
 		// display stream. The native guests negotiate it inside theirs.
-		jsonReply(w, map[string]any{"password": s.credentials.VNCPassword, "display_scale": s.credentials.DisplayScale, "dynamic_scale": s.credentials.DynamicScale, "pixel_wheel": s.macosGuest == nil && s.windowsGuest == nil})
+		jsonReply(w, map[string]any{"password": s.credentials.VNCPassword, "display_scale": s.credentials.DisplayScale, "dynamic_scale": s.credentials.DynamicScale || s.windowsGuest != nil, "pixel_wheel": s.macosGuest == nil && s.windowsGuest == nil})
 	})
 	mux.HandleFunc("GET /api/vnc", s.vnc)
 	mux.HandleFunc("GET /api/claude-desktop", s.claudeDesktopStatus)
