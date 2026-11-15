@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -22,10 +23,13 @@ import (
 )
 
 func (a *HostAgent) waitForRequirements(label string, requirements []requirement) error {
-	const (
-		retries       = 200
-		sleepDuration = 3 * time.Second
-	)
+	const sleepDuration = 3 * time.Second
+	retries := 200
+	if a.instName != "" && os.Getenv(limatype.EnvProvisioningInstance) == a.instName && *a.instConfig.OS == limatype.LINUX {
+		// The parent watches actual APT progress and enforces both the idle
+		// and total deadline. An individual requirement must not fire first.
+		retries = int(time.Hour / sleepDuration)
+	}
 	var errs []error
 
 	fn := a.waitForRequirement

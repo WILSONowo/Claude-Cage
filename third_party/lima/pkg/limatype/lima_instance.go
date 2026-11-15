@@ -12,6 +12,10 @@ import (
 	"github.com/lima-vm/lima/v2/pkg/limatype/filenames"
 )
 
+// EnvProvisioningInstance identifies the one hostagent whose boot requirements
+// may outlast the normal wait while its caller monitors Linux package progress.
+const EnvProvisioningInstance = "CAGE_BASE_PROVISIONING_INSTANCE"
+
 type Status = string
 
 const (

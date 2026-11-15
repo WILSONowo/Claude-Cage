@@ -297,6 +297,9 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 		// Not exec.CommandContext: the hostagent outlives this call, and os/exec
 		// would kill it whenever ctx ends, even after Start returned.
 		haCmd = exec.Command(limactl, args...)
+		if _, ok := ctx.Value(baseProvisioningKey{}).(baseProvisioningWatch); ok && *inst.Config.OS == limatype.LINUX {
+			haCmd.Env = append(os.Environ(), limatype.EnvProvisioningInstance+"="+inst.Name)
+		}
 
 		haCmd.SysProcAttr = executil.BackgroundSysProcAttr
 
@@ -325,9 +328,11 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 	// Buffered: the goroutine that loses the race below must not block on its
 	// send for as long as the program lives (it would, once StartWithPaths
 	// has returned).
+	watchCtx, cancelWatch := context.WithCancel(ctx)
+	defer cancelWatch()
 	watchErrCh := make(chan error, 1)
 	go func() {
-		watchErrCh <- watchHostAgentEvents(ctx, inst, haStdoutPath, haStderrPath, begin, showProgress)
+		watchErrCh <- watchHostAgentEvents(watchCtx, inst, haStdoutPath, haStderrPath, begin, showProgress)
 		close(watchErrCh)
 	}()
 	waitErrCh := make(chan error, 1)
@@ -346,6 +351,8 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 		return watchErr
 		// leave the hostagent process running
 	case waitErr := <-waitErrCh:
+		cancelWatch()
+		<-watchErrCh
 		// waitErr should not be nil
 		return fmt.Errorf("host agent process has exited: %w", waitErr)
 	}
@@ -370,7 +377,7 @@ func waitHostAgentStart(_ context.Context, haPIDPath, haStderrPath string) error
 }
 
 func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdoutPath, haStderrPath string, begin time.Time, showProgress bool) error {
-	ctx, cancel := context.WithTimeout(ctx, watchHostAgentTimeout(ctx))
+	ctx, cancel := hostAgentWatchContext(ctx, inst)
 	defer cancel()
 
 	var (
@@ -449,6 +456,9 @@ func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdout
 		return err
 	}
 
+	if _, provisioning := ctx.Value(baseProvisioningKey{}).(baseProvisioningWatch); provisioning && ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
 	if !receivedRunningEvent {
 		return errors.New("did not receive an event with the `running` status")
 	}

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lima-vm/lima/v2/pkg/instance"
+
 	agentvm "github.com/sylvinus/agent-vm"
 	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/diagnostics"
@@ -483,7 +485,11 @@ func (e *app) buildBase(ctx context.Context, in install, disk, memory, cpus int)
 	(&start{app: e, ctx: ctx, name: building}).printResources()
 
 	fmt.Fprintln(e.io.Stdout, "Starting the selected base system...")
-	if !windowed(func(w io.Writer) error { return e.startVM(ctx, b, building, w) }) {
+	bootCtx := ctx
+	if os.Getenv(cage.ConfigEnv) != "" {
+		bootCtx = instance.WithLinuxBaseProvisioning(ctx)
+	}
+	if !windowed(func(w io.Writer) error { return e.startVM(bootCtx, b, building, w) }) {
 		ha := filepath.Join(LimaHome(e.state), building, "ha.stderr.log")
 		fmt.Fprintf(e.io.Stderr, "Error: Failed to start base VM. Full log: %s\nLima's own log: %s\n", logPath, ha)
 		host.WindowsStartHint(e.io.Stderr, logPath, ha)
