@@ -96,6 +96,7 @@ function App() {
   const [conversation, setConversation] = useState("");
   const [conversationDrafts] = useState(() => new Map());
   const [tailscaleOpen, setTailscaleOpen] = useState(false);
+  const [tailnetLogin, setTailnetLogin] = useState(null);
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [terminalChoice, setTerminalChoice] = useState(null);
   const [openingSession, setOpeningSession] = useState("");
@@ -139,6 +140,7 @@ function App() {
     [conversationWorkspace, setConversationWorkspace] = useState(""),
     [rename, setRename] = useState(null),
     [toast, setToast] = useState(""),
+    [projectRefreshing, setProjectRefreshing] = useState(false),
     [fatal, setFatal] = useState(""),
     [connectionError, setConnectionError] = useState(""),
     [browserError, setBrowserError] = useState(""),
@@ -360,6 +362,19 @@ function App() {
     : networkState(status);
   const homeProgress = showHome && !conversation && !storageRecovery && !setupProgress && busy;
   const notify = (text) => setToast(text);
+  const projectFilesCached = settings?.project_file_cache === true &&
+    !/^(windows|macos)/.test(account?.guest_system || status?.guest_system || "");
+  const refreshProjectFiles = async () => {
+    setProjectRefreshing(true);
+    try {
+      await api("/projects/refresh", {});
+      setToast("项目文件已刷新");
+    } catch (error) {
+      setToast(error.message);
+    } finally {
+      setProjectRefreshing(false);
+    }
+  };
   const clipboardConnection = getClientContext().connection_id;
   useEffect(() => {
     if (!status?.ready || !nativeAvailable()) return;
@@ -519,6 +534,31 @@ function App() {
     }
     return result;
   };
+  useEffect(() => {
+    if (!tailnetLogin) return;
+    if (!status?.ready || desktopOpen || settingsOpen || showHome || active !== tailnetLogin.tabId) {
+      setTailnetLogin(null);
+      return;
+    }
+    const controller = new AbortController();
+    let timer;
+    async function check() {
+      try {
+        const state = await api("/tailscale", undefined, undefined, {}, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (!state.enabled) { setTailnetLogin(null); return; }
+        if (["Running", "NeedsMachineAuth"].includes(state.backend) ||
+            (state.return_id && state.return_id !== tailnetLogin.returnID)) {
+          setTailnetLogin(null);
+          setTailscaleOpen(true);
+          return;
+        }
+      } catch { /* A transient guest connection failure can recover. */ }
+      if (!controller.signal.aborted) timer = setTimeout(check, 3000);
+    }
+    timer = setTimeout(check, 1000);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [tailnetLogin, status?.ready, desktopOpen, settingsOpen, showHome, active]);
   const newPage = () => openBrowserPage();
   const showBrowserResult = result => {
     if (!result?.id) return;
@@ -1562,6 +1602,7 @@ function App() {
             sessionError={cliSessions.error}
             sessionRefreshing={cliSessions.loading}
             onSessionRefresh={cliSessions.refresh}
+            onProjectRefresh={projectFilesCached ? refreshProjectFiles : undefined} projectRefreshing={projectRefreshing}
             onSessionOpen={openSessionTerminal}
             openingSession={openingSession}
             sessionOpenError={sessionOpenError}
@@ -1947,7 +1988,7 @@ function App() {
             />
             <span className="status-spacer" />
             <AudioControls audio={audio} />
-            <EnvironmentClock timezone={settings.timezone} />
+            <EnvironmentClock timezone={settings.timezone} clock12Hour={settings.clock_12_hour} />
             <span className="status-feedback" role="status">
               <SafetyMessage message={toast ||
                 (busy
@@ -1999,7 +2040,14 @@ function App() {
           if (nativeGuest && !await confirm({ title: "更新环境组件？", body: "请先保存工作。更新会重新连接浏览器和显示组件，保留设备身份、公钥和个人数据。", confirm: "更新组件" })) return;
           await action(nativeGuest ? "/environment/update" : "/tailscale/install", {});
         }}
-        onOpenBrowser={async url => { const result = await openBrowserPage(url, false); if (result) setTailscaleOpen(false); return Boolean(result); }} />}
+        onOpenBrowser={async (url, login) => {
+          const result = await openBrowserPage(url, false);
+          if (result) {
+            setTailscaleOpen(false);
+            if (result.id && login) setTailnetLogin({ tabId: result.id, returnID: login.return_id });
+          }
+          return Boolean(result);
+        }} />}
       {projectDialog && (
         <ProjectDialog
           current={settings}

@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 
-export function EnvironmentClock({ timezone }) {
+export function EnvironmentClock({ timezone, clock12Hour = false }) {
   const [now, setNow] = useState(Date.now);
   const formatter = useMemo(() => {
     if (!timezone) return null;
     try {
       return new Intl.DateTimeFormat("en-GB", {
         timeZone: timezone,
+        weekday: "short",
         hour: "2-digit",
         minute: "2-digit",
-        hourCycle: "h23",
+        hourCycle: clock12Hour ? "h12" : "h23",
       });
     } catch { return null; }
-  }, [timezone]);
+  }, [timezone, clock12Hour]);
 
   useEffect(() => {
     let timer;
@@ -34,6 +35,6 @@ export function EnvironmentClock({ timezone }) {
 
   const label = formatter ? `当地时间（${timezone}）` : "当地时间：时区不可用";
   return <time className="status-clock" dateTime={new Date(now).toISOString()} title={label} aria-label={label}>
-    {formatter ? formatter.format(now) : "--:--"}
+    {formatter ? formatter.formatToParts(now).map(({ type, value }) => type === "dayPeriod" ? value.toUpperCase() : value).join("") : "--:--"}
   </time>;
 }

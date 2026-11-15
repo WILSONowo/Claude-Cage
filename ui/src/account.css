@@ -24,21 +24,21 @@
   line-height: 1.45;
   text-align: start;
 }
-.account-field > input {
+.account-field > :is(input, textarea) {
   width: 100%; min-width: 0; min-height: var(--control-height);
   padding: .5em .75em; font: inherit; line-height: 1.45;
   border: 0; box-shadow: var(--field-shadow, inset 0 0 0 1px var(--line)); border-radius: var(--field-radius, var(--panel-radius));
   color: var(--ink); background: var(--field-bg, var(--input));
 }
-.account-field > input:hover:not(:disabled, :focus-visible) { box-shadow: var(--field-shadow-hover, inset 0 0 0 1px var(--line)); }
-.account-field > input:focus-visible {
+.account-field > :is(input, textarea):hover:not(:disabled, :focus-visible) { box-shadow: var(--field-shadow-hover, inset 0 0 0 1px var(--line)); }
+.account-field > :is(input, textarea):focus-visible {
   outline: none;
   box-shadow: var(--field-ring, 0 0 0 1px var(--focus));
 }
-.account-field > input:disabled { opacity: .4; }
+.account-field > :is(input, textarea):disabled { opacity: .4; }
 @media (forced-colors: active) {
-  .account-field > input { border: 1px solid ButtonText; }
-  .account-field > input:focus-visible { outline: 2px solid Highlight; outline-offset: 1px; box-shadow: none; }
+  .account-field > :is(input, textarea) { border: 1px solid ButtonText; }
+  .account-field > :is(input, textarea):focus-visible { outline: 2px solid Highlight; outline-offset: 1px; box-shadow: none; }
 }
 .account-submit { width: 100%; justify-content: center; }
 .account-local-note, .account-background {
@@ -216,3 +216,6 @@
 .account-entry .account-device-option { margin: 0; }
 .account-trust-choice { display: grid; gap: var(--scene-gap); margin: 1rem 0; }
 .account-trust-choice p { margin: 0; }
+
+.account-field textarea { resize: vertical; line-height: 1.7; overflow-wrap: anywhere; }
+.account-recovery-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }

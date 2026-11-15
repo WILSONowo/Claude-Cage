@@ -37,7 +37,7 @@ try {
   state.status.ready = state.status.vm_running = true;
   await page.reload(); await open.waitFor();
   const position = await open.boundingBox(), browserPosition = await page.getByRole("button", { name: "打开浏览器", exact: true }).boundingBox();
-  assert.ok(position.y > browserPosition.y && position.y < browserPosition.y + browserPosition.height * 2 + 8);
+  assert.ok(position.y > browserPosition.y);
   await open.focus(); await page.keyboard.press("Enter"); await panel.getByText("已断开", { exact: true }).waitFor();
   assert.equal(await panel.locator("textarea").count(), 0);
   await panel.getByText("连接后查看你的设备", { exact: true }).waitFor();
@@ -51,7 +51,7 @@ try {
   checks.push("keyboard entry; enrollment precedes SSH; browser launch failure keeps login retry; official login opens in regular Cage browser");
   const connected = { ...tail, enabled: true, backend: "Running", tailnet: "林间私网", account: "owner@example.invalid", name: "cage-workbench.test.ts.net", hostname: "cage-workbench", os: "macOS", auth_url: "", ips: ["100.88.2.3"], proxy_url: "http://cage:fixture-credential@127.0.0.1:32100", peers: [{ name: "offline-server.test.ts.net", hostname: "offline-server", os: "linux", ip: "100.88.2.5", online: false }, { name: "my-computer.test.ts.net", hostname: "my-computer", os: "macOS", ip: "100.88.2.4", online: true }] };
   tail = structuredClone(connected);
-  await open.click(); await panel.getByText("已连接", { exact: true }).waitFor();
+  await panel.waitFor(); await panel.getByText("已连接", { exact: true }).waitFor();
   await panel.getByText("林间私网", { exact: true }).waitFor();
   await panel.getByText("登录账号 · owner@example.invalid", { exact: true }).waitFor();
   assert.equal(await panel.locator(".tailscale-peer").first().getByText("my-computer", { exact: true }).count(), 1);

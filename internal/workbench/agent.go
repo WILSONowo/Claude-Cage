@@ -54,7 +54,7 @@ func AgentOperations() []AgentOperation {
 	}
 	get("status", "Environment readiness, network checks and current job", "/api/status")
 	get("account.status", "Account presence and lock state; no credentials", "/api/account")
-	post("account.create", "Create an account only on an empty profile; user chooses the password", "/api/account/create", object(map[string]string{"username": "string", "password": "string", "confirm_password": "string", "avatar": "string"}))
+	post("account.create", "Create an account only on an empty profile; user chooses the password. Returns a recovery_key once; deliver it privately to the user", "/api/account/create", object(map[string]string{"username": "string", "password": "string", "confirm_password": "string", "avatar": "string"}))
 	post("account.unlock", "Unlock using a user-provided password via private input", "/api/account/unlock", object(map[string]string{"password": "string"}))
 	get("settings.get", "Read settings without proxy credentials", "/api/settings")
 	post("settings.patch", "Merge specified fields under the operation lock; dry_run validates without writing", "/api/agent/settings", object(map[string]string{"patch": "object", "dry_run": "boolean"}))
@@ -86,6 +86,7 @@ func AgentOperations() []AgentOperation {
 	post("network.pause", "Close external networking and persist pause intent", "/api/safety/close", object(nil))
 	post("project.open", "Grant access only to a user-authorized directory; add=true remembers the grant", "/api/projects/open", object(map[string]string{"workspace": "string", "add": "boolean", "activate": "boolean"}))
 	post("project.remove", "Remove an added directory and revoke its share. Close its terminals, running sessions and editor first. Preserve files and history", "/api/projects/remove", object(map[string]string{"workspace": "string"}))
+	post("project.refresh", "Refresh cached project names and attributes in a running Linux guest", "/api/projects/refresh", object(nil))
 
 	for _, action := range []string{"profile", "password", "lock", "logout", "suspend"} {
 		schema := object(nil)

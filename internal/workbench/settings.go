@@ -23,11 +23,13 @@ import (
 
 type Preferences struct {
 	BalancedDisplay       bool   `json:"balanced_display"`
+	ProjectFileCache      bool   `json:"project_file_cache"`
 	MobileRelay           string `json:"mobile_relay,omitempty"`
 	Workspace             string `json:"workspace"`
 	BrowserHomeURL        string `json:"browser_home_url"`
 	ClaudeTerminalCommand string `json:"claude_terminal_command"`
 	Keyboard              string `json:"keyboard"`
+	Clock12Hour           bool   `json:"clock_12_hour"`
 	AutoTimezone          bool   `json:"auto_timezone"`
 	AutoLanguage          bool   `json:"auto_language"`
 	// DebianMirror is the APT source policy for Debian guests, chosen in the

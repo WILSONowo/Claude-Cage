@@ -3,6 +3,7 @@ import { api } from "./api";
 import { runtimeSocketURL } from "./client-context.mjs";
 import { prepareClipboardPaste, sendImage } from "./image-transfer";
 import { sendFiles } from "./file-transfer";
+import { guestKeys } from "./guest-keys.mjs";
 import { installRemoteInput } from "./remote-input";
 import { useWindowVisibility } from "./window-visibility";
 import { displayGeometry, displaySizeSync, watchPixelRatio } from "./remote-display.mjs";
@@ -53,6 +54,7 @@ export default forwardRef(function RemoteView(
     if (!container) return;
     let disposed = false,
       client,
+      keys,
       resizeObserver,
       unwatchDensity,
       sizeSync,
@@ -87,6 +89,10 @@ export default forwardRef(function RemoteView(
               : undefined,
           },
         );
+        if (!/^(windows|darwin|macos)/.test(guestPlatform || "")) {
+          keys = guestKeys(client.sendKey.bind(client));
+          client.sendKey = keys.sendKey;
+        }
         rfb.current = client;
         installLocalCursorFallback(client._cursor,
           !desktop && ["darwin", "macos"].includes(guestPlatform));
@@ -220,6 +226,7 @@ export default forwardRef(function RemoteView(
           if (disposed) return;
           input.current?.dispose();
           input.current = null;
+          keys?.stop();
           sizeSync?.dispose();
           resizeObserver?.disconnect();
           unwatchDensity?.();
@@ -236,6 +243,7 @@ export default forwardRef(function RemoteView(
       });
     return () => {
       disposed = true;
+      keys?.stop();
       sizeSync?.dispose();
       displayResize.current = null;
       clearTimeout(reconnectTimer);

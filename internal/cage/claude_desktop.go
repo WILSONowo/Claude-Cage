@@ -35,10 +35,12 @@ Name=Cage
 NoDisplay=true
 Terminal=false
 Exec=/usr/local/bin/cage-open %u
-MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/claude;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/claude;x-scheme-handler/tailscale;
 CAGE_OPEN_DESKTOP
+printf '%s\n' 'cage-browser ALL=(cage) NOPASSWD: /usr/local/bin/cage-tailnet --browser-return' | sudo tee /etc/sudoers.d/cage-tailnet-return >/dev/null
+sudo chmod 0440 /etc/sudoers.d/cage-tailnet-return
 for cage_uri_user in cage cage-browser; do
-  for cage_uri_scheme in http https claude; do
+  for cage_uri_scheme in http https claude tailscale; do
     sudo -Hu "$cage_uri_user" gio mime "x-scheme-handler/$cage_uri_scheme" cage-open.desktop >/dev/null
   done
 done

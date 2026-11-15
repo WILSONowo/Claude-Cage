@@ -29,6 +29,7 @@ import { ExitPolicyFields } from "./exit-policy";
 import { canonicalExitPolicy } from "./safety-state.mjs";
 import { EnvironmentVersions } from "./environment-versions";
 import { EnvironmentStorage } from "./environment-storage";
+import { EnvironmentCache } from "./environment-cache";
 import { ResourceSettings } from "./resources";
 import { DiagnosticSettings } from "./diagnostics.jsx";
 import { MacOSLogin } from "./macos-login";
@@ -97,6 +98,8 @@ export function SettingsPanel({
   );
   const busy =
     Boolean(status.job?.running) || Boolean(status.storage_recovery?.required) || probing || submitting || Boolean(jobId);
+  // Project folders of the other guest systems are always read directly.
+  const linuxGuest = !/^(windows|macos)/.test(status.guest_system || "");
   const update = (key, value) => {
     setDraft((p) => ({ ...p, [key]: value }));
     if (["dns_url"].includes(key)) setProbe(null);
@@ -505,6 +508,20 @@ export function SettingsPanel({
                   <h3>通用</h3>
                 </div>
                 <label>
+                  时间显示格式
+                  <InlineSelect inline
+                    aria-label="时间显示格式"
+                    value={draft.clock_12_hour ? "12" : "24"}
+                    onValueChange={(next) => update("clock_12_hour", next === "12")}
+                  >
+                    <option value="24">24 小时制</option>
+                    <option value="12">12 小时制（AM/PM）</option>
+                  </InlineSelect>
+                </label>
+                <p className="field-help">
+                  默认使用 24 小时制。保存后更新工作台底部时钟，无需重启环境；12 小时制使用 AM/PM 区分上午和下午。
+                </p>
+                <label>
                   Claude 终端启动命令
                   <input
                     value={draft.claude_terminal_command ?? "claude"}
@@ -522,10 +539,18 @@ export function SettingsPanel({
                 {typeof current.balanced_display === "boolean" && <label className="toggle-row">
                   <span>
                     <strong>优先流畅</strong>
-                    <small>降低浏览器和 Claude Desktop 的清晰度。下次启动环境时生效。</small>
+                    <small>降低浏览器和 Claude Desktop 的清晰度，Linux 环境同时减少 Claude Desktop 的动效。下次启动环境时生效。</small>
                   </span>
                   <input type="checkbox" role="switch" checked={draft.balanced_display}
                     onChange={(event) => update("balanced_display", event.target.checked)} />
+                </label>}
+                {typeof current.project_file_cache === "boolean" && linuxGuest && <label className="toggle-row">
+                  <span>
+                    <strong>项目文件缓存</strong>
+                    <small>减少读取项目文件时与本机的往返。在本机上所做的改动最多 20 秒后在环境中可见，也可以在项目栏点“刷新项目文件”立即同步。下次启动环境时生效。</small>
+                  </span>
+                  <input type="checkbox" role="switch" checked={draft.project_file_cache}
+                    onChange={(event) => update("project_file_cache", event.target.checked)} />
                 </label>}
                 <h4>键盘习惯</h4>
                 <div className="choice-list">
@@ -617,6 +642,7 @@ export function SettingsPanel({
                   切换项目会改变新终端和编辑器的起始目录。已有终端、网页和登录状态会保留。
                 </p>
                 {!status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
+                {!status.storage_recovery?.required && <EnvironmentCache status={status} onConfirm={onConfirm} />}
                 {status.guest_system === "macos" && <section aria-label="客机系统权限">
                   <h4>客机系统权限</h4>
                   <p className="field-help">在受限的客机系统设置窗口中完成授权，Cage 会自动检查并重新连接项目。</p>

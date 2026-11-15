@@ -348,3 +348,6 @@
   .native-sidebar .workspace-modes button:last-child svg { display: block; }
   .native-sidebar .workspace-modes .mode-label { display: none; }
 }
+
+.sidebar-section-actions, .project-picker-row { display: flex; align-items: center; gap: 4px; }
+.project-picker-row .project-picker-item { flex: 1; min-width: 0; }

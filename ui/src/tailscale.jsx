@@ -26,9 +26,9 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
   const address = state?.ips?.find(ip => !ip.includes(":"));
   const peers = [...(state?.peers || [])].sort((a, b) => Number(b.online) - Number(a.online) || deviceName(a).localeCompare(deviceName(b)));
   const visible = peers.filter(peer => [deviceName(peer), peer.name, peer.ip, peer.os].some(value => value?.toLowerCase().includes(query.trim().toLowerCase())));
-  const openLogin = async url => {
+  const openLogin = async value => {
     loginRequested.current = false;
-    try { if (await onOpenBrowser(url) === false && mounted.current) setError("登录页面未能打开，请点击“打开登录页面”重试。"); }
+    try { if (await onOpenBrowser(value.auth_url, value) === false && mounted.current) setError("登录页面未能打开，请点击“打开登录页面”重试。"); }
     catch { if (mounted.current) setError("登录页面未能打开，请点击“打开登录页面”重试。"); }
   };
   const refresh = async () => {
@@ -39,7 +39,7 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
       const value = await api("/tailscale");
       if (mounted.current && current === revision.current) {
         setState(value); setError("");
-        if (loginRequested.current && value.auth_url) await openLogin(value.auth_url);
+        if (loginRequested.current && value.auth_url) await openLogin(value);
         if (value.backend === "Running") loginRequested.current = false;
       }
       return value;
@@ -66,7 +66,7 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
   const login = async () => {
     loginRequested.current = true;
     const result = await act(state?.enabled ? "login" : "connect");
-    if (result?.auth_url) await openLogin(result.auth_url);
+    if (result?.auth_url) await openLogin(result);
     else if (!result || result.backend === "Running") loginRequested.current = false;
   };
   const copy = async (text, message = "已复制") => {
@@ -97,7 +97,7 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
             finally { if (mounted.current) setBusy(false); }
           }}>{["macos", "windows-11"].includes(status.guest_system) ? "更新环境组件以安装" : "安装 Tailscale"}</button> : <>
             {!connected && !["NeedsMachineAuth", "Starting"].includes(state.backend) && <button className="primary-button" disabled={busy} onClick={login}>{busy ? <LoaderCircle size={15} className="spin" /> : <ExternalLink size={15} />}{state.enabled ? "重新发起登录" : "连接并登录"}</button>}
-            {state.auth_url && !connected && <button className="quiet-button" disabled={busy} onClick={() => openLogin(state.auth_url)}>打开登录页面</button>}
+            {state.auth_url && !connected && <button className="quiet-button" disabled={busy} onClick={() => openLogin(state)}>打开登录页面</button>}
             {state.enabled && <button className="quiet-button" disabled={busy} onClick={() => stop(false)}>断开连接</button>}
             {connected && <button className="quiet-button" disabled={busy} onClick={() => stop(true)}>退出登录</button>}
           </>}

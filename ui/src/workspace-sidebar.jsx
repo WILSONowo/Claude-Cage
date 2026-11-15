@@ -36,6 +36,8 @@ export function WorkspaceSidebar({
   sessionError,
   sessionRefreshing,
   onSessionRefresh,
+  onProjectRefresh,
+  projectRefreshing,
   onSessionOpen,
   openingSession,
   sessionOpenError,
@@ -159,6 +161,9 @@ export function WorkspaceSidebar({
       <div className="sidebar-scroll">
         <div className="sidebar-section-heading">
           <span>项目</span>
+          <span className="sidebar-section-actions">
+            {onProjectRefresh && <button className="icon-button" onClick={onProjectRefresh} disabled={busy || !running || projectRefreshing}
+              aria-label="刷新项目文件" title="刷新项目文件"><RefreshCw size={14} className={projectRefreshing ? "spin" : ""} /></button>}
           <button
             className="icon-button"
             onClick={() => onOpenProject()}
@@ -168,6 +173,7 @@ export function WorkspaceSidebar({
           >
             <Plus size={15} />
           </button>
+          </span>
         </div>
         {sessionError && (
           <div className="sidebar-session-error">

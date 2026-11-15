@@ -18,7 +18,7 @@ internal static class NativeBridge
           const fileActions = new Set([
             'uploadHostFiles', 'chooseUploadFiles', 'clipboardSyncRead', 'clipboardSyncWrite',
             'saveBrowserDownload', 'browserDownloadAction', 'desktopFileAction', 'exportDiagnostics',
-            'importTheme', 'exportTheme', 'shareLocalProject', 'chooseFolder', 'chooseGuestMedia',
+            'importTheme', 'exportTheme', 'saveRecoveryKey', 'shareLocalProject', 'chooseFolder', 'chooseGuestMedia',
           ]);
           chrome.webview.addEventListener('message', ({data}) => {
             if (!data || typeof data !== 'object') return;

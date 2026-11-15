@@ -7,6 +7,9 @@ export function operationName(path = "", method = "GET") {
   if (path === "/environment/initialization") return reading ? "读取初始化进度" : "保存初始化状态";
   if (path.startsWith("/environment/versions")) return "读取环境组件版本";
   if (path.startsWith("/environment/macos-screen-sharing")) return "客机屏幕共享";
+  if (path === "/environment/cache/inventory") return "盘点当前环境缓存";
+  if (path === "/environment/cache/clean") return "清理所选缓存";
+  if (path === "/environment/cache/restore") return "恢复缓存";
   if (path.startsWith("/environment/")) return "更新环境";
   if (path.startsWith("/input/files") || path.startsWith("/browser/files")) return "传递文件";
   if (path.startsWith("/tailscale")) return reading ? "读取 Tailscale 状态" : "操作 Tailscale";

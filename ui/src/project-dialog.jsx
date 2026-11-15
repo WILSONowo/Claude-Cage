@@ -1,6 +1,6 @@
 import { isWindows, isMac } from "./platform.mjs";
 import React, { useEffect, useRef, useState } from "react";
-import { Check, FolderOpen, LoaderCircle, Plus } from "lucide-react";
+import { Check, FolderMinus, FolderOpen, LoaderCircle, Plus } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
 import { SafetyMessage } from "./safety-message";
 import { Modal } from "./modal";
@@ -211,7 +211,7 @@ export function ProjectDialog({
         {!sharing && !adding && <>
           <fieldset className="project-picker-list" disabled={busy || Boolean(removeTarget)}>
             <legend>Cage 项目</legend>
-            {projectList.map((project) => <label className={`project-picker-item ${path === project ? "selected" : ""}`} key={project}>
+            {projectList.map((project) => <div className="project-picker-row" key={project}><label className={`project-picker-item ${path === project ? "selected" : ""}`}>
               <input type="radio" name="project" value={project} checked={path === project} onChange={() => { setPath(project); setError(""); }} />
               <FolderOpen size={18} aria-hidden="true" />
               <span>
@@ -219,10 +219,13 @@ export function ProjectDialog({
                 <small>{shares.find((s) => s.guest_path === project)?.path || project}</small>
                 {status.project_errors?.some((item) => item.path === project) && <small>需要重新连接，选择后重试</small>}
               </span>
-            </label>)}
+            </label>
+              {path === project && activate && !selectedShare && !removeTarget &&
+                <button type="button" className="icon-button" aria-label="从 Cage 移除此项目" title="从 Cage 移除此项目" disabled={busy}
+                  onClick={() => { setRemoveTarget(project); setError(""); setRecovery(""); }}><FolderMinus size={16} /></button>}
+            </div>)}
           </fieldset>
           {selectedShare && <button type="button" disabled={submitting} onClick={() => revoke(selectedShare)}>停止共享本机项目（{selectedShare.readonly ? "只读" : "读写"}）</button>}
-          {activate && !selectedShare && path && !removeTarget && <button type="button" className="quiet-button" disabled={busy} onClick={() => { setRemoveTarget(path); setError(""); setRecovery(""); }}>从 Cage 移除此项目</button>}
           {removeTarget && <section className="project-picker-list" aria-label="确认移除项目">
             <p>解除“{projectName(removeTarget)}”的目录共享？文件和会话历史会保留，重新添加此文件夹即可继续。</p>
             <p className="field-help">请先保存文件，关闭此项目的终端、会话和编辑器。</p>
