@@ -127,7 +127,7 @@ function browserResizeFixture({ available = true, ready = true, initial = 2 } = 
 test("browser waits for its initial settings before launching Chromium", () => {
   const wait = browserSource.indexOf("await displaySettings.waitForReady();");
   assert.ok(wait > browserSource.indexOf("const displaySettings ="));
-  assert.ok(wait < browserSource.indexOf('const chrome = spawn("/usr/bin/chromium"'));
+  assert.ok(wait < browserSource.indexOf('const chrome = spawn(browserBinary,'));
   assert.ok(browserSource.includes("const displayScale = config.display_scale === 1.5 ? 1.5 : 2;"));
 });
 
