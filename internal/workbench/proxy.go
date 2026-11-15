@@ -168,9 +168,7 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 				return errors.New("所选节点已不存在，请刷新列表")
 			}
 			p.Selected = in.NodeID
-			if len(p.Chain) > 0 {
-				p.Chain[len(p.Chain)-1] = in.NodeID
-			}
+			p.Chain = []string{in.NodeID}
 		}
 		if in.Port != 0 {
 			if in.Port < 1024 || in.Port > 65535 {

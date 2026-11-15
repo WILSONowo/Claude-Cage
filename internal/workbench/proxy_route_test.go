@@ -113,6 +113,13 @@ func TestProxyRouteAPIIsAtomicAndSurvivesRefresh(t *testing.T) {
 	if !reflect.DeepEqual(retained.Chain, applied.Chain) || retained.Sources[1].Nodes[0].ID != exit {
 		t.Fatal("missing node refresh discarded the working chain")
 	}
+	if err := s.changeProxy("select", proxyInput{NodeID: entry}, nil); err != nil {
+		t.Fatal(err)
+	}
+	single, err := managedproxy.Load(s.profile)
+	if err != nil || single.Selected != entry || !reflect.DeepEqual(single.Chain, []string{entry}) {
+		t.Fatal("selecting a chain member must replace the chain", err, single.Chain)
+	}
 	if err := s.changeProxy("route", proxyInput{NodeIDs: []string{exit}}, nil); err != nil {
 		t.Fatal(err)
 	}
