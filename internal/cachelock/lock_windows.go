@@ -1,4 +1,4 @@
-package hostproxy
+package cachelock
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func withDownloadLock(ctx context.Context, dir string, fn func() error) error {
+func WithDirectory(ctx context.Context, dir string, fn func() error) error {
 	// Keep the existing lock filename and byte range for old app instances.
 	file, err := os.OpenFile(dir+".lock", os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {

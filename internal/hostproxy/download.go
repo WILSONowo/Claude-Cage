@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sylvinus/agent-vm/internal/cachelock"
 )
 
 // Download uses a shared, digest-specific partial file only for pinned media.
@@ -60,7 +62,7 @@ func Download(ctx context.Context, address, target, name, accept, cache, digest 
 			return errors.New("安装包缓存目录无效")
 		}
 	}
-	return withDownloadLock(ctx, dir, func() error {
+	return cachelock.WithDirectory(ctx, dir, func() error {
 		partial := filepath.Join(dir, "partial")
 		if err := downloadAttempts(ctx, client, address, partial, name, accept, digest, out); err != nil {
 			return err

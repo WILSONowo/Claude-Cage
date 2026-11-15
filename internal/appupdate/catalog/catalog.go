@@ -12,7 +12,10 @@ import (
 
 const Repository = "Lee-xeo/Claude-Cage"
 const ReleasesURL = "https://api.github.com/repos/" + Repository + "/releases?per_page=100"
-const MaxArchive = 512 << 20
+
+// Releases must stay below the limit of every published App that still updates
+// in place; scripts/prepare-release-assets.mjs enforces that smaller limit.
+const MaxArchive = 2 << 30
 
 type Asset struct {
 	Name   string `json:"name"`
@@ -39,6 +42,9 @@ func archiveName(version, goos, goarch string) (string, error) {
 		return "Cage-" + version + "-macos-arm64.dmg", nil
 	case goos == "windows" && goarch == "amd64":
 		return "Cage-" + version + "-windows-amd64-setup.exe", nil
+	// Linux only learns that a newer package exists; the system installs it.
+	case goos == "linux" && goarch == "amd64":
+		return "Cage-" + version + "-linux-amd64.deb", nil
 	case goos == "android" && goarch == "arm64":
 		return "Cage-" + version + "-android-arm64.apk", nil
 	default:

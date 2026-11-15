@@ -77,6 +77,9 @@ func TestDownloadVerifiesSizeDigestAndPrivateFile(t *testing.T) {
 	digest := fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 	a := fixtureRelease("0.2.0", false).Assets[0]
 	a.Size = int64(len(content))
+	previous := downloadBackoff
+	t.Cleanup(func() { downloadBackoff = previous })
+	downloadBackoff = 0
 	for _, tc := range []struct {
 		name, body, hash string
 		ok               bool
@@ -84,7 +87,7 @@ func TestDownloadVerifiesSizeDigestAndPrivateFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "Cage.dmg")
 			var received int64
-			err := download(context.Background(), responseClient(tc.body, 200), a, tc.hash, path, func(n int64) { received = n })
+			err := download(context.Background(), responseClient(tc.body, 200), a, tc.hash, filepath.Dir(path), path, func(n int64) { received = n }, func() {})
 			if tc.ok {
 				b, e := os.ReadFile(path)
 				if err != nil || e != nil || string(b) != content || received != a.Size {

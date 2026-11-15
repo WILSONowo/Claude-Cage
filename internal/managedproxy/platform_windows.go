@@ -143,10 +143,7 @@ func stopRecordedWindowsCore(profile, targetCore string) error {
 			return errors.New("Cage 代理进程未能及时停止")
 		}
 	}
-	if err := removeWindowsCoreSocket(profile); err != nil {
-		return err
-	}
-	return os.Remove(path)
+	return removeStaleCore(profile, path)
 }
 
 // Restoring a profile backup can duplicate a still-valid process record.
@@ -185,7 +182,7 @@ func removeStaleCore(profile, path string) error {
 		return err
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return err
+		return &coreError{stage: "record.remove", err: err}
 	}
 	return nil
 }

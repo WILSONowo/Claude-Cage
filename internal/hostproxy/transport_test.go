@@ -132,12 +132,13 @@ func TestHostDownloadSubprocessKeepsCapturedProxyAfterGuestSanitization(t *testi
 	environment.config = nil
 	environment.Unlock()
 	t.Cleanup(func() { environment.Lock(); environment.config = previous; environment.Unlock() })
+	// Windows treats the uppercase and lowercase names as the same key.
+	t.Setenv("https_proxy", "")
+	t.Setenv("http_proxy", "")
 	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:7896")
 	t.Setenv("HTTP_PROXY", "http://127.0.0.1:7896")
 	t.Setenv("NO_PROXY", "skip.invalid")
 	t.Setenv("no_proxy", "skip.invalid")
-	t.Setenv("https_proxy", "")
-	t.Setenv("http_proxy", "")
 	CaptureEnvironment()
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("HTTP_PROXY", "")

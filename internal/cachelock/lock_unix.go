@@ -1,6 +1,6 @@
 //go:build !windows
 
-package hostproxy
+package cachelock
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func withDownloadLock(ctx context.Context, dir string, fn func() error) error {
+func WithDirectory(ctx context.Context, dir string, fn func() error) error {
 	file, err := os.Open(dir)
 	if err != nil {
 		return err
