@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { releaseAssets, checksumFor, releaseMetadata, platformMetadata, resolvePlatforms, request, publicManifestRelease } from './sync-release.mjs';
 
@@ -241,7 +241,7 @@ test('website CLI discovers paginated releases and pins fallbacks to the request
   try {
     for (const tag of [undefined, latest.tag_name, older.tag_name]) {
       const output = join(directory, 'release.json');
-      const result = spawnSync(process.execPath, ['--import', mock, fileURLToPath(new URL('./sync-release.mjs', import.meta.url)), '--output', output, ...(tag ? ['--tag', tag] : [])], { encoding: 'utf8' });
+      const result = spawnSync(process.execPath, ['--import', pathToFileURL(mock).href, fileURLToPath(new URL('./sync-release.mjs', import.meta.url)), '--output', output, ...(tag ? ['--tag', tag] : [])], { encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
       const metadata = JSON.parse(readFileSync(output, 'utf8'));
       assert.equal(metadata.platforms.android.version, '0.2.0');
@@ -302,7 +302,7 @@ test('archive-directory downloads the verified Android APK through the shipped C
   `);
   try {
     const output = join(directory, 'release.json'), downloads = join(directory, 'downloads');
-    const result = spawnSync(process.execPath, ['--import', mock, fileURLToPath(new URL('./sync-release.mjs', import.meta.url)), '--tag', release.tag_name, '--output', output, '--archive-directory', downloads], { encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['--import', pathToFileURL(mock).href, fileURLToPath(new URL('./sync-release.mjs', import.meta.url)), '--tag', release.tag_name, '--output', output, '--archive-directory', downloads], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     const apk = release.assets.at(-1);
     assert.deepEqual(readFileSync(join(downloads, apk.name)), Buffer.from(payloads[apk.browser_download_url], 'base64'));
