@@ -882,9 +882,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                       通过主机网络下载这份订阅
                     </label>
                   )}
-                  <p className="field-help">
-                    默认经当前配置的代理下载。首次没有可用节点时，可勾选主机下载或导入本地文件；失败不会自动改用其他路径。
-                  </p>
+                  {!form.id && (
+                    <p className="field-help">
+                      首次导入默认经当前代理下载，也可选择主机网络。
+                    </p>
+                  )}
                 </>
               )}
               {mode === "file" && !form.id && (
