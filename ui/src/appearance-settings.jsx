@@ -37,7 +37,7 @@ import {
   themeVariables,
 } from "./appearance-state.mjs";
 
-import { isMac, isWindows } from "./platform.mjs";
+import { isLinux, isMac, isWindows } from "./platform.mjs";
 
 const codeFontOptions = isMac
   ? ["SF Mono", "Menlo", "Monaco", "JetBrains Mono"]
@@ -46,10 +46,23 @@ const codeFontOptions = isMac
     : [
         "Sarasa Mono SC",
         "Noto Sans Mono CJK SC",
+        "Noto Sans Mono",
         "JetBrains Mono",
         "Ubuntu Mono",
         "DejaVu Sans Mono",
       ];
+
+async function installedCodeFonts() {
+  const found = await Promise.all(codeFontOptions.map(async (name) => {
+    try {
+      await new FontFace(name, `local("${name}")`).load();
+      return name;
+    } catch {
+      return null;
+    }
+  }));
+  return found.filter(Boolean);
+}
 
 function SettingRow({ label, description, children }) {
   return (
@@ -139,7 +152,7 @@ function ColorField({ label, value, onChange, onReset }) {
     </div>
   );
 }
-function ThemeCard({ variant, value, active, onChange }) {
+function ThemeCard({ variant, value, active, onChange, codeFonts }) {
   const label = variant === "light" ? "浅色主题" : "深色主题";
   const options = presets[variant];
   const patch = (delta) => onChange({ ...value, preset: "custom", ...delta });
@@ -343,7 +356,7 @@ function ThemeCard({ variant, value, active, onChange }) {
               patch({ fonts: { ...value.fonts, code: next } })
             }
           >
-            {codeFontOptions.map((name) => (
+            {codeFonts.map((name) => (
               <option key={name} value={name} />
             ))}
           </InlineSelect>
@@ -601,6 +614,15 @@ function ThemeLibrary({ appearance, update, saving, onError }) {
 export function AppearanceSettings() {
   const { appearance, theme, variant, loading, saving, error, update, retry } =
     useAppearance();
+  const [codeFonts, setCodeFonts] = useState(isLinux ? [] : codeFontOptions);
+  useEffect(() => {
+    if (!isLinux) return;
+    let active = true;
+    installedCodeFonts().then((fonts) => {
+      if (active) setCodeFonts(fonts);
+    });
+    return () => { active = false; };
+  }, []);
   const [syncing, setSyncing] = useState(false),
     [syncError, setSyncError] = useState(""),
     [synced, setSynced] = useState(false),
@@ -743,6 +765,7 @@ export function AppearanceSettings() {
             <ThemeCard
               key={key}
               variant={key}
+              codeFonts={codeFonts}
               value={appearance[key + "Theme"]}
               active={variant === key}
               onChange={(value) => patch({ [key + "Theme"]: value })}
