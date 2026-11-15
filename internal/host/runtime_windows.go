@@ -58,6 +58,9 @@ func ConfigureWindowsRuntime() error {
 		}
 	}
 	if len(paths) > 0 {
+		if err := ensureWindowsExeExtension(); err != nil {
+			return err
+		}
 		paths = append(paths, os.Getenv("PATH"))
 		return os.Setenv("PATH", strings.Join(paths, string(os.PathListSeparator)))
 	}
@@ -77,4 +80,19 @@ func windowsHypervisorReady() error {
 		return fmt.Errorf("Windows 虚拟化尚未就绪：请在固件中启用 CPU 虚拟化，启用 Windows Hypervisor Platform 并重启")
 	}
 	return nil
+}
+
+// Named helpers such as qemu-img rely on PATHEXT even when their containing
+// directory is bundled. Keep Windows defaults for an unset variable.
+func ensureWindowsExeExtension() error {
+	extensions := os.Getenv("PATHEXT")
+	if extensions == "" {
+		return nil
+	}
+	for _, ext := range strings.Split(extensions, ";") {
+		if strings.EqualFold(ext, ".exe") {
+			return nil
+		}
+	}
+	return os.Setenv("PATHEXT", ".EXE;"+extensions)
 }

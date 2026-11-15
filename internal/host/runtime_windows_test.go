@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -41,4 +42,24 @@ func TestHiddenCommandChild(t *testing.T) {
 	window, _, _ := windows.NewLazySystemDLL("kernel32.dll").NewProc("GetConsoleWindow").Call()
 	fmt.Printf("console=%d\n", window)
 	fmt.Fprintln(os.Stderr, "stderr-captured")
+}
+
+func TestBundledHelperWithIncompletePathExt(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("PATH", root)
+	t.Setenv("PATHEXT", ".CPL")
+	if err := os.WriteFile(filepath.Join(root, "qemu-img.exe"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := exec.LookPath("qemu-img"); err == nil {
+		t.Fatal("expected incomplete PATHEXT to hide helper")
+	}
+	for i := 0; i < 2; i++ {
+		if err := ensureWindowsExeExtension(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := exec.LookPath("qemu-img"); err != nil || os.Getenv("PATHEXT") != ".EXE;.CPL" {
+		t.Fatal(err, os.Getenv("PATHEXT"))
+	}
 }
