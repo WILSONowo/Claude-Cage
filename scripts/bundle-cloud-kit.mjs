@@ -35,8 +35,28 @@ if (offline) {
     const {mihomo} = JSON.parse(fs.readFileSync("packaging/linux/dependencies.json"));
     const cache = path.resolve("_output/linux-deps", mihomo.file);
     const core = path.join(stage, "mihomo.gz");
-    if (fs.existsSync(cache)) fs.copyFileSync(cache, core);
-    else execFileSync("curl", ["--fail","--location","--retry","3","--max-time","300","--output",core,mihomo.url],{stdio:"inherit"});
+    if (!fs.existsSync(cache)) {
+      fs.mkdirSync(path.dirname(cache), {recursive:true});
+      const download = fs.mkdtempSync(path.join(path.dirname(cache), "cloud-core-"));
+      const partial = path.join(download, "partial");
+      try {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            execFileSync("curl", ["--fail", "--location", "--connect-timeout", "30",
+              "--speed-limit", "1", "--speed-time", "120", "--continue-at", "-",
+              "--output", partial, mihomo.url], {stdio:"inherit"});
+            break;
+          } catch (error) {
+            if (attempt >= 3) throw error;
+            // A server that refuses ranges must receive a fresh full request.
+            if (error.status === 33) fs.rmSync(partial, {force:true});
+          }
+        }
+        if (await digest(partial) !== mihomo.sha256) throw Error("Linux Mihomo checksum mismatch");
+        fs.renameSync(partial, cache);
+      } finally { fs.rmSync(download, {recursive:true, force:true}); }
+    }
+    fs.copyFileSync(cache, core);
     if (await digest(core) !== mihomo.sha256) throw Error("Linux Mihomo checksum mismatch");
     const recipe = path.join(stage, "deploy/cloud");
     fs.mkdirSync(recipe, {recursive:true});
