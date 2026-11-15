@@ -374,15 +374,23 @@ export function createNativeBrowserService(options = {}) {
     if (capture && capture.key !== key) { await stopCapture(tab.page); capture = undefined; }
     if (!capture) {
       const connection = await tab.page.context().newCDPSession(tab.page);
-      capture = { key, connection, latest: null, acks: new Set(), expiry: null, metrics: false };
+      capture = { key, connection, latest: null, acks: [], expiry: null, metrics: false };
       captures.set(tab.page, capture);
       let received;
       const first = new Promise(resolve => { received = resolve; });
       capture.receive = frame => {
         if (captures.get(tab.page) !== capture) return;
         if (!mac) captureMetrics.damage_frames++;
-        capture.acks.add(frame.sessionId);
+        // Chromium reuses the same screencast session ID for multiple frames.
+        // Each event consumes one credit, including repeated IDs.
         captureMetrics.encoded_bytes += Buffer.byteLength(frame.data, "base64");
+        if (!mac && !streaming && capture.signal === frame.data) {
+          // The full-density screenshot can schedule duplicate damage. Those
+          // events carry no image for the viewer and must not block the next paint.
+          void connection.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {});
+          return;
+        }
+        capture.acks.push(frame.sessionId);
         if (streaming) {
           capture.resizeDeadline ??= performance.now() + 250;
           const dimensions = jpegFrameSize(frame.data);
@@ -400,7 +408,7 @@ export function createNativeBrowserService(options = {}) {
               capture.warmupFrames = (capture.warmupFrames || 0) + 1;
             }
             if (warmup) {
-              capture.acks.delete(frame.sessionId);
+              capture.acks.pop();
               const acknowledge = () => connection.send("Page.screencastFrameAck", { sessionId: frame.sessionId });
               if (dimensions && !capture.resizeRetried) {
                 // A pending native-window resize can overwrite the visible
@@ -481,20 +489,30 @@ export function createNativeBrowserService(options = {}) {
       return captureFrame(tab);
     }
     try {
-      const frame = capture.latest;
+      let frame = capture.latest;
       // Windows screencast preserves a damage stream at CSS resolution, but a
       // viewport scale changes its native input surface. Capture only new damage
       // at the context's actual device density and reuse it for static frames.
-      if (!mac && !frame.jpeg) {
-        const started = performance.now();
-        frame.jpeg = (await tab.page.screenshot({ type: "jpeg", quality: 85, caret: "initial" })).toString("base64");
-        captureMetrics.screenshots++;
-        captureMetrics.total_ms += performance.now() - started;
+      if (!mac && !streaming && !frame.jpeg) {
+        const signal = capture.signal;
+        // A screenshot can briefly change the compositor surface and restore it
+        // before the next poll. Compare with the last surface the viewer consumed.
+        if (capture.presented?.signal === signal) {
+          frame = capture.presented.frame;
+        } else {
+          const started = performance.now();
+          frame.jpeg = (await tab.page.screenshot({ type: "jpeg", quality: 85, caret: "initial" })).toString("base64");
+          captureMetrics.screenshots++;
+          captureMetrics.total_ms += performance.now() - started;
+          capture.presented = { signal, frame };
+        }
       }
       // Return credit only when the viewer consumes a frame. Chromium's bounded
       // in-flight window supplies backpressure even during continuous animation.
-      const acknowledgements = [...capture.acks];
-      capture.acks.clear();
+      // Allow up to two live compositor events per viewer poll. HiDPI
+      // screenshots also trigger surface restoration events; drain all their
+      // receipts so the next page change can reach a previously idle viewer.
+      const acknowledgements = streaming ? capture.acks.splice(0, 2) : capture.acks.splice(0);
       for (const sessionId of acknowledgements)
         await capture.connection.send("Page.screencastFrameAck", { sessionId });
       return frame;
@@ -837,23 +855,37 @@ export function createNativeBrowserService(options = {}) {
   }
   async function nativeDocumentFocused(tab) {
     const tree = await cdp("Page.getFrameTree", {}, tab.session);
-    const isolated = await cdp("Page.createIsolatedWorld", { frameId: tree.frameTree.frame.id, worldName: "cage-native-window-proof" }, tab.session);
-    const focus = await cdp("Runtime.evaluate", { expression: "Document.prototype.hasFocus.call(document)", contextId: isolated.executionContextId, returnByValue: true }, tab.session);
+    const frame = tree.frameTree.frame, key = `${frame.id}:${frame.loaderId}`;
+    const expression = "Document.prototype.hasFocus.call(document)";
+    // Every frame asks each tab for focus. The isolated world lives as long as
+    // its document, so it is created once per document, not once per question.
+    if (tab.focusWorld?.key === key) {
+      const focus = await cdp("Runtime.evaluate", { expression, contextId: tab.focusWorld.context, returnByValue: true }, tab.session).catch(() => undefined);
+      if (focus && !focus.exceptionDetails) return focus.result?.value === true;
+    }
+    tab.focusWorld = undefined;
+    const isolated = await cdp("Page.createIsolatedWorld", { frameId: frame.id, worldName: "cage-native-window-proof" }, tab.session);
+    const focus = await cdp("Runtime.evaluate", { expression, contextId: isolated.executionContextId, returnByValue: true }, tab.session);
+    if (!focus.exceptionDetails) tab.focusWorld = { key, context: isolated.executionContextId };
     return focus.result?.value === true;
   }
-  async function syncNativeFrontTab() {
+  // focused is the one tab whose document was just seen holding focus.
+  async function frontTabFocus() {
     const old = tabs.get(active);
-    if (old && !old.page.isClosed() && await nativeDocumentFocused(old).catch(() => false)) return false;
+    if (old && !old.page.isClosed() && await nativeDocumentFocused(old).catch(() => false)) return { ambiguous: false, focused: old };
     const focused = [];
     for (const tab of tabs.values()) if (tab !== old && !tab.page.isClosed() && await nativeDocumentFocused(tab).catch(() => false)) focused.push(tab);
     if (focused.length === 1) { active = focused[0].id; changed(); }
-    return focused.length > 1;
+    return { ambiguous: focused.length > 1, focused: focused.length === 1 ? focused[0] : undefined };
+  }
+  async function syncNativeFrontTab() {
+    return (await frontTabFocus()).ambiguous;
   }
   async function nativeFrameProof() {
-    const focusAmbiguous = await syncNativeFrontTab();
+    const front = await frontTabFocus(), focusAmbiguous = front.ambiguous;
     const tab = target({ id: active });
     const native = await browserCDP.send("Browser.getWindowForTarget", { targetId: tab.nativeTarget });
-    const documentFocused = await nativeDocumentFocused(tab);
+    const documentFocused = front.focused === tab || await nativeDocumentFocused(tab);
     const size = tab.page.viewportSize();
     return { target: split?.generation ?? tab.geometry, document: tab.document, id: tab.id, window: native, documentFocused, focusAmbiguous, blankDocument: tab.page.url() === "about:blank",
       x: split?.right === tab.id ? Math.round(tabs.get(split.left).page.viewportSize().width * displayScale) : 0, y: 0,
