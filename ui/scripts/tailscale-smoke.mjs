@@ -10,7 +10,7 @@ const output = process.env.CAGE_TEST_CAPTURE
 await mkdir(output, { recursive: true });
 let copied = "", fail = false, delayed = false, failKey = false, failService = false, failBrowser = true;
 let tail = { installed: true, version: "1.104.5", enabled: false, backend: "Stopped", ips: [], peers: [], keys: [], forwards: [], user: "cage", ssh_port: 22 };
-const { browser, page, state, errors } = await createWorkbench({ nativeRequest: body => { if (body.action === "clipboardWrite") { copied = body.text; return true; } } });
+const { browser, page, state, errors } = await createWorkbench({ beforeNavigate: async (_page, state) => { state.status.ready = state.status.vm_running = true; }, nativeRequest: body => { if (body.action === "clipboardWrite") { copied = body.text; return true; } } });
 const checks = [];
 const open = page.getByRole("button", { name: "打开 Tailscale", exact: true });
 const panel = page.getByRole("dialog", { name: "Tailscale", exact: true });

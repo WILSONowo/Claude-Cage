@@ -73,5 +73,8 @@ for (const system of ["macos", "windows-11", "debian"]) {
     assert.deepEqual(calls.map(call => call.action), ["inventory", "clean", "inventory", "restore", "inventory", "inventory"]);
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ system, passed: true, actions: calls.map(call => call.action) }));
+  } catch (error) {
+    console.error(system, errors, await page.locator("h1,h2,h3,[role=alert]").allTextContents());
+    throw error;
   } finally { await browser.close(); }
 }
