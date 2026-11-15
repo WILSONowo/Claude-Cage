@@ -126,6 +126,7 @@ cd /
 sudo -Hu $ordinary /usr/local/libexec/cage-register-claude-window --prepare
 sudo -Hu $ordinary /usr/local/libexec/cage-register-clipboard --prepare
 sudo -Hu $ordinary /usr/local/libexec/cage-register-browser --prepare
+install -m 755 "$kit/enable-macos-screensharing.sh" /usr/local/libexec/cage-enable-screensharing
 cd "$kit"
 project_args=("$kit/project")
 if [[ ${CAGE_MACOS_GUI_AUTHORIZE:-0} == 1 ]]; then

@@ -41,16 +41,18 @@ type controlFile struct {
 	Controller ControllerIdentity `json:"controller"`
 }
 type Server struct {
-	desktopViews                                     displayViewDemand
-	desktopDisplayUpdate                             func(bool) error
-	browserViews                                     displayViewDemand
-	desktopStatus                                    desktopStatusCache
-	agentNativeQueue                                 agentNativeQueue
-	macSetupProjectsChecked                          time.Time
-	macSetupProjectsAttempt                          time.Time
+	desktopViews            displayViewDemand
+	desktopDisplayUpdate    func(bool) error
+	browserViews            displayViewDemand
+	desktopStatus           desktopStatusCache
+	agentNativeQueue        agentNativeQueue
+	macSetupProjectsChecked time.Time
+	macSetupProjectsAttempt time.Time
+
 	macProjectsRetryAt                               time.Time
 	macLoginLease                                    *macLoginLease
 	macosGuest                                       *guestos.MacOSProfile
+	screenSharing                                    macOSScreenSharing
 	macResources                                     macOSResourceObserver
 	windowsGuest                                     *guestos.WindowsProfile
 	windowsState                                     windowsGuestState
@@ -405,6 +407,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /api/host/git", s.enableHostGit)
 	mux.HandleFunc("GET /api/host/debian-mirrors", s.hostDebianMirrors)
 	mux.HandleFunc("POST /api/host/debian-mirrors", s.chooseDebianMirror)
+	mux.HandleFunc("POST /api/environment/macos-screen-sharing", s.openMacOSScreenSharing)
 	mux.HandleFunc("GET /api/appearance", s.getAppearance)
 	mux.HandleFunc("GET /api/favorites", s.serveFavorites)
 	mux.HandleFunc("POST /api/favorites", s.serveFavorites)
@@ -677,7 +680,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	view := map[string]any{
 		"has_job_history": s.jobs.hasHistory(),
-		"projects": projects, "ready": s.ready, "vm_running": running,
+		"projects":        projects, "ready": s.ready, "vm_running": running,
 		"workspace": s.workspaceLocked(), "environment_directory": s.environmentDir(),
 		"environment_identity_directory": cage.EnvironmentIdentityDir(s.profile),
 		"local_vm_storage":               s.localVMStorage(), "project_error": projectError, "project_errors": s.projectErrors,

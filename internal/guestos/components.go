@@ -173,6 +173,7 @@ func nativeComponentTarget(source, system string) string {
 		"cage-macos-ipv6-check":           "/usr/local/libexec/cage-macos-ipv6-check",
 		"macos-browser.mjs":               "/usr/local/libexec/cage-macos-browser.mjs",
 		"cage-macos-editor":               "/usr/local/libexec/cage-macos-editor",
+		"enable-macos-screensharing.sh":   "/usr/local/libexec/cage-enable-screensharing",
 		"register-macos-claude-window.sh": "/usr/local/libexec/cage-register-claude-window",
 		"register-macos-clipboard.sh":     "/usr/local/libexec/cage-register-clipboard",
 		"register-macos-browser.sh":       "/usr/local/libexec/cage-register-browser",

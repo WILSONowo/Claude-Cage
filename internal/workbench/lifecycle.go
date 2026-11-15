@@ -133,6 +133,7 @@ func (s *Server) closeService() error {
 		s.activities.Wait()
 		s.op.Lock()
 		defer s.op.Unlock()
+		s.closeMacOSScreenSharing()
 		s.closeProjectShares()
 		s.closeWindowsBrowser()
 		if s.windowsGuest != nil {

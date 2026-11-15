@@ -166,6 +166,14 @@ func (s *Server) macOSLoginWindow(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "维护画面只接受窗口查看与局部输入", http.StatusBadRequest)
 			return
 		}
+		if input.Maintenance == "sharing" && input.Action != "close" {
+			s.safetyOp.Lock()
+			defer s.safetyOp.Unlock()
+			if err := s.requireMacOSNetworkIsolated(r.Context()); err != nil {
+				http.Error(w, err.Error(), http.StatusConflict)
+				return
+			}
+		}
 	} else {
 		input.Maintenance = ""
 	}

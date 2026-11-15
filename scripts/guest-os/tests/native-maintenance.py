@@ -79,6 +79,8 @@ class NativeMaintenance(unittest.TestCase):
                 ('native-browser/macos-phone-browser.mjs', 'usr/local/libexec/cage-workbench-browser-4.145.0-pw1.65.0/controller/macos-phone-browser.mjs')):
             self.write('kit/' + source, 'current-' + source)
             files.append((source, target))
+        self.write('kit/enable-macos-screensharing.sh', '#!/bin/sh\nexit 73\n')
+        files.append(('enable-macos-screensharing.sh', 'usr/local/libexec/cage-enable-screensharing'))
         for label, source in (('claude-window', 'register-macos-claude-window.sh'), ('clipboard', 'register-macos-clipboard.sh'),
                               ('browser', 'register-macos-browser.sh')):
             # Source deliberately has mode 0644, as the clipboard source does.
@@ -136,6 +138,50 @@ ps() { :; }
         manifest = dict(protocol=1, system='macos', app_version='fixture', revision='a' * 64, files=entries)
         self.write('kit/native-components.json', json.dumps(manifest))
         return manifest
+
+    def test_screen_sharing_helper_authorizes_only_the_ordinary_guest_user(self):
+        script = self.translate((SOURCE / 'enable-macos-screensharing.sh').read_text())
+        plist = '/System/Library/LaunchDaemons/com.apple.screensharing.plist'
+        script = script.replace(plist, str(self.write('screensharing.plist', 'fixture')))
+        helper = self.write('enable.sh', script)
+        self.write('usr/local/libexec/cage-guest-check', '#!/bin/sh\n[ "$VERIFIED_INTEL" = yes ]\n', 0o755)
+        env_file = self.write('screen-environment.sh', """
+uname() { echo Darwin; }
+sysctl() { echo "$MODEL"; }
+id() { if [[ $1 == -u ]]; then echo 501; else echo "$GROUPS_FIXTURE"; fi; }
+stat() { echo 0; }
+dscl() { test -f "$QA_ROOT/group"; }
+dseditgroup() {
+    case "$2" in create) touch "$QA_ROOT/group";; edit) touch "$QA_ROOT/member";;
+        checkmember) test -f "$QA_ROOT/member";; *) return 1;; esac
+}
+launchctl() {
+    test -f "$QA_ROOT/member" || return 1
+    case "$1" in print) test -f "$QA_ROOT/loaded";; bootstrap) echo loaded >> "$QA_ROOT/loaded";;
+        enable) :;; *) return 1;; esac
+}
+nc() { test "$1/$2/$3" = "-z/127.0.0.1/5900" && test -f "$QA_ROOT/loaded"; }
+""")
+        env = dict(os.environ, BASH_ENV=str(env_file), QA_ROOT=str(self.root), MODEL='Macmini8,1',
+                   VERIFIED_INTEL='no', GROUPS_FIXTURE='staff')
+
+        def enable(user):
+            return subprocess.run(['/bin/bash', str(helper), user], cwd=self.root, env=env,
+                                  capture_output=True, text=True, timeout=10)
+
+        self.assertNotEqual(enable('blue').returncode, 0)
+        env['VERIFIED_INTEL'] = 'yes'
+        for user in ('root', 'cagesetup', 'cageprovision'):
+            self.assertNotEqual(enable(user).returncode, 0, user)
+        env['GROUPS_FIXTURE'] = 'staff admin'
+        self.assertNotEqual(enable('blue').returncode, 0)
+        self.assertFalse((self.root / 'group').exists())
+        env['GROUPS_FIXTURE'] = 'staff'
+        for model in ('Macmini8,1', 'VirtualMac2,1'):
+            env['MODEL'] = model
+            result = enable('blue')
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'loaded').read_text(), 'loaded\n')
 
     def run_install(self, fail=False):
         env = {**os.environ, 'BASH_ENV': str(self.root / 'environment.sh'), 'CAGE_TEST_FAIL_REGISTER': '1' if fail else '0'}
@@ -241,6 +287,8 @@ hdiutil() {
         self.assertFalse((self.root / 'Applications/Cage Guest Clipboard.app').exists())
         self.assertEqual(os.readlink(self.root / 'usr/local/libexec/cage-cli'), previous)
         self.assertFalse((self.root / 'var/db/cage-components.json').exists())
+        sharing = self.root / 'usr/local/libexec/cage-enable-screensharing'
+        self.assertFalse(sharing.exists())
         for attempt in range(2):
             result = self.run_install()
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
@@ -249,6 +297,7 @@ hdiutil() {
             self.assertEqual((self.root / 'Users/cage/account.json').read_text(), 'account-and-login-marker')
             self.assertEqual((self.root / 'Users/cage/project.txt').read_text(), 'project-marker')
             self.assertTrue(os.access(self.root / 'usr/local/libexec/cage-register-clipboard', os.X_OK))
+            self.assertTrue(os.access(sharing, os.X_OK))
         old_receipt = (self.root / 'var/db/cage-components.json').read_bytes()
         original_source = (self.kit / 'project/cage-sshfs').read_bytes()
         self.write('kit/project/cage-sshfs', 'next-project-helper')
