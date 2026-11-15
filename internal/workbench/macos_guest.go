@@ -193,9 +193,6 @@ func (s *Server) stopMacOSGuest() error {
 	s.mu.Lock()
 	s.ready = false
 	s.macSetupProjectsChecked = time.Time{}
-	s.macSetupSharingConfirmed = false
-	s.macSetupSharingAttempt = time.Time{}
-	s.macSetupSharingStatus = macOSScreenSharingStatus{}
 	s.mu.Unlock()
 	s.closeMacOSScreenSharing()
 	s.closeWindowsBrowser()
