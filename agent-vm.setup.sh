@@ -36,6 +36,9 @@ apt_get() {
   else
     status=$?
   fi
+  # One parseable line so Cage can show the failing command and packages.
+  printf 'CAGE_APT_FAILED exit=%s command=apt-get %s
+' "$status" "$*" >&2
   if [[ "${CLAUDE_CAGE:-}" == 1 ]]; then
     printf 'APT failed (exit %s); guest memory evidence follows. oom_kill before=%s\n' "$status" "$before" >&2
     apt-get --version | head -n 1 >&2 || true

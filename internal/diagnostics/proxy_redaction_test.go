@@ -28,6 +28,9 @@ func TestRedactProxyAddresses(t *testing.T) {
 		{"[::ffff:192.0.2.8]:443 ::ffff:192.0.2.8", "[ip] [ip]"},
 		{"proxy 0123456789abcdef01234567 uuid=12345678-1234-1234-1234-123456789abc", "proxy [redacted id] uuid=[redacted id]"},
 		{"https://sub.example-provider.io/sub?token=private-subscription token=private-token", "[url] token=[redacted]"},
+		{"Could not connect to 10.0.2.2:7890 (10.0.2.2). - connect (110: Connection timed out)", "Could not connect to [ip] ([ip]). - connect (110: Connection timed out)"},
+		{"Err:1 https://deb.debian.org/debian trixie InRelease", "Err:1 [url] trixie InRelease"},
+		{"E: Unable to locate package ripgrep", "E: Unable to locate package ripgrep"},
 		{"2026-11-14T10:20:30+08:00 v0.1.7 HTTP 502 dns resolve failed: context deadline exceeded", "2026-11-14T10:20:30+08:00 v0.1.7 HTTP 502 dns resolve failed: context deadline exceeded"},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
