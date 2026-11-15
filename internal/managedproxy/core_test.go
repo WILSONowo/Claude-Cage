@@ -84,7 +84,7 @@ func TestCoreErrorHidesPrivateDetails(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.HasPrefix(file.Name, "logs/") && bytes.Contains(b, []byte("api.transport")) {
+		if strings.HasPrefix(file.Name, "logs/") && bytes.Contains(b, []byte("api/transport")) {
 			found = true
 		}
 		message += string(b)

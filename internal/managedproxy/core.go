@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,7 +32,7 @@ type coreError struct {
 }
 
 func (e *coreError) Error() string {
-	message := "Cage 代理核心操作失败（" + e.stage + "）"
+	message := "Cage 代理核心操作失败（" + strings.ReplaceAll(e.stage, ".", "/") + "）"
 	var nested *coreError
 	var errno syscall.Errno
 	var network net.Error
