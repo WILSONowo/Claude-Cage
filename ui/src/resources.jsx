@@ -93,7 +93,7 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
   </section>;
   return <section className="environment-versions resource-settings" aria-label="计算资源">
     <h4>计算资源</h4>
-    <p className="field-help resource-intro">默认分配主机一半的资源。{macOS ? "macOS 客机使用固定的启动内存容量。" : "内存按需使用，持续空闲后逐步归还主机。"}CPU 按实际任务使用。</p>
+    <p className="field-help resource-intro">{macOS ? "macOS 客机使用固定的启动内存容量。" : "内存按需使用，持续空闲后逐步归还主机。"}CPU 按实际任务使用。</p>
     {draft ? <form className="resource-allocation" onSubmit={save}>
       <fieldset disabled={busy} className="resource-fields">
         <legend className="sr-only">资源配置</legend>
