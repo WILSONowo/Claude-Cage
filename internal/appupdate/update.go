@@ -20,38 +20,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sylvinus/agent-vm/internal/appupdate/catalog"
 	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/diagnostics"
 	"github.com/sylvinus/agent-vm/internal/host"
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 	"github.com/sylvinus/agent-vm/internal/usererror"
 	"github.com/sylvinus/agent-vm/internal/version"
-	"golang.org/x/mod/semver"
 )
 
-const repository = "Lee-xeo/Claude-Cage"
-const releasesURL = "https://api.github.com/repos/" + repository + "/releases?per_page=100"
-const maxArchive = 512 << 20
+const repository = catalog.Repository
+const releasesURL = catalog.ReleasesURL
+const maxArchive = catalog.MaxArchive
 const maxMetadata = 4 << 20
 
-type asset struct {
-	Name   string `json:"name"`
-	URL    string `json:"browser_download_url"`
-	Size   int64  `json:"size"`
-	Digest string `json:"digest"`
-	State  string `json:"state"`
-}
-type release struct {
-	Tag        string  `json:"tag_name"`
-	Draft      bool    `json:"draft"`
-	Prerelease bool    `json:"prerelease"`
-	Assets     []asset `json:"assets"`
-}
-type candidate struct {
-	Version   string `json:"version"`
-	Archive   asset  `json:"archive"`
-	Checksums asset  `json:"checksums"`
-}
+type asset = catalog.Asset
+type release = catalog.Release
+type candidate = catalog.Candidate
 
 // State is one line of the native launcher's private update process protocol.
 // ArchivePath is returned only to the native launcher, never as a download URL.
@@ -266,96 +251,12 @@ func findRelease(ctx context.Context, client *http.Client, current string) (*can
 	if json.Unmarshal(b, &releases) != nil {
 		return nil, errors.New("更新源返回了无效的版本信息")
 	}
-	return selectRelease(releases, current)
-}
-
-func selectRelease(releases []release, current string) (*candidate, error) {
-	return selectPlatformRelease(releases, current, runtime.GOOS, runtime.GOARCH)
-}
-
-func archiveName(version, goos, goarch string) (string, error) {
-	switch {
-	case goos == "darwin" && goarch == "arm64":
-		return "Cage-" + version + "-macos-arm64.dmg", nil
-	case goos == "windows" && goarch == "amd64":
-		return "Cage-" + version + "-windows-amd64-setup.exe", nil
-	default:
-		return "", errors.New("此平台尚无 Cage 应用内更新发行包")
-	}
-}
-
-func selectPlatformRelease(releases []release, current, goos, goarch string) (*candidate, error) {
-	if _, err := archiveName(current, goos, goarch); err != nil {
-		return nil, err
-	}
-	currentTag := "v" + current
-	if !semver.IsValid(currentTag) || semver.Canonical(currentTag) != currentTag {
-		return nil, errors.New("当前应用版本无效，无法安全比较更新")
-	}
-	var best *candidate
-	for _, r := range releases {
-		if r.Draft || !strings.HasPrefix(r.Tag, "v") || !semver.IsValid(r.Tag) || semver.Canonical(r.Tag) != r.Tag || semver.Compare(r.Tag, currentTag) <= 0 {
-			continue
-		}
-		pre := r.Prerelease || semver.Prerelease(r.Tag) != ""
-		if semver.Prerelease(currentTag) == "" && pre {
-			continue
-		}
-		v := strings.TrimPrefix(r.Tag, "v")
-		if best != nil && semver.Compare(r.Tag, "v"+best.Version) <= 0 {
-			continue
-		}
-		c := candidate{Version: v}
-		name, _ := archiveName(v, goos, goarch)
-		for _, a := range r.Assets {
-			if a.State != "uploaded" {
-				continue
-			}
-			if a.Name == name && a.Size > 0 && a.Size <= maxArchive {
-				c.Archive = a
-			}
-			if a.Name == "SHA256SUMS" && a.Size > 0 && a.Size <= 64<<10 {
-				c.Checksums = a
-			}
-		}
-		if c.Archive.URL == "" {
-			continue
-		}
-		u, err := url.Parse(c.Archive.URL)
-		if err != nil || !allowedURL(u, false) || u.Hostname() != "github.com" || !strings.HasPrefix(u.Path, "/"+repository+"/releases/download/"+r.Tag+"/") {
-			continue
-		}
-		if c.Archive.Digest == "" && c.Checksums.URL == "" {
-			continue
-		}
-		best = &c
-	}
-	return best, nil
-}
-
-func digestValue(raw string) (string, error) {
-	if !strings.HasPrefix(raw, "sha256:") {
-		return "", errors.New("发行包缺少有效的 SHA-256 摘要")
-	}
-	h := strings.TrimPrefix(raw, "sha256:")
-	b, err := hex.DecodeString(h)
-	if err != nil || len(b) != sha256.Size {
-		return "", errors.New("发行包 SHA-256 摘要无效")
-	}
-	return strings.ToLower(h), nil
+	return catalog.Select(releases, current, runtime.GOOS, runtime.GOARCH)
 }
 
 func releaseDigest(ctx context.Context, client *http.Client, c candidate) (string, error) {
-	var hash string
-	if c.Archive.Digest != "" {
-		var err error
-		hash, err = digestValue(c.Archive.Digest)
-		if err != nil {
-			return "", err
-		}
-	}
 	if c.Checksums.URL == "" {
-		return hash, nil
+		return c.SHA256(nil)
 	}
 	u, err := url.Parse(c.Checksums.URL)
 	if err != nil || u.Hostname() != "github.com" || !strings.HasPrefix(u.Path, "/"+repository+"/releases/download/v"+c.Version+"/") {
@@ -369,29 +270,14 @@ func releaseDigest(ctx context.Context, client *http.Client, c candidate) (strin
 	if err != nil {
 		return "", err
 	}
-	found := ""
-	for _, line := range strings.Split(string(b), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 || strings.TrimPrefix(fields[1], "*") != c.Archive.Name {
-			continue
-		}
-		h, err := digestValue("sha256:" + fields[0])
-		if err != nil || found != "" {
-			return "", errors.New("发行包校验清单无效或重复")
-		}
-		found = h
-	}
-	if found == "" || (hash != "" && hash != found) {
-		return "", errors.New("发行包与校验清单的 SHA-256 不一致")
-	}
-	return found, nil
+	return c.SHA256(b)
 }
 
 func download(ctx context.Context, client *http.Client, a asset, digest, path string, progress func(int64)) error {
 	if a.Size <= 0 || a.Size > maxArchive {
 		return errors.New("发行包大小无效或超过 512 MiB")
 	}
-	if _, err := digestValue("sha256:" + digest); err != nil {
+	if _, err := catalog.DigestValue("sha256:" + digest); err != nil {
 		return err
 	}
 	resp, err := request(ctx, client, a.URL)
