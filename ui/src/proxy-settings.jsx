@@ -90,7 +90,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     [rates, setRates] = useState({ up: 0, down: 0 });
   const [manual, setManual] = useState(emptyManual);
   const [routeDraft, setRouteDraft] = useState(null);
-  const [hostRefresh, setHostRefresh] = useState(false);
   const [promptCopyState, setPromptCopyState] = useState("");
   const [readingFile, setReadingFile] = useState(false);
   const alive = useRef(true),
@@ -704,17 +703,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       )}
       {tab === "sources" && (
         <>
-          <label className="check-line">
-            <input
-              type="checkbox"
-              checked={hostRefresh}
-              onChange={(e) => setHostRefresh(e.target.checked)}
-            />
-            手动更新订阅时通过主机网络下载
-          </label>
-          <p className="field-help">
-            自动更新始终使用当前配置的代理，不会切换到主机下载。
-          </p>
           <div className="proxy-toolbar">
             <span>
               {proxy.sources.length} 个来源 · {allNodes.length} 个节点
@@ -769,12 +757,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   <button
                     disabled={busy}
                     aria-label={`更新 ${s.name}`}
-                    onClick={() =>
-                      mutate("refresh", {
-                        id: s.id,
-                        host_download: hostRefresh,
-                      })
-                    }
+                    onClick={() => mutate("refresh", { id: s.id })}
                   >
                     <RefreshCw size={14} />
                   </button>

@@ -18,7 +18,7 @@ import (
 	"github.com/sylvinus/agent-vm/internal/hostproxy"
 )
 
-// BootstrapClient serves only explicitly host-routed subscription requests.
+// BootstrapClient downloads subscriptions using the host network configuration.
 func BootstrapClient() *http.Client {
 	return &http.Client{Transport: subscriptionHostTransport{hostproxy.NewTransport(), BootstrapDNSURLs()}, Timeout: 30 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error {
 		if len(via) >= 3 || r.URL.Scheme != "https" || r.URL.User != nil {

@@ -83,10 +83,13 @@ func TestProxyImportAPIReportsPartialSuccessAndProtectsRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	response := strings.Split(content, " - {name: unsupported")[0]
-	fetchProxySource = func(context.Context, *http.Client, string) ([]byte, string, error) {
+	fetchProxySource = func(_ context.Context, client *http.Client, _ string) ([]byte, string, error) {
+		if reflect.TypeOf(client.Transport) != reflect.TypeOf(managedproxy.BootstrapClient().Transport) {
+			t.Errorf("manual refresh used %T instead of the host network transport", client.Transport)
+		}
 		return []byte(response), "", nil
 	}
-	if job := mutate("refresh", proxyInput{ID: src.ID, HostDownload: true}); job.Error != "" {
+	if job := mutate("refresh", proxyInput{ID: src.ID}); job.Error != "" {
 		t.Fatal(job.Error)
 	}
 	before, _ := managedproxy.Load(s.profile)
@@ -94,7 +97,7 @@ func TestProxyImportAPIReportsPartialSuccessAndProtectsRefresh(t *testing.T) {
 		t.Fatal("successful refresh retained stale skipped-node report")
 	}
 	response = strings.Replace(content, "mport: 35000-39000", "mport: invalid", 1) + " - {name: spare, type: http, server: example.com, port: 8080}\n"
-	if job := mutate("refresh", proxyInput{ID: src.ID, HostDownload: true}); !strings.Contains(job.Error, "hopping") || !strings.Contains(job.Error, "mport") || strings.Contains(job.Error, "private-") {
+	if job := mutate("refresh", proxyInput{ID: src.ID}); !strings.Contains(job.Error, "hopping") || !strings.Contains(job.Error, "mport") || strings.Contains(job.Error, "private-") {
 		t.Fatal("refresh did not identify the skipped active exit safely", job.Error)
 	}
 	after, _ := managedproxy.Load(s.profile)

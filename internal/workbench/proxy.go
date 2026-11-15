@@ -235,7 +235,7 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 		}
 		if in.URL != "" {
 			s.setMessage("正在下载节点订阅…")
-			client, e := s.subscriptionClient(in.HostDownload)
+			client, e := s.subscriptionClient(action == "refresh" || in.HostDownload)
 			if e != nil {
 				s.proxySourceFailure(in.ID, e)
 				return e
@@ -490,7 +490,6 @@ func (s *Server) refreshProxySubscriptions() {
 	}
 	for _, src := range p.Sources {
 		if src.URL != "" && src.Interval > 0 && time.Since(src.Updated) >= time.Duration(src.Interval)*time.Hour && time.Since(src.Attempted) > 15*time.Minute {
-			// Automatic refresh never opts into a host-network fallback.
 			_, _ = s.submitJob("proxy-update", func() error { return s.changeProxy("refresh", proxyInput{ID: src.ID}, nil) })
 			return
 		}

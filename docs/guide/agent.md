@@ -108,7 +108,7 @@ cage agent call proxy.select --input /private/path/selection.json --wait 2m
 cage agent call proxy.status
 ```
 
-链式代理使用 `proxy.route`，输入 `{"node_ids":["入口ID","最终出口ID"]}`，顺序为入口到出口。更新订阅使用 `proxy.refresh` 和已有来源 `id`；`proxy.import` 每次创建来源，不能盲目重试。成功应用代理只表示代理已准备好，客机启动后的安全检查还需单独验证。
+链式代理使用 `proxy.route`，输入 `{"node_ids":["入口ID","最终出口ID"]}`，顺序为入口到出口。更新订阅使用 `proxy.refresh` 和已有来源 `id`，手动及定时更新均通过宿主机网络下载；`proxy.import` 每次创建来源，不能盲目重试。成功应用代理只表示代理已准备好，客机启动后的安全检查还需单独验证。
 
 ### 准备环境并打开项目
 
