@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 
 const binary = process.argv[2];
 assert.ok(binary && isAbsolute(binary), 'Pass an absolute Cage CLI binary path.');
-const profile = await mkdtemp(join(tmpdir(), 'cage-agent-cli-'));
+// The controller creates a default project beside the profile. Windows Temp
+// is inside protected AppData, so use an isolated folder outside it.
+const profile = await mkdtemp(join(process.platform === 'win32' ? homedir() : tmpdir(), 'cage-agent-cli-'));
 const config = join(profile, 'profile', 'config.json');
 let controllerPID;
 function invoke(args, input) {
@@ -81,7 +83,14 @@ try {
   console.log('PASS: real CLI discovery, offline doctor, no implicit writes, idempotent init/start, account locking, private input, dry run, settings patch, tracked completion, proxy status and diagnostic export.');
 } finally {
   if (controllerPID) {
-    try { process.kill(controllerPID, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+    // On Windows sending SIGTERM terminates without releasing control.json.
+    // The native handoff selects the controller using this test's private profile.
+    const stopped = spawnSync(binary, ['prepare-update', '--json'], {
+      env: { ...process.env, CLAUDE_CAGE_CONFIG: config }, encoding: 'utf8', timeout: 30000,
+    });
+    assert.ifError(stopped.error);
+    assert.equal(stopped.status, 0, 'The isolated controller could not shut down.');
+    assert.equal(JSON.parse(stopped.stdout).status, 'prepared');
     // Wait for this test's controller to release its record before cleanup.
     let retired = false;
     for (let attempt = 0; attempt < 100; attempt++) {
