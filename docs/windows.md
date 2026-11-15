@@ -80,3 +80,14 @@ Windows 开发包将创建脚本放在安装目录的 `resources\guest-os\new-wi
 ## 静默安装选项
 
 静默安装可传入 `/DESKTOPSHORTCUT=0|1` 和 `/STARTMENUSHORTCUT=0|1`，参数放在最后的 `/D=` 安装目录之前。未提供参数的静默更新沿用已保存的快捷方式选择。
+
+## Windows 本地构建
+
+在 PowerShell 7 中运行构建脚本。准备 Git、与 `go.mod` 匹配的 Go、与 `global.json` 匹配的 .NET SDK、Node.js 与 npm、uv、curl、tar 和 7-Zip。生成安装程序还需要 NSIS 3。首次从源码编译 QEMU 需要 MSYS2 UCRT64，依赖包列表见[Windows 工具链清单](../.github/actions/windows-toolchain/action.yml)。已有通过构建清单校验的 QEMU 缓存时可直接复用。
+
+```powershell
+pwsh -NoProfile -File scripts/build-windows.ps1
+pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
+```
+
+本地冒烟测试遇到用户目录内的默认 TEMP 时，会将测试项目放到签出目录下的 `_output/windows-test-temp`。若签出目录本身在 AppData 等禁止共享的位置，可将 `RUNNER_TEMP` 指向有写权限的普通项目目录。

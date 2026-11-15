@@ -11,7 +11,15 @@ function Invoke-BuildTool {
 
 function Get-WindowsWorkbenchTestBase {
     if ($env:RUNNER_TEMP) { return [IO.Path]::GetFullPath($env:RUNNER_TEMP) }
-    return [IO.Path]::GetTempPath()
+    $temp = [IO.Path]::GetTempPath()
+    if ($IsWindows) {
+        $relative = [IO.Path]::GetRelativePath($env:USERPROFILE, $temp)
+        if (-not [IO.Path]::IsPathRooted($relative) -and $relative -ne '..' -and -not $relative.StartsWith('..\')) {
+            $buildTemp = Join-Path $PSScriptRoot '../_output/windows-test-temp'
+            return [IO.Directory]::CreateDirectory($buildTemp).FullName
+        }
+    }
+    return $temp
 }
 
 function Invoke-InIsolatedTestTemp {

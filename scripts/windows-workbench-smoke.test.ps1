@@ -32,7 +32,16 @@ try {
     Assert-SmokeContract ($env:TEMP -eq $savedTemp -and $env:TMP -eq $savedTmp) 'Failed tests changed the caller temp environment.'
     Assert-SmokeContract (-not (Test-Path -LiteralPath $childEnv.temp)) 'Owned test temp was not cleaned.'
     Remove-Item Env:RUNNER_TEMP -ErrorAction SilentlyContinue
-    Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq [IO.Path]::GetTempPath()) 'Local report directory lost its OS temp fallback.'
+    if ($IsWindows) {
+        $originalTemp = $env:TEMP
+        try {
+            $env:TEMP = Join-Path $env:USERPROFILE 'AppData/Local/Temp'
+            $expected = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../_output/windows-test-temp'))
+            Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq $expected) 'Smoke projects must be outside AppData.'
+        } finally { $env:TEMP = $originalTemp }
+    } else {
+        Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq [IO.Path]::GetTempPath()) 'Local report directory lost its OS temp fallback.'
+    }
     $report = Join-Path $directory 'smoke.json'
     $fixture = Join-Path $directory 'fixture.json'
     $childScript = Join-Path $directory 'child.ps1'

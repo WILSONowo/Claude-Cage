@@ -34,7 +34,7 @@ and file-sharing fix; Windows results do not establish native acceptance there.
 
 The build retains `cage-build-ui-*/smoke.json` and
 `cage-build-diagnostics-*/diagnostics.json` under `RUNNER_TEMP` (or OS temp
-outside CI). The workflow uploads only these public reports and the existing
+outside CI, or `_output/windows-test-temp` when Windows temp is under the user profile). The workflow uploads only these public reports and the existing
 installer fixture reports. Raw smoke data/profile files remain under the
 smoke's `private/` directory on failure and are not uploaded. Successful smoke
 cleanup removes the private directory but retains its public result through
