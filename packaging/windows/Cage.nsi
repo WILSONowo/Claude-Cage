@@ -404,9 +404,12 @@ Function RestorePreservedFiles
     SetErrorLevel 2
     !insertmacro AbortTransaction "安装恢复尚未完成。文件分别保留在 $BackupDir 和 $StageDir，请保留这两个目录后重试。"
   ${EndIf}
-  ClearErrors
-  Rename "$BackupDir" "$INSTDIR"
-  ${If} ${Errors}
+  ; The installation folder was kept, so the previous entries move back into it.
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation attach -Target "$INSTDIR" -Source "$BackupDir" $DiagnosticArguments'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    DetailPrint "$1"
     SetErrorLevel 2
     !insertmacro AbortTransaction "原安装目录未能恢复。文件保留在 $BackupDir，新程序保留在 $StageDir。"
   ${EndIf}
@@ -549,7 +552,9 @@ Section "Cage" Main
   ${EndIf}
   DetailPrint "正在检查并保留已有项目和修改文件…"
   !insertmacro InstallPhase "preparing_file_transaction"
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation prepare -Target "$StageDir" -Source "$INSTDIR" -Backup "$BackupDir" -Receipt "$TransactionRecord" $DiagnosticArguments'
+  ; CageData is the default storage of a packaged Windows installation. It
+  ; stays in place: a VM registered on it keeps its paths and open handles.
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation prepare -Target "$StageDir" -Source "$INSTDIR" -Backup "$BackupDir" -Receipt "$TransactionRecord" -KeepInPlace CageData $DiagnosticArguments'
   Pop $0
   Pop $1
   StrCpy $HelperExit $0
@@ -564,17 +569,25 @@ Section "Cage" Main
   SetOutPath "$TEMP"
   ${If} $ExistingInstall == "1"
     !insertmacro InstallPhase "moving_previous_application"
-    System::Call 'kernel32::MoveFileW(w "$INSTDIR", w "$BackupDir") i.r0 ?e'
+    ; The installation folder itself stays; only its program and personal
+    ; entries move, so kept data and open handles below it are untouched.
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation detach -Target "$BackupDir" -Source "$INSTDIR" -Receipt "$TransactionRecord" $DiagnosticArguments'
+    Pop $0
     Pop $1
-    ${If} $0 == 0
-      StrCpy $HelperExit "win32_$1"
-      Call WriteInstallDiagnostic
+    StrCpy $HelperExit $0
+    Call WriteInstallDiagnostic
+    ${If} $0 != 0
+      DetailPrint "$1"
+      ${If} $0 == 3
+        SetErrorLevel 2
+        !insertmacro AbortTransaction "部分旧文件未能移回。请保留 $BackupDir、$StageDir 和 $TransactionRecord 以便恢复。"
+      ${EndIf}
       nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation complete -Target "$INSTDIR" -Receipt "$TransactionRecord" $DiagnosticArguments'
       Pop $0
       Pop $1
       RMDir /r "$StageDir"
       SetErrorLevel 2
-      !insertmacro AbortTransaction "无法移动旧程序目录（$HelperExit）。请退出占用目录的程序后重试，或把新版安装到另一个空目录。"
+      !insertmacro AbortTransaction "无法替换旧程序文件。请关闭占用文件的程序后重试。"
     ${EndIf}
     DetailPrint "正在迁入个人文件并保留原有链接…"
     !insertmacro InstallPhase "moving_personal_files"
@@ -595,7 +608,23 @@ Section "Cage" Main
   ${EndIf}
   !insertmacro InstallPhase "publishing_application"
   ClearErrors
-  Rename "$StageDir" "$INSTDIR"
+  ${If} $BackupDir != ""
+    ; The kept installation folder receives the staged entries one by one.
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation attach -Target "$INSTDIR" -Source "$StageDir" $DiagnosticArguments'
+    Pop $0
+    Pop $1
+    StrCpy $HelperExit $0
+    Call WriteInstallDiagnostic
+    ${If} $0 == 3
+      SetErrorLevel 2
+      !insertmacro AbortTransaction "部分新文件未能移回。请保留 $BackupDir、$StageDir 和 $TransactionRecord 以便恢复。"
+    ${ElseIf} $0 != 0
+      DetailPrint "$1"
+      SetErrors
+    ${EndIf}
+  ${Else}
+    Rename "$StageDir" "$INSTDIR"
+  ${EndIf}
   ${If} ${Errors}
     ${If} $BackupDir != ""
       Call RestorePreservedFiles

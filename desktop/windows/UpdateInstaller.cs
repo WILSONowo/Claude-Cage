@@ -150,16 +150,18 @@ internal static class UpdateInstaller
                     CopyTree(backup, restored);
                     var receipt = plan.Target + ".cage-installation.json";
                     await PreserveFiles("prepare", plan.Target, restored, receipt, failed);
-                    Directory.Move(plan.Target, failed);
+                    // The installation folder and its CageData stay in place,
+                    // as in NSIS: only the other top-level entries move.
+                    await PreserveFiles("detach", plan.Target, failed, receipt);
                     try
                     {
                         await PreserveFiles("move", failed, restored, receipt);
-                        Directory.Move(restored, plan.Target);
+                        await PreserveFiles("attach", restored, plan.Target, receipt);
                     }
-                    catch
+                    catch (Exception transferError) when (transferError is not IncompleteFileTransferException)
                     {
                         await PreserveFiles("restore", restored, failed, receipt);
-                        Directory.Move(failed, plan.Target);
+                        await PreserveFiles("attach", failed, plan.Target, receipt);
                         await PreserveFiles("complete", "", plan.Target, receipt);
                         throw;
                     }
@@ -224,6 +226,11 @@ internal static class UpdateInstaller
     public static Task CheckGuestLocation(string target) =>
         PreserveFiles("check-vm-location", "", target, target + ".cage-installation.json");
 
+    private sealed class IncompleteFileTransferException : IOException
+    {
+        public IncompleteFileTransferException() : base("部分程序文件未能移回，事务回执和备份已保留。") { }
+    }
+
     private static async Task PreserveFiles(string operation, string source, string target, string receipt, string? backupPath = null)
     {
         var directory = receipt + ".helper-" + Guid.NewGuid().ToString("N");
@@ -240,7 +247,7 @@ internal static class UpdateInstaller
             using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(10));
             var executable = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
             var arguments = new List<string> { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
-                "-Operation", operation, "-Source", source, "-Target", target, "-Receipt", receipt, "-LegacyTarget" };
+                "-Operation", operation, "-Source", source, "-Target", target, "-Receipt", receipt, "-LegacyTarget", "-KeepInPlace", "CageData" };
             if (backupPath != null) { arguments.Add("-Backup"); arguments.Add(backupPath); }
             using var process = new Process { StartInfo = Backend.StartInfo(executable, arguments.ToArray()) };
             if (!process.Start()) throw new IOException("无法启动安装文件保留组件");
@@ -254,6 +261,7 @@ internal static class UpdateInstaller
                 throw new IOException(process.ExitCode == 108
                     ? "程序目录中有已绑定的 Windows 虚拟机。请用完整安装包将新版安装到另一个空目录，保留原目录和虚拟磁盘，勿运行旧卸载程序。"
                     : "无法确认 Windows 虚拟机的位置。请用完整安装包将新版安装到另一个空目录，并保留原目录。");
+            if (process.ExitCode == 3) throw new IncompleteFileTransferException();
             if (process.ExitCode != 0) throw new IOException("安装文件保留未完成：" + error.Trim());
         }
         finally
@@ -299,6 +307,9 @@ internal static class UpdateInstaller
         while (pending.TryDequeue(out var directory))
         foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
         {
+            // The persistent VM tree stays at its installed path even for
+            // legacy installations with no manifest and exclusively locked disks.
+            if (directory == source && string.Equals(Path.GetFileName(entry), "CageData", StringComparison.OrdinalIgnoreCase)) continue;
             var attributes = File.GetAttributes(entry);
             if (++count > 100000) throw new IOException("安装目录文件过多，无法安全备份");
             // User links remain in the installed tree. NSIS and rollback move

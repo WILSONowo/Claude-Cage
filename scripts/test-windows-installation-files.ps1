@@ -63,13 +63,13 @@ $remaining = @($args | Select-Object -Skip 1)
     if ($LASTEXITCODE -ne $Expected) { throw "Helper returned $LASTEXITCODE, expected $Expected. $output" }
 }
 function Prepare([string]$Old, [string]$Stage, [string]$Receipt) {
-    Invoke-Helper @('-Operation','prepare','-Source',$Old,'-Target',$Stage,'-Receipt',$Receipt,'-Backup',($Old+'-backup'))
+    Invoke-Helper @('-Operation','prepare','-Source',$Old,'-Target',$Stage,'-Receipt',$Receipt,'-Backup',($Old+'-backup'),'-KeepInPlace','CageData')
 }
 function Commit([string]$Old, [string]$Stage, [string]$Receipt) {
     $backup = $Old + '-backup'
-    [IO.Directory]::Move($Old, $backup)
+    Invoke-Helper @('-Operation','detach','-Source',$Old,'-Target',$backup,'-Receipt',$Receipt)
     Invoke-Helper @('-Operation','move','-Source',$backup,'-Target',$Stage,'-Receipt',$Receipt)
-    [IO.Directory]::Move($Stage, $Old)
+    Invoke-Helper @('-Operation','attach','-Source',$Stage,'-Target',$Old,'-Receipt',$Receipt)
     Invoke-Helper @('-Operation','cleanup','-Source',$backup,'-Target',$Old,'-Receipt',$Receipt)
     return $backup
 }
@@ -315,6 +315,75 @@ try {
     $retained = @(Get-ChildItem (Join-Path $old 'Cage-preserved-files') -File -Recurse)
     Check (@($retained | Where-Object { (Get-Content $_.FullName -Raw) -eq 'obsolete library' }).Count -eq 1) 'Legacy DLL bytes were lost.'
     Check (@($retained | Where-Object { (Get-Content $_.FullName -Raw) -eq 'user directory' }).Count -eq 1) 'Conflicting user directory was lost.'
+    # Packaged Windows installations keep their default storage in CageData.
+    # A registered VM may hold its disk open; the update must neither move
+    # nor wait for it, and the installation folder itself stays (#108).
+    $scenario = Join-Path $root 'kept-data'
+    $old = Join-Path $scenario 'installed'; $stage = Join-Path $scenario 'staged'; $receipt = Join-Path $scenario 'receipt.json'
+    $backup = $old + '-backup'
+    App $old 'old'; App $stage 'new'
+    Write-File (Join-Path $old 'CageData/vm/disk.vhdx') 'persistent disk'
+    Write-File (Join-Path $old 'my-project/work.txt') 'kept project'
+    $disk = [IO.File]::Open((Join-Path $old 'CageData/vm/disk.vhdx'), 'Open', 'Read', 'Read')
+    try {
+        Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',$backup,'-KeepInPlace','CageData')
+        Check (!(@((Get-Content $receipt -Raw | ConvertFrom-Json).moves) | Where-Object { $_.path -like 'CageData*' })) 'Preparation scheduled the kept data folder for a move.'
+        Invoke-Helper @('-Operation','detach','-Source',$old,'-Target',$backup,'-Receipt',$receipt)
+        Check ((@(Get-ChildItem -LiteralPath $old -Force).Name -join ',') -eq 'CageData') 'Detaching left program entries or moved the kept data folder.'
+        Invoke-Helper @('-Operation','move','-Source',$backup,'-Target',$stage,'-Receipt',$receipt)
+        Invoke-Helper @('-Operation','attach','-Source',$stage,'-Target',$old,'-Receipt',$receipt)
+        Check (!(Test-Path -LiteralPath $stage)) 'Attaching left the staged folder behind.'
+        Invoke-Helper @('-Operation','cleanup','-Source',$backup,'-Target',$old,'-Receipt',$receipt)
+    } finally { $disk.Dispose() }
+    Check ((Get-Content (Join-Path $old 'program.txt') -Raw) -eq 'new') 'The kept-data update did not publish the new program.'
+    Check ((Get-Content (Join-Path $old 'CageData/vm/disk.vhdx') -Raw) -eq 'persistent disk') 'The kept data changed.'
+    Check ((Get-Content (Join-Path $old 'my-project/work.txt') -Raw) -eq 'kept project') 'The kept-data update lost a project.'
+    Check (!(Test-Path -LiteralPath $backup) -and !(Test-Path -LiteralPath $receipt)) 'The kept-data update left its backup or receipt.'
+    if ($windows) {
+        # An open program file blocks detaching; every moved entry returns and
+        # the diagnostic names only the kind of entry, never its path.
+        $scenario = Join-Path $root 'detach-rollback'
+        $old = Join-Path $scenario 'installed'; $stage = Join-Path $scenario 'staged'; $receipt = Join-Path $scenario 'receipt.json'
+        $backup = $old + '-backup'; $diagnostic = Join-Path $scenario 'detach.json'
+        App $old 'old'; App $stage 'new'
+        Write-File (Join-Path $old 'CageData/vm/disk.vhdx') 'persistent disk'
+        Write-File (Join-Path $old 'my-project/work.txt') 'kept project'
+        $before = @(Get-ChildItem -LiteralPath $old -Force).Name -join ','
+        Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',$backup,'-KeepInPlace','CageData')
+        $held = [IO.File]::Open((Join-Path $old 'program.txt'), 'Open', 'Read', 'Read')
+        try { Invoke-Helper @('-Operation','detach','-Source',$old,'-Target',$backup,'-Receipt',$receipt,'-Diagnostics',$diagnostic) 1 }
+        finally { $held.Dispose() }
+        Check ((@(Get-ChildItem -LiteralPath $old -Force).Name -join ',') -eq $before) 'A failed detach did not return every moved entry.'
+        Check (!(Test-Path -LiteralPath $backup)) 'A failed detach left an empty backup folder.'
+        $text = Get-Content -LiteralPath $diagnostic -Raw
+        $failure = $text | ConvertFrom-Json
+        Check ($failure.operation -eq 'detach' -and $failure.blocked -eq 'program') 'The detach diagnostic did not classify the blocking entry.'
+        Check (!$text.Contains($root) -and !$text.Contains('program.txt')) 'The detach diagnostic contains file paths.'
+        Invoke-Helper @('-Operation','complete','-Target',$old,'-Receipt',$receipt)
+        Check (!(Test-Path -LiteralPath $receipt)) 'Completing a failed detach left its receipt.'
+    }
+    # A late personal entry can block publishing after the old entries have
+    # been detached. Restore those old entries without disturbing the new one.
+    $scenario = Join-Path $root 'publish-rollback'
+    $old = Join-Path $scenario 'installed'; $stage = Join-Path $scenario 'staged'; $receipt = Join-Path $scenario 'receipt.json'
+    $backup = $old + '-backup'
+    App $old 'old'; App $stage 'new'
+    Write-File (Join-Path $stage 'zz-new-file.txt') 'new program'
+    Write-File (Join-Path $old 'CageData/vm/disk.img') 'persistent data'
+    Write-File (Join-Path $old 'project/example') 'personal file'
+    Prepare $old $stage $receipt
+    Invoke-Helper @('-Operation','detach','-Source',$old,'-Target',$backup,'-Receipt',$receipt)
+    Invoke-Helper @('-Operation','move','-Source',$backup,'-Target',$stage,'-Receipt',$receipt)
+    Write-File (Join-Path $old 'zz-new-file.txt') 'user created during update'
+    Invoke-Helper @('-Operation','attach','-Source',$stage,'-Target',$old,'-Receipt',$receipt) 1
+    Invoke-Helper @('-Operation','restore','-Source',$stage,'-Target',$backup,'-Receipt',$receipt)
+    Invoke-Helper @('-Operation','attach','-Source',$backup,'-Target',$old,'-Receipt',$receipt)
+    Invoke-Helper @('-Operation','complete','-Target',$old,'-Receipt',$receipt)
+    Check ((Get-Content (Join-Path $old 'program.txt') -Raw) -eq 'old') 'Failed publish did not return the original program'
+    Check ((Get-Content (Join-Path $old 'project/example') -Raw) -eq 'personal file') 'Failed publish lost the original project'
+    Check ((Get-Content (Join-Path $old 'zz-new-file.txt') -Raw) -eq 'user created during update') 'Failed publish removed a concurrent file'
+    Check ((Get-Content (Join-Path $old 'CageData/vm/disk.img') -Raw) -eq 'persistent data') 'Failed publish lost the VM disk'
+    Check (!(Test-Path $receipt)) 'Restored installation retained an unfinished receipt'
     $scenario = Join-Path $root 'legacy-automatic-rollback'
     $old = Join-Path $scenario 'installed'; $stage = Join-Path $scenario 'restored'; $receipt = Join-Path $scenario 'receipt.json'
     App $stage 'old-program'
@@ -325,7 +394,7 @@ try {
     Write-File (Join-Path $old 'my-project/work.txt') 'saved while the new version was running'
     Write-File (Join-Path $old 'personal.txt') 'latest personal file'
     New-FileLink (Join-Path $old 'my-project/latest-link.txt') 'work.txt'
-    Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',($old+'-backup'),'-LegacyTarget')
+    Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',($old+'-backup'),'-LegacyTarget','-KeepInPlace','CageData')
     $null = Commit $old $stage $receipt
     Check ((Get-Content (Join-Path $old 'program.txt') -Raw) -eq 'old-program') 'Legacy recovery did not restore the previous program.'
     Check ((Get-Content (Join-Path $old 'my-project/work.txt') -Raw) -eq 'saved while the new version was running') 'Legacy recovery put an old project at the active path.'

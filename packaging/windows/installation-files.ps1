@@ -1,17 +1,22 @@
 ﻿#requires -Version 5.1
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('check-vm-location', 'prepare', 'move', 'restore', 'cleanup', 'complete', 'uninstall')][string]$Operation,
+    [Parameter(Mandatory)][ValidateSet('check-vm-location', 'prepare', 'move', 'restore', 'cleanup', 'complete', 'uninstall', 'detach', 'attach')][string]$Operation,
     [Parameter(Mandatory)][string]$Target,
     [string]$Source,
     [string]$Receipt,
     [string]$Manifest,
     [string]$Backup,
     [string]$Diagnostics,
-    [switch]$LegacyTarget
+    [switch]$LegacyTarget,
+    # Top-level folders that stay in the installation folder during an update.
+    # A VM registered on a disk inside CageData keeps its path and handles.
+    [string[]]$KeepInPlace = @()
 )
 $ErrorActionPreference = 'Stop'
 $diagnosticStep = 'initializing'
+# Which kind of entry blocked a move: never its name, path or message.
+$blockedEntry = $null
 trap {
     $failure = $_
     if ($Diagnostics) {
@@ -24,11 +29,12 @@ trap {
                 $exception = $exception.InnerException
             }
             $lines = @([regex]::Matches($failure.ScriptStackTrace, ': line (\d+)') | ForEach-Object { [int]$_.Groups[1].Value })
-            @{operation = $Operation; phase = $diagnosticStep; pointerSize = [IntPtr]::Size; errors = $chain; lines = $lines; category = [string]$failure.CategoryInfo.Category} | ConvertTo-Json -Depth 4 |
+            @{operation = $Operation; phase = $diagnosticStep; pointerSize = [IntPtr]::Size; errors = $chain; lines = $lines; category = [string]$failure.CategoryInfo.Category; blocked = $blockedEntry} | ConvertTo-Json -Depth 4 |
                 Set-Content -LiteralPath $Diagnostics -Encoding UTF8
           }
         } catch { }
     }
+    if ($diagnosticStep -eq 'restoring_top_level_entries') { exit 3 }
     throw $failure
 }
 $manifestName = 'Cage.install-files.json'
@@ -134,6 +140,57 @@ function Preserved-Destination([string]$Relative, [bool]$Quarantine) {
     return $Relative
 }
 
+function Program-Names([string]$Root) {
+    $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($path in (Read-FileManifest (Join-Path $Root $manifestName)).Keys) { $null = $names.Add(($path -split '/')[0]) }
+    foreach ($name in @($manifestName, 'Uninstall.exe')) { $null = $names.Add($name) }
+    return ,$names
+}
+
+# Renaming the installation folder as a whole fails while any file below it is
+# open without delete sharing, as a registered VM's disk or configuration can
+# be, or while a process works in that folder. Moving its top-level entries
+# one by one leaves kept folders and the folder itself in place. On failure
+# every entry moved so far goes back.
+function Move-TopLevel([string]$From, [string]$To, [string[]]$Keep, [switch]$Detach) {
+    $programNames = Program-Names $From
+    [IO.Directory]::CreateDirectory($To) | Out-Null
+    $moved = [Collections.Generic.List[string]]::new()
+    try {
+        foreach ($entry in @(Get-ChildItem -LiteralPath $From -Force)) {
+            if ($entry.Name -in $Keep) { continue }
+            $script:blockedEntry = if ($programNames.Contains($entry.Name)) { 'program' }
+                elseif ($entry.Name -eq 'Cage-preserved-files') { 'preserved' }
+                elseif ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { 'link' }
+                else { 'personal' }
+            $destination = Join-Path $To $entry.Name
+            if (Get-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue) { throw 'The destination already has an entry of this name.' }
+            if ($entry.Attributes -band [IO.FileAttributes]::Directory) { [IO.Directory]::Move($entry.FullName, $destination) }
+            else { [IO.File]::Move($entry.FullName, $destination) }
+            $moved.Add($entry.Name)
+        }
+        if (!$Detach) { [IO.Directory]::Delete($From) }
+        $script:blockedEntry = $null
+    } catch {
+        $failure = $_
+        try {
+            for ($index = $moved.Count - 1; $index -ge 0; $index--) {
+                $current = Get-Item -LiteralPath (Join-Path $To $moved[$index]) -Force
+                $original = Join-Path $From $moved[$index]
+                if ($current.Attributes -band [IO.FileAttributes]::Directory) { [IO.Directory]::Move($current.FullName, $original) }
+                else { [IO.File]::Move($current.FullName, $original) }
+            }
+            if ($Detach -and !@(Get-ChildItem -LiteralPath $To -Force).Count) { [IO.Directory]::Delete($To) }
+        } catch {
+            # An entry acquired a lock or a destination collision during undo.
+            # The caller must preserve the receipt and both sides for recovery.
+            $script:diagnosticStep = 'restoring_top_level_entries'
+            throw
+        }
+        throw $failure
+    }
+}
+
 function Save-Transfer($Transfer) {
     $temporary = $Receipt + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
     try {
@@ -179,18 +236,27 @@ if ($Operation -eq 'check-vm-location') {
         throw '无法核对 Windows 客机绑定；请将新程序安装到独立的空目录。'
     }
     $instance = [IO.Path]::GetFullPath($binding.instance_directory).TrimEnd('\')
-    $inside = $instance.Equals($Target, [StringComparison]::OrdinalIgnoreCase) -or
-        $instance.StartsWith($Target + '\', [StringComparison]::OrdinalIgnoreCase)
-    if (!$inside) {
-        Initialize-VerifiedDeletion
-        $physicalRoot = [CageVerifiedFile]::DirectoryLocation($Target)
-        $physicalInstance = [CageVerifiedFile]::DirectoryLocation($instance)
-        $inside = $physicalInstance.Equals($physicalRoot, [StringComparison]::OrdinalIgnoreCase) -or
-            $physicalInstance.StartsWith($physicalRoot + '\', [StringComparison]::OrdinalIgnoreCase)
+    # Check the registered path and the actual location. A profile junction
+    # to CageData is stable, but a path through an installation entry that
+    # will be moved (including an alias for CageData) cannot be used.
+    Initialize-VerifiedDeletion
+    $physicalRoot = [CageVerifiedFile]::DirectoryLocation($Target)
+    $physicalInstance = [CageVerifiedFile]::DirectoryLocation($instance)
+    foreach ($pair in @(@($Target, $instance), @($physicalRoot, $physicalInstance))) {
+        $installPath, $guestPath = $pair
+        $keep = $installPath + '\CageData'
+        if ($guestPath.Equals($installPath, [StringComparison]::OrdinalIgnoreCase) -or
+            ($guestPath.StartsWith($installPath + '\', [StringComparison]::OrdinalIgnoreCase) -and
+             !$guestPath.Equals($keep, [StringComparison]::OrdinalIgnoreCase) -and
+             !$guestPath.StartsWith($keep + '\', [StringComparison]::OrdinalIgnoreCase))) { exit 108 }
     }
-    if ($inside) { exit 108 }
     return
 } elseif ($Operation -eq 'prepare') {
+    foreach ($kept in $KeepInPlace) {
+        if (Get-Item -LiteralPath (Join-Path $Target $kept) -Force -ErrorAction SilentlyContinue) {
+            throw '新程序与保留的数据目录重名，无法安全安装。'
+        }
+    }
     $diagnosticStep = 'reading_new_manifest'
     if (Test-Path -LiteralPath $Receipt) { throw ('仍有未完成的安装事务，请保留并检查回执：' + $Receipt) }
     $current = Read-FileManifest (Join-Path $Target $manifestName)
@@ -218,6 +284,7 @@ if ($Operation -eq 'check-vm-location') {
         while ($pending.Count) {
           foreach ($entry in Get-ChildItem -LiteralPath $pending.Dequeue() -Force) {
             $relative = Relative-Path $Source $entry.FullName
+            if ($relative -in $KeepInPlace) { continue }
             $isLink = [bool]($entry.Attributes -band [IO.FileAttributes]::ReparsePoint)
             $programContent = $previous.ContainsKey($relative) -or (
                 $programDirectories.Contains((Split-Path $relative -Parent).Replace('\', '/')) -and
@@ -274,7 +341,7 @@ if ($Operation -eq 'check-vm-location') {
     $files = @($current.Keys | Sort-Object | ForEach-Object { @{ path = $_; sha256 = $current[$_] } })
     @{ version = 1; files = $files } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Target $manifestName) -Encoding UTF8
     $diagnosticStep = 'writing_transaction_receipt'
-    $record = @{kind = 'cage-installation'; version = 1; installPath = $Source; stagePath = $Target; backupPath = $Backup; files = @($transfers); directories = $directories; moves = @($moves)}
+    $record = @{kind = 'cage-installation'; version = 1; installPath = $Source; stagePath = $Target; backupPath = $Backup; files = @($transfers); directories = $directories; moves = @($moves); keepInPlace = @($KeepInPlace)}
     $encoding = [Text.UTF8Encoding]::new($true)
     [byte[]]$bytes = $encoding.GetPreamble() + $encoding.GetBytes(($record | ConvertTo-Json -Depth 6))
     $temporary = $Receipt + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
@@ -337,6 +404,21 @@ if ($Operation -eq 'check-vm-location') {
         Write-Output ('安装期间变化的文件已保留在 ' + $recovery)
     } else { [IO.Directory]::Delete($Source) }
     Complete-Transfer
+} elseif ($Operation -eq 'detach') {
+    # Source is the installation folder, Target the new backup folder.
+    $diagnosticStep = 'detaching_previous_application'
+    $transfer = Get-Content -LiteralPath $Receipt -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($transfer.kind -ne 'cage-installation' -or !$Source) { throw '安装事务回执无效，原安装目录已保留。' }
+    if (Test-Path -LiteralPath $Target) { throw '备份目录已存在，原安装目录已保留。' }
+    $Source = [IO.Path]::GetFullPath($Source).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    Move-TopLevel $Source $Target @($transfer.keepInPlace) -Detach
+} elseif ($Operation -eq 'attach') {
+    # Source is a complete program folder: the staged update, or the previous
+    # application during a rollback. Target is the installation folder.
+    $diagnosticStep = 'attaching_application'
+    if (!$Source) { throw '缺少待发布的程序目录。' }
+    $Source = [IO.Path]::GetFullPath($Source).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    Move-TopLevel $Source $Target @()
 } elseif ($Operation -eq 'complete') {
     $diagnosticStep = 'completing_transaction_receipt'
     Complete-Transfer

@@ -171,15 +171,16 @@ try
     try { ensureComplete.Invoke(null, [Path.Combine(integration, "missing installation")]); }
     catch (System.Reflection.TargetInvocationException error) when (error.InnerException is IOException) { rejectedMissingInstallation = true; }
     Check(rejectedMissingInstallation, "updater accepted a missing installation and could restore a program-only snapshot");
+    File.Delete(Path.Combine(snapshotSource, "Cage.install-files.json"));
+    var legacySnapshot = Path.Combine(integration, "legacy snapshot");
     if (!OperatingSystem.IsWindows())
-    {
-        File.Delete(Path.Combine(snapshotSource, "Cage.install-files.json"));
         Directory.CreateSymbolicLink(Path.Combine(snapshotSource, "external-link"), Path.Combine(snapshotSource, "my-project"));
-        var legacySnapshot = Path.Combine(integration, "legacy snapshot");
+    var guestDir = Directory.CreateDirectory(Path.Combine(snapshotSource, "CageData"));
+    using (File.Open(Path.Combine(guestDir.FullName, "guest.vhdx"), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
         copyTree.Invoke(null, [snapshotSource, legacySnapshot]);
-        Check(File.ReadAllText(Path.Combine(legacySnapshot, "my-project", "work.txt")) == "personal data", "legacy snapshot missed a regular file");
-        Check(!Directory.Exists(Path.Combine(legacySnapshot, "external-link")), "legacy snapshot followed a user link");
-    }
+    Check(!Directory.Exists(Path.Combine(legacySnapshot, "CageData")), "legacy snapshot copied the live guest disk");
+    Check(File.ReadAllText(Path.Combine(legacySnapshot, "my-project", "work.txt")) == "personal data", "legacy snapshot missed a regular file");
+    Check(!Directory.Exists(Path.Combine(legacySnapshot, "external-link")), "legacy snapshot followed a user link");
     await UpdateRecovery.PrepareRollback(backup);
     Check(File.Exists(Path.Combine(backup, "resources", "controller-invoked")), "recovery did not execute the old backend");
     Check(!File.Exists(Path.Combine(candidate, "resources", "controller-invoked")), "recovery executed the broken candidate backend");

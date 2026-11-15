@@ -138,11 +138,18 @@ try {
     $bound | ConvertTo-Json | Set-Content -LiteralPath $binding
     Run-Setup $target 'external-binding-same-directory' 0
     if (!$Baseline) {
-        $locked = [IO.File]::Open($disk, 'Open', 'Read', 'None')
+        $personal = Join-Path $target 'unrelated-project'
+        $null = [IO.Directory]::CreateDirectory($personal)
+        $locked = [IO.File]::Open((Join-Path $personal 'open.txt'), 'CreateNew', 'ReadWrite', 'None')
         try { Run-Setup $target 'unrelated-lock' 2 } finally { $locked.Dispose() }
         $failure = $reports['unrelated-lock']
-        Assert ($failure.phase -eq 'moving_previous_application' -and $failure.helperExit -match '^win32_[1-9][0-9]*$') 'Missing OS error for directory rename'
-        Assert (!(Test-Path -LiteralPath ($target + '.cage-installation.json'))) 'Unrelated failed move left an unresolved transaction'
+        $detail = Get-Content (Join-Path $root 'unrelated-lock.json.helper.json') -Raw | ConvertFrom-Json
+        Assert ($failure.phase -eq 'moving_previous_application' -and $detail.blocked -eq 'personal') 'Missing category for a blocked personal file'
+        Assert (!(Test-Path -LiteralPath ($target + '.cage-installation.json'))) 'Failed move left an unresolved transaction'
+        $bound.instance_directory = $personal
+        $bound | ConvertTo-Json | Set-Content -LiteralPath $binding
+        Run-Setup $target 'guest-outside-kept-tree' 2
+        Assert ($reports['guest-outside-kept-tree'].helperExit -eq '108') 'Installer would move an active registration outside CageData'
     }
     $junction = New-Item -ItemType Junction -Path (Join-Path $profileDir 'state') -Target (Split-Path $instance -Parent)
     $bound.instance_directory = Join-Path $junction.FullName (Split-Path $instance -Leaf)
@@ -152,15 +159,17 @@ try {
     $diskTime = [IO.File]::GetLastWriteTimeUtc($disk)
     $locked = [IO.File]::Open($disk, 'Open', 'Read', 'None')
     try {
-        Run-Setup $target 'bound-same-directory' 2
-        $failure = $reports['bound-same-directory']
         if ($Baseline) {
-            Assert ($failure.phase -eq 'moving_previous_application') 'Original installer did not reproduce the directory rename failure'
+            Run-Setup $target 'bound-same-directory' 2
+            Assert ($reports['bound-same-directory'].phase -eq 'moving_previous_application') 'Original installer did not reproduce the directory rename failure'
             return
         }
-        Assert ($failure.phase -eq 'checking_bound_vm_location' -and $failure.helperExit -eq '108') 'Missing actionable VM diagnostic'
-        Assert ((Get-ItemProperty -LiteralPath $key).InstallLocation -eq $target) 'Refused update changed registration'
-        Assert (!(Test-Path -LiteralPath ($target + '.cage-installation.json'))) 'Refused update created a rollback transaction'
+        # Test a pre-manifest installation with a registered, exclusively locked disk.
+        Remove-Item -LiteralPath (Join-Path $target 'Cage.install-files.json')
+        Run-Setup $target 'bound-same-directory' 0
+        Assert (Test-Path -LiteralPath (Join-Path $target 'Cage.install-files.json')) 'Legacy update did not publish the new manifest'
+        Assert ((Get-ItemProperty -LiteralPath $key).InstallLocation -eq $target) 'In-place update changed registration'
+        Assert (!(Test-Path -LiteralPath ($target + '.cage-installation.json'))) 'Successful update left an unfinished transaction'
         Run-Setup $other 'independent-directory' 0
         Assert ((Get-ItemProperty -LiteralPath $key).InstallLocation -eq $other) 'New installation registered the wrong path'
         $shortcut = Join-Path $root 'Desktop/Cage.lnk'
