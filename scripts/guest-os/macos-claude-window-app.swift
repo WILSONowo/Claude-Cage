@@ -340,9 +340,24 @@ private func handle(_ input: Request, inputSession: MacWindowInputSession) async
         if input.wait != true && input.refresh != true && !browser && canvas.stream.unchanged(after: input.after) {
             return ["unchanged": true, "sequence": input.after!]
         }
+        if let width=input.width, let height=input.height, let scale=input.scale,
+           let cached = canvas.cachedTarget(width:width, height:height, scale:scale) {
+            do {
+                var reply = try await canvas.capture(cached.0, filter:cached.1, layout:cached.2, after:input.after, wait:input.wait == true, binary:input.binary == true)
+                try consoleUser()
+                reply["targetMs"] = 0; reply["layoutMs"] = 0; reply["cached"] = true
+                return reply
+            } catch {
+                canvas.forgetTarget()
+                throw error
+            }
+        }
+        let targetStarted = Date()
         let (window, filter) = try await targetWindow()
+        let targetMs = (Date().timeIntervalSince(targetStarted) * 1000).rounded()
         if input.width != nil || input.height != nil || input.scale != nil {
             guard let width=input.width, let height=input.height, let scale=input.scale else { throw Failure(8,"invalid_input") }
+            let layoutStarted = Date()
             let capture = filter ?? SCContentFilter(desktopIndependentWindow: window)
             let layout = try await canvas.layout(window, filter:capture, width:width, height:height, scale:scale)
             // A window object from before AX resizing still describes the old
@@ -356,8 +371,11 @@ private func handle(_ input: Request, inputSession: MacWindowInputSession) async
                 target = fresh
                 source = selection ?? SCContentFilter(desktopIndependentWindow: fresh)
             }
-            let reply = try await canvas.capture(target, filter:source, layout:layout, after:input.after, wait:input.wait == true, binary:input.binary == true)
+            let layoutMs = (Date().timeIntervalSince(layoutStarted) * 1000).rounded()
+            var reply = try await canvas.capture(target, filter:source, layout:layout, after:input.after, wait:input.wait == true, binary:input.binary == true)
             try consoleUser()
+            canvas.remember(target, filter:source, layout:layout, width:width, height:height, scale:scale)
+            reply["targetMs"] = targetMs; reply["layoutMs"] = layoutMs
             return reply
         }
         let data = try await screenshot(window, filter: filter)
@@ -370,7 +388,8 @@ private func handle(_ input: Request, inputSession: MacWindowInputSession) async
         inputSession.reset()
         return ["ok": true]
     case "ime":
-        let (window, _) = try await targetWindow()
+        let window: SCWindow
+        if let cached = canvas.cachedWindow() { window = cached } else { window = try await targetWindow().0 }
         let geometry = try input.geometry.map { try canvas.inputGeometry($0, window: window) }
         return try inputSession.ime(input, window: window, canvas: geometry) { value in
             if value.isEmpty { return }
@@ -379,7 +398,8 @@ private func handle(_ input: Request, inputSession: MacWindowInputSession) async
             try sendInput(text, window: window, canvas: geometry, inputSession: inputSession)
         }
     case "text", "key", "click", "scroll", "pointer":
-        let (window, _) = try await targetWindow()
+        let window: SCWindow
+        if let cached = canvas.cachedWindow() { window = cached } else { window = try await targetWindow().0 }
         let geometry = try input.geometry.map { try canvas.inputGeometry($0, window:window) }
         try sendInput(input, window: window, canvas:geometry, inputSession: inputSession)
         return ["ok": true]

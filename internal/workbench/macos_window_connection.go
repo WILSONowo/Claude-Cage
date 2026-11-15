@@ -109,6 +109,7 @@ func (s *Server) macOSWindowConnection(w http.ResponseWriter, r *http.Request) {
 	defer func() { cancel(); input.Close(); output.Close(); _ = cmd.Wait() }()
 	scanner := bufio.NewScanner(output)
 	scanner.Buffer(make([]byte, 64<<10), 12<<20)
+	metrics := newInputMetrics(s.recordInputMetrics)
 	for {
 		var message struct {
 			ID      uint64             `json:"id"`
@@ -130,12 +131,14 @@ func (s *Server) macOSWindowConnection(w http.ResponseWriter, r *http.Request) {
 			limit = 55 * time.Second
 		}
 		timer := time.AfterFunc(limit, func() { cancel(); output.Close(); ws.Close() })
+		requested := time.Now()
 		_, err = input.Write(append(body, '\n'))
 		if err != nil || !scanner.Scan() {
 			timer.Stop()
 			return
 		}
 		timer.Stop()
+		metrics.observe(message.Request.Action, time.Since(requested))
 		data := append(json.RawMessage(nil), scanner.Bytes()...)
 		if !json.Valid(data) {
 			return
