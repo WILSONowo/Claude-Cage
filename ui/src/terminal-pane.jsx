@@ -1,9 +1,8 @@
-import { installTerminalIME } from "./terminal-ime.mjs";
 import { isMac, terminalModifier } from "./platform.mjs";
 import React, { useEffect, useRef, useState } from "react";
 import { useAppearance } from "./appearance";
 import { terminalTheme, systemCodeFont } from "./appearance-state.mjs";
-import { Terminal } from "@xterm/xterm";
+import { Terminal } from "../.generated/xterm.mjs";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { claudeLoginLink, isClaudeLoginLink } from "./terminal-login-link.mjs";
 import { FitAddon } from "@xterm/addon-fit";
@@ -188,7 +187,6 @@ export default function TerminalView({ session, visible, focused = true, onStatu
       }).catch((error) => { if (!disposed) onStatus(error.message); });
     };
     const host = box.current;
-    const disposeIME = isMac ? installTerminalIME(host, terminal) : () => {};
     const onPaste = (event) => {
       if (!visibleRef.current || !focusedRef.current) return;
       event.preventDefault(); event.stopImmediatePropagation();
@@ -310,7 +308,6 @@ export default function TerminalView({ session, visible, focused = true, onStatu
       revealStartup.current = null;
       startupRender.dispose();
       clipboardHandler.dispose();
-      disposeIME();
       host.removeEventListener("paste", onPaste, true);
       host.removeEventListener("copy", onCopy, true);
       host.removeEventListener("dragover", onDragOver);
