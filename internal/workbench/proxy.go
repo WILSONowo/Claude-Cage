@@ -24,7 +24,7 @@ type proxyInput struct {
 	URL          string   `json:"url"`
 	Content      string   `json:"content"`
 	Interval     int      `json:"interval_hours"`
-	HostDownload bool     `json:"host_download"`
+	HostDownload bool     `json:"host_download"` // Accepted for older clients. Subscription URLs always use the host network.
 	NodeID       string   `json:"node_id"`
 	NodeIDs      []string `json:"node_ids"`
 	Port         int      `json:"port"`
@@ -113,28 +113,6 @@ func (s *Server) proxyMutation(w http.ResponseWriter, r *http.Request) {
 	pauseVersion := s.safety.pauseVersion
 	s.mu.Unlock()
 	s.launch(w, "proxy", func() error { return s.changeProxy(action, input, &pauseVersion) })
-}
-func (s *Server) subscriptionClient(host bool) (*http.Client, error) {
-	if host {
-		return managedproxy.BootstrapClient(), nil
-	}
-	cfg, err := loadConfig(s.configPath)
-	if err != nil {
-		return nil, err
-	}
-	if err = cfg.RequireManagedProxy(s.profile); err != nil {
-		return nil, err
-	}
-	e, err := cage.NewEgress(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Client{Transport: &http.Transport{Proxy: nil, DialContext: e.DialContext}, Timeout: 30 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error {
-		if len(via) >= 3 || r.URL.Scheme != "https" || r.URL.User != nil {
-			return errors.New("订阅重定向被拒绝")
-		}
-		return nil
-	}}, nil
 }
 func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64) error {
 	p, err := managedproxy.Load(s.profile)
@@ -235,11 +213,7 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 		}
 		if in.URL != "" {
 			s.setMessage("正在下载节点订阅…")
-			client, e := s.subscriptionClient(action == "refresh" || in.HostDownload)
-			if e != nil {
-				s.proxySourceFailure(in.ID, e)
-				return e
-			}
+			client := managedproxy.BootstrapClient()
 			defer client.CloseIdleConnections()
 			data, usage, err = fetchProxySource(ctx, client, in.URL)
 			if err != nil {

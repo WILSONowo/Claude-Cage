@@ -49,7 +49,6 @@ const emptyForm = {
   url: "",
   content: "",
   interval_hours: 24,
-  host_download: false,
 };
 const proxyAgentPrompt = `请将本机 Cage 的最终出口设为【节点名称】。以下命令中的 cage 代表安装包里的后台 CLI，请用它的实际路径执行。
 先运行 cage agent capabilities 核对当前版本支持的操作，再用 cage agent call proxy.status 从 sources 中按名称找到节点 ID。找不到时，请引导我在“添加来源”中导入。重名时，请让我选定具体节点。
@@ -256,7 +255,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       url: form.url,
       content: form.content,
       interval_hours: form.interval_hours,
-      host_download: form.host_download,
     };
     if (mode === "manual" && !form.id) {
       if (!manualValid) return;
@@ -870,23 +868,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                       ))}
                     </InlineSelect>
                   </label>
-                  {!form.id && (
-                    <label className="check-line">
-                      <input
-                        type="checkbox"
-                        checked={form.host_download}
-                        onChange={(e) =>
-                          setForm({ ...form, host_download: e.target.checked })
-                        }
-                      />
-                      通过主机网络下载这份订阅
-                    </label>
-                  )}
-                  {!form.id && (
-                    <p className="field-help">
-                      首次导入默认经当前代理下载，也可选择主机网络。
-                    </p>
-                  )}
                 </>
               )}
               {mode === "file" && !form.id && (
@@ -1202,7 +1183,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               <li>
                 <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
                 格式的 HTTPS
-                订阅地址，粘贴后点击「导入并验证」。首次还没有可用节点时，勾选「通过主机网络下载这份订阅」；主机需要能访问该地址。
+                订阅地址，粘贴后点击「导入并验证」。
               </li>
               <li>
                 <strong>本地 YAML：</strong>拖入或选择配置文件，或粘贴含节点的

@@ -149,6 +149,14 @@ function App() {
     [details, setDetails] = useState(false),
     [safetyOpen, setSafetyOpen] = useState(false),
     [quitting, setQuitting] = useState(null);
+  const restoreSidebarFocus = useRef(false);
+  useEffect(() => {
+    if (!restoreSidebarFocus.current) return;
+    restoreSidebarFocus.current = false;
+    const controls = document.querySelectorAll('button[aria-controls="workspace-sidebar"]');
+    const visible = [...controls].find(button => !button.closest("[inert]") && button.getClientRects().length);
+    visible?.focus({ preventScroll: true });
+  }, [sidebarCollapsed]);
   const acceptedStart = useRef(null);
   const desktopCheck = useRef(null);
   const desktopOpening = useRef(false);
@@ -1396,8 +1404,12 @@ function App() {
     setDialog(null);
     resolve(value);
   };
+  const toggleSidebar = event => {
+    restoreSidebarFocus.current = event.detail === 0;
+    persist("cage-sidebar-collapsed", !sidebarCollapsed, setSidebarCollapsed);
+  };
   const sidebarButton = side => sidebarCollapsed && side !== "right" &&
-    <ExpandSidebar onClick={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />;
+    <ExpandSidebar onClick={toggleSidebar} />;
   const expandButton = tab => split && tab && <ExpandPane onClick={() => {
     setLayout({ active: tab.id });
     void select(tab.id);
@@ -1640,9 +1652,7 @@ function App() {
             onSettings={openSettings}
             onAccountConfirm={confirm}
             onAccountStatus={notify}
-            onCollapse={() =>
-              persist("cage-sidebar-collapsed", true, setSidebarCollapsed)
-            }
+            onCollapse={toggleSidebar}
           />
         }
         <div className="workbench-main">
@@ -1668,7 +1678,7 @@ function App() {
             {dropSide && <div aria-hidden="true" className={`split-drop split-${dropSide}`}>{dropSide === "left" ? "放到左侧" : "放到右侧"}</div>}
             {keepDesktop && macGuest && <MacOSAppWindow key="claude-desktop" guestRunning={running} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch} uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={desktopVisible ? remote : undefined}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={desktopVisible} onConfirm={confirm}
-              sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
+              sidebarCollapsed={sidebarCollapsed} onExpand={toggleSidebar} />}
             {keepDesktop && !macGuest && <ClaudeDesktop
               uploads={desktopFiles.uploads}
               onProjectOpened={() => refreshStatus.current?.()}
@@ -1676,7 +1686,7 @@ function App() {
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })}
               onConfirm={confirm} onDetails={() => setDetails(true)} onCheckEnvironment={openDesktop} onOpeningChange={trackDesktopLaunch}
               sidebarCollapsed={sidebarCollapsed}
-              onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)}
+              onExpand={toggleSidebar}
             />}
             {status.environment_update_required && !busy && (
               <div className="environment-update-banner" role="status">
@@ -1690,7 +1700,7 @@ function App() {
                   <section className={`pane-lane browser-lane split-${paneSide(webPanes[0].id)}`}>
                     {status.ready && <MacOSAppWindow key="chrome" browser onOpenPage={openBrowserPage} visible={!settingsOpen} uploads={desktopFiles.uploads}
                       keyboard={status.keyboard} remoteRef={remote} onStatus={notify}
-                      sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)}
+                      sidebarCollapsed={sidebarCollapsed} onExpand={toggleSidebar}
                       onFallback={(text, message) => setTransfer({ text, message })} />}
                   </section>
                 )}

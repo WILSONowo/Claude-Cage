@@ -106,6 +106,40 @@ func TestProxyImportAPIReportsPartialSuccessAndProtectsRefresh(t *testing.T) {
 	}
 }
 
+func TestSubscriptionImportUsesHostWithoutAnActiveProxy(t *testing.T) {
+	s := testServer(t)
+	cfg, err := loadConfig(s.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ProxyRevision = ""
+	if err := writePrivate(s.configPath, cfg); err != nil {
+		t.Fatal(err)
+	}
+	oldValidate, oldFetch := validateProxyCore, fetchProxySource
+	t.Cleanup(func() { validateProxyCore, fetchProxySource = oldValidate, oldFetch })
+	validateProxyCore = func(_ context.Context, profile string, p managedproxy.Store) error {
+		_, err := p.Runtime(profile)
+		return err
+	}
+	calls := 0
+	fetchProxySource = func(_ context.Context, client *http.Client, _ string) ([]byte, string, error) {
+		calls++
+		if reflect.TypeOf(client.Transport) != reflect.TypeOf(managedproxy.BootstrapClient().Transport) {
+			t.Errorf("unexpected subscription transport %T", client.Transport)
+		}
+		return []byte("proxies: [{name: test, type: http, server: example.com, port: 443}]"), "", nil
+	}
+	for _, legacy := range []bool{false, true} {
+		if err := s.changeProxy("import", proxyInput{Name: "test", URL: "https://example.com/sub", HostDownload: legacy}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("got %d downloads, want 2", calls)
+	}
+}
+
 func TestProxyImportAndRefreshUseBundledCoreValidation(t *testing.T) {
 	if os.Getenv("CAGE_PROXY_INTEGRATION") != "1" {
 		t.Skip("requires a test binary beside the bundled Mihomo")

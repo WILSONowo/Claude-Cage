@@ -84,14 +84,6 @@ export function WorkspaceSidebar({
     return saved > 0 ? Math.min(420, Math.max(192, saved)) : 244;
   });
   const dragOffset = useRef(null);
-  const previousCollapsed = useRef(sidebarCollapsed);
-  useEffect(() => {
-    if (sidebarCollapsed === previousCollapsed.current) return;
-    previousCollapsed.current = sidebarCollapsed;
-    const controls = document.querySelectorAll('button[aria-controls="workspace-sidebar"]');
-    const visible = [...controls].find(button => !button.closest("[inert]") && button.getClientRects().length);
-    visible?.focus({ preventScroll: true });
-  }, [sidebarCollapsed]);
   const needle = query?.trim().toLocaleLowerCase() || "";
   const matches = text => String(text || "").toLocaleLowerCase().includes(needle);
   const resize = value => {

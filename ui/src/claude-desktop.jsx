@@ -36,7 +36,15 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
     try { return localStorage.getItem("cage-desktop-toolbar-hidden") === "true"; }
     catch { return false; }
   });
-  const toggleToolbar = (value) => {
+  const toolbarToggle = useRef(null);
+  const focusToolbarToggle = useRef(false);
+  useEffect(() => {
+    if (!focusToolbarToggle.current) return;
+    focusToolbarToggle.current = false;
+    toolbarToggle.current?.focus({ preventScroll: true });
+  }, [hidden]);
+  const toggleToolbar = (event, value) => {
+    focusToolbarToggle.current = event.detail === 0;
     setHidden(value);
     try { localStorage.setItem("cage-desktop-toolbar-hidden", String(value)); }
     catch { /* Keep the preference for this session. */ }
@@ -45,7 +53,7 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
     return (
       <div className="desktop-toolbar-reveal">
         {sidebarCollapsed && <button className="icon-button" aria-controls="workspace-sidebar" aria-expanded="false" aria-label="展开侧栏" title="展开侧栏" onClick={onExpand}><PanelLeftOpen size={15} /></button>}
-        <button className="icon-button" aria-label="显示 Desktop 工具栏" title="显示 Desktop 工具栏" onClick={() => toggleToolbar(false)}><ChevronDown size={15} /></button>
+        <button className="icon-button" aria-label="显示 Desktop 工具栏" title="显示 Desktop 工具栏" ref={toolbarToggle} onClick={event => toggleToolbar(event, false)}><ChevronDown size={15} /></button>
       </div>
     );
   }
@@ -117,7 +125,7 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
         >
           <RefreshCw size={15} />
         </button>
-        {desktop?.running && <button className="icon-button" aria-label="隐藏 Desktop 工具栏" title="隐藏 Desktop 工具栏" onClick={() => toggleToolbar(true)}><ChevronUp size={15} /></button>}
+        {desktop?.running && <button className="icon-button" aria-label="隐藏 Desktop 工具栏" title="隐藏 Desktop 工具栏" ref={toolbarToggle} onClick={event => toggleToolbar(event, true)}><ChevronUp size={15} /></button>}
       </header>
   );
 }

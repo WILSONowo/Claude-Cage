@@ -87,7 +87,7 @@ cage agent call account.unlock --input -
 先读 `proxy.status`。已有可用来源时复用，避免重复导入。首次导入可用用户提供的订阅链接，也可用私有文件中的 Clash/Mihomo 配置或分享链接。
 
 ```json
-{"name":"我的代理","url":"https://用户自己的订阅地址","interval_hours":0,"host_download":true}
+{"name":"我的代理","url":"https://用户自己的订阅地址","interval_hours":0}
 ```
 
 ```sh
@@ -95,7 +95,7 @@ cage agent call proxy.import --input /private/path/subscription.json --wait 2m
 cage agent call proxy.status
 ```
 
-`host_download:true` 明确允许主机联网下载这份订阅，仅用于订阅获取；客机不会因此获得直连回退。已有 Cage 代理时，可省略它让订阅经过现有代理。不要自动从本机浏览器、代理软件或其他 Agent 的凭据文件提取订阅。
+HTTPS 订阅通过宿主机网络下载。不要自动从本机浏览器、代理软件或其他 Agent 的凭据文件提取订阅。
 
 从返回的来源和节点列表选择用户要求的出口；不要把订阅中的第一个节点当成用户已经同意的出口。
 
