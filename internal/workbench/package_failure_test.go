@@ -7,7 +7,7 @@ import (
 )
 
 func TestPackageInstallFailureClassification(t *testing.T) {
-	const cmd = "CAGE_APT_FAILED exit=100 command=apt-get install -y --no-install-recommends git curl ripgrep\n"
+	const cmd = "APT_FAILED exit=100 command=apt-get install -y --no-install-recommends git curl ripgrep\n"
 	for _, tc := range []struct {
 		name, log string
 		reason    string
@@ -43,7 +43,7 @@ func TestPackageInstallFailureWithoutMarkerFallsBack(t *testing.T) {
 }
 
 func TestPackageInstallFailureBoundsAndRedacts(t *testing.T) {
-	log := strings.Repeat("noise\n", 50) + "proxy=http://user:pass@127.0.0.1:7890 token=abc123 " + strings.Repeat("x", 500) + "\nCAGE_APT_FAILED exit=1 command=apt-get update\n"
+	log := strings.Repeat("noise\n", 50) + "proxy=http://user:pass@127.0.0.1:7890 token=abc123 " + strings.Repeat("x", 500) + "\nAPT_FAILED exit=1 command=apt-get update\n"
 	msg := packageInstallFailure("安装", errors.New("x"), log).Error()
 	for _, bad := range []string{"user:pass", "127.0.0.1", "abc123"} {
 		if strings.Contains(msg, bad) {
@@ -52,5 +52,16 @@ func TestPackageInstallFailureBoundsAndRedacts(t *testing.T) {
 	}
 	if len(msg) > 1500 || strings.Count(msg, "noise") > aptTailLines {
 		t.Fatalf("not bounded: %d", len(msg))
+	}
+}
+
+func TestPackageInstallFailureReadsOlderSetupOutput(t *testing.T) {
+	const output = "E: Unable to locate package missing-package\n"
+	const payload = "exit=100 command=apt-get install missing-package\n"
+	cause := errors.New("exit status 100")
+	current := packageInstallFailure("安装", cause, output+"APT_FAILED "+payload)
+	older := packageInstallFailure("安装", cause, output+"CAGE_APT_FAILED "+payload)
+	if current == nil || older == nil || current.Error() != older.Error() {
+		t.Fatalf("old setup output lost its failure details: current=%v older=%v", current, older)
 	}
 }

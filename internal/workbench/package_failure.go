@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	aptFailureMarker  = "CAGE_APT_FAILED "
+	aptFailureMarker  = "APT_FAILED "
 	aptTailLines      = 6
 	aptTailLineBytes  = 200
 	aptCommandBytes   = 300
@@ -25,15 +25,22 @@ type aptEvidence struct {
 	tail          []string
 }
 
-// parseAPTFailure reads the last CAGE_APT_FAILED marker written by
+// parseAPTFailure reads the last APT failure marker written by
 // agent-vm.setup.sh together with the output lines before it. It returns nil
 // when the log has no marker, so older guests keep the generic message.
 func parseAPTFailure(log string) *aptEvidence {
 	lines := strings.Split(strings.ReplaceAll(log, "\r", ""), "\n")
 	at := -1
+	payload := ""
 	for i := len(lines) - 1; i >= 0; i-- {
-		if strings.HasPrefix(strings.TrimSpace(lines[i]), aptFailureMarker) {
-			at = i
+		// Older setup scripts may still report the former marker.
+		for _, marker := range []string{aptFailureMarker, "CAGE_APT_FAILED "} {
+			if rest, ok := strings.CutPrefix(strings.TrimSpace(lines[i]), marker); ok {
+				at, payload = i, rest
+				break
+			}
+		}
+		if at >= 0 {
 			break
 		}
 	}
@@ -41,7 +48,7 @@ func parseAPTFailure(log string) *aptEvidence {
 		return nil
 	}
 	ev := &aptEvidence{}
-	for _, field := range strings.SplitN(strings.TrimSpace(lines[at])[len(aptFailureMarker):], " command=", 2) {
+	for _, field := range strings.SplitN(payload, " command=", 2) {
 		if strings.HasPrefix(field, "exit=") {
 			ev.exit = strings.TrimPrefix(field, "exit=")
 		} else {
