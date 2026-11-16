@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 # Functions used only for a new private Windows guest disk.
 function New-CageISOAnswer([pscredential]$Administrator) {
     if (!$Administrator -or $Administrator.UserName.Length -gt 20 -or
