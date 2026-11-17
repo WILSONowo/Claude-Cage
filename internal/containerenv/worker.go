@@ -122,8 +122,13 @@ func (r *Runtime) Start(ctx context.Context, configPath string, log io.Writer) e
 			}
 			return nil
 		}
-	} else if _, err := r.output(ctx, "start", inspection.State.ContainerID); err != nil {
-		return err
+	} else {
+		if err := r.updateResources(ctx, inspection.State.ContainerID); err != nil {
+			return err
+		}
+		if _, err := r.output(ctx, "start", inspection.State.ContainerID); err != nil {
+			return err
+		}
 	}
 	if _, err := r.verifyResources(ctx, inspection.State.ContainerID); err != nil {
 		if !inspection.State.Running {

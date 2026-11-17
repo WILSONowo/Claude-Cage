@@ -64,6 +64,7 @@ type engineContainer struct {
 		CapAdd       []string
 		Memory       int64
 		NanoCpus     int64
+		PidsLimit    *int64
 		Devices      []struct {
 			PathOnHost      string
 			PathInContainer string
