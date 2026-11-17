@@ -205,6 +205,40 @@ integration("actual Chromium tabs restore and project switching retains unsaved 
 });
 
 const actualFocus = playwrightPath && executablePath && process.env.CAGE_BROWSER_TEST_HEADED === "1" ? test : test.skip;
+actualFocus("background audit leaves the foreground window alone", async t => {
+  const f = await fixture(t, { diagnostic: true, timezone: "Pacific/Honolulu", language: "ja-JP" });
+  const one = await f.open("/work");
+  const browser = f.context().browser();
+  const otherContext = await browser.newContext();
+  const foreground = await otherContext.newPage();
+  await foreground.bringToFront();
+  const session = await browser.newBrowserCDPSession();
+  await session.send("Target.setDiscoverTargets", { discover: true });
+  const windows = [];
+  session.on("Target.targetCreated", ({ targetInfo }) => {
+    if (targetInfo.type === "page") windows.push(session.send("Browser.getWindowForTarget", { targetId: targetInfo.targetId }).then(info => info.windowId, () => null));
+  });
+  await f.context().addCookies([{ name: "business", value: "isolated-test", domain: "198.18.0.254", path: "/" }]);
+  let activations = 0;
+  const bringToFront = one.page.bringToFront.bind(one.page);
+  one.page.bringToFront = async () => { activations++; return bringToFront(); };
+  try {
+    for (const network of [false, true]) {
+      const result = await f.call("audit", { timezone: "Asia/Tokyo", network });
+      assert.equal(result.timezone, "Pacific/Honolulu");
+      assert.equal(result.language, "ja-JP");
+      if (network) assert.deepEqual(result.network, { status: 503, ip: "198.51.100.44" });
+    }
+    assert.deepEqual(f.diagnosticCookies, [""]);
+    const observed = (await Promise.all(windows)).filter(value => value !== null);
+    assert.deepEqual({ visibleWindows: observed.length, activations }, { visibleWindows: 0, activations: 0 });
+    assert(await foreground.evaluate(() => document.hasFocus()));
+  } finally {
+    await session.detach();
+    await otherContext.close();
+  }
+});
+
 actualFocus("a native page activation updates the private document proof and the next frame", async t => {
   const f = await fixture(t), one = await f.open("/one"), two = await f.open("/two");
   await f.call("activate", { id: one.id });

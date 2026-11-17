@@ -120,6 +120,87 @@ export function browserExecutable() {
   throw failure("browser_unavailable", "请先在 Windows 客机安装受支持的 Chrome 或 Edge");
 }
 
+// A hidden Chromium target belongs to the same browser and isolated context
+// as a normal diagnostic page, but has no OS window. Playwright does not
+// expose hidden targets as Page objects, so attach to this target directly.
+async function auditHiddenPage(owner, isolated, timezone, language, expected, network) {
+  const contextID = isolated._connection?.toImpl?.(isolated)?._browserContextId;
+  if (!contextID) throw failure("browser_unavailable", "无法打开浏览器后台检查");
+  const cdp = await owner.newBrowserCDPSession();
+  let sessionId, serial = 0, onEvent;
+  const pending = new Map();
+  function receive(event) {
+    if (event.sessionId !== sessionId) return;
+    const message = JSON.parse(event.message);
+    if (message.id === undefined) { onEvent?.(message.method, message.params); return; }
+    const request = pending.get(message.id);
+    if (!request) return;
+    pending.delete(message.id);
+    clearTimeout(request.timer);
+    if (message.error) request.reject(new Error(message.error.message));
+    else request.resolve(message.result);
+  }
+  function command(method, params = {}) {
+    const id = ++serial;
+    return new Promise((resolve, reject) => {
+      const fail = err => {
+        clearTimeout(timer);
+        pending.delete(id);
+        reject(err);
+      };
+      const timer = setTimeout(() => fail(new Error("Browser check timed out")), 7000);
+      pending.set(id, {resolve, reject, timer});
+      cdp.send("Target.sendMessageToTarget", {sessionId, message: JSON.stringify({id, method, params})}).catch(fail);
+    });
+  }
+  cdp.on("Target.receivedMessageFromTarget", receive);
+  try {
+    const {targetId} = await cdp.send("Target.createTarget", {url: "about:blank", hidden: true, background: true, forTab: false, browserContextId: contextID});
+    ({sessionId} = await cdp.send("Target.attachToTarget", {targetId, flatten: false}));
+    if (timezone) await command("Emulation.setTimezoneOverride", {timezoneId: timezone});
+    if (language) {
+      await command("Emulation.setLocaleOverride", {locale: language});
+      await command("Emulation.setUserAgentOverride", {userAgent: "", acceptLanguage: language});
+    }
+    const observed = await command("Runtime.evaluate", {expression: "({timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,language:navigator.language,platform:navigator.platform})", returnByValue: true});
+    if (observed.exceptionDetails || !observed.result?.value) throw failure("browser_unavailable", "浏览器后台检查未返回结果");
+    const result = {...observed.result.value, expected_timezone: expected};
+    if (!network) return result;
+
+    const url = "http://198.18.0.254/egress";
+    let requestId, status = 0, timeout;
+    result.network = {status: 0};
+    try {
+      await command("Page.enable");
+      await command("Network.enable");
+      const completed = new Promise(resolve => {
+        timeout = setTimeout(() => resolve(false), 12000);
+        onEvent = (method, data) => {
+          if (method === "Network.requestWillBeSent" && data.type === "Document" && data.request.url === url) requestId = data.requestId;
+          if (!requestId || data.requestId !== requestId) return;
+          if (method === "Network.responseReceived" && data.response.url === url) status = data.response.status;
+          if (method === "Network.loadingFinished") resolve(true);
+          if (method === "Network.loadingFailed") resolve(false);
+        };
+      });
+      const navigation = await command("Page.navigate", {url});
+      if (!navigation.errorText && await completed && status) {
+        result.network.status = status;
+        const data = await command("Network.getResponseBody", {requestId});
+        const body = JSON.parse(data.base64Encoded ? Buffer.from(data.body, "base64").toString("utf8") : data.body);
+        if (typeof body.ip === "string" && body.ip.length <= 128) result.network.ip = body.ip;
+      }
+    } catch { /* Keep the observed HTTP status, or zero for a failed request. */ }
+    finally { clearTimeout(timeout); onEvent = undefined; }
+    return result;
+  } finally {
+    cdp.off("Target.receivedMessageFromTarget", receive);
+    for (const request of pending.values()) { clearTimeout(request.timer); request.reject(new Error("Browser check closed")); }
+    pending.clear();
+    await cdp.detach().catch(() => {});
+  }
+}
+
 // Tests provide their dependencies explicitly. Production uses the selected
 // guest's browser mode, fixed executable, and Cage-owned profile.
 export function createNativeBrowserService(options = {}) {
@@ -1335,7 +1416,9 @@ export function createNativeBrowserService(options = {}) {
       let expected;
       try { expected = new Intl.DateTimeFormat("en", { timeZone: input.timezone }).resolvedOptions().timeZone; } catch { throw failure("invalid_input", "诊断时区无效"); }
       const isolated = await owner.newContext({ serviceWorkers: "block", ...(timezone ? { timezoneId: timezone } : {}), ...(language ? { locale: language } : {}), ...(networkMode === "proxy" ? { proxy: { server: proxy, bypass: proxyBypass } } : {}) });
+      const background = !mac && !(options.testing === true && options.headless !== false);
       try {
+        if (background) return await auditHiddenPage(owner, isolated, timezone, language, expected, input.network === true);
         const auditPage = await isolated.newPage();
         const result = await auditPage.evaluate(() => ({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, language: navigator.language, platform: navigator.platform }));
         result.expected_timezone = expected;
@@ -1349,7 +1432,7 @@ export function createNativeBrowserService(options = {}) {
           } catch { result.network = { status: 0 }; }
         }
         return result;
-      } finally { await isolated.close(); await tabs.get(active)?.page.bringToFront(); }
+      } finally { await isolated.close(); if (!background) await tabs.get(active)?.page.bringToFront(); }
     }
     if (action === "new") {
       const url = checkedBrowserURL(input.url || home); let page;
