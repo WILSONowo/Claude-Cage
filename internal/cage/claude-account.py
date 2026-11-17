@@ -47,6 +47,14 @@ class SharedResourceConflict(ValueError):
     pass
 
 
+class SubscriptionStatusError(ValueError):
+    pass
+
+
+class SubscriptionStatusTimeout(SubscriptionStatusError):
+    pass
+
+
 def profile(account_id):
     if account_id != DEFAULT and not re.fullmatch("[0-9a-f]{24}", account_id):
         raise ValueError("invalid account ID")
@@ -79,15 +87,24 @@ def cli_environment(base):
 
 
 def identity(binary, env, cwd, settings=(), timeout=10, pass_fds=()):
-    result = subprocess.run([_runtime["path"](binary), *settings, "auth", "status"], cwd=cwd, env=env, timeout=timeout,
-                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, pass_fds=pass_fds)
+    sink = subprocess.PIPE if _controller_context.get("CAGE_REMOTE_APP_CONTAINER") == "1" else subprocess.DEVNULL
+    try:
+        result = subprocess.run([_runtime["path"](binary), *settings, "auth", "status"], cwd=cwd, env=env, timeout=timeout,
+                                stdin=sink, stdout=subprocess.PIPE, stderr=sink, pass_fds=pass_fds)
+    except subprocess.TimeoutExpired as error:
+        raise SubscriptionStatusTimeout("Subscription status timed out") from error
     # Exit code 1 with JSON is the CLI's documented logged-out response. Any
     # other failure (including missing JSON) must not sign a known user out.
-    data = json.loads(result.stdout)
+    try:
+        data = json.loads(result.stdout)
+    except (ValueError, TypeError) as error:
+        raise SubscriptionStatusError("Invalid subscription status") from error
+    if not isinstance(data, dict):
+        raise SubscriptionStatusError("Invalid subscription status")
     reported_dir = data.get("configDirectory")
     correct_dir = isinstance(reported_dir, str) and Path(reported_dir).resolve() == Path(env.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").resolve()
     if result.returncode not in (0, 1) or not correct_dir:
-        raise ValueError("unexpected auth status")
+        raise SubscriptionStatusError("Unexpected subscription status")
     ok = (result.returncode == 0 and data.get("loggedIn") is True and data.get("authMethod") == "claude.ai"
           and data.get("apiProvider") == "firstParty")
     if not ok:
@@ -483,6 +500,53 @@ def shared_launch_arguments(base, args, settings_fd=None):
         return shared_launch_arguments_locked(base, args, settings_fd)
 
 
+def shared_memory_path(memory):
+    """Recover only an owned memory directory; never replace runtime executables."""
+    try:
+        return _runtime["path"](memory)
+    except _runtime["RuntimePathConflict"] as error:
+        alias = error.alias
+    if alias.is_symlink() or not alias.is_dir() or os.name == "nt" and alias.is_junction():
+        raise SharedResourceConflict("项目记忆的运行路径异常，原数据已保留，请同步环境组件后重试")
+    if os.name != "nt" and alias.stat().st_uid != os.getuid():
+        raise SharedResourceConflict("项目记忆的运行路径归属异常，原数据已保留，请检查目录权限")
+    # Inspect the entire tree before copying. A conflicting note must never be
+    # overwritten, and links must not redirect recovery outside this directory.
+    entries = sorted(alias.rglob("*"))
+    for source in entries:
+        destination = memory / source.relative_to(alias)
+        if source.is_symlink() or os.name == "nt" and source.is_junction() or destination.is_symlink():
+            raise SharedResourceConflict("项目记忆包含异常链接，原数据已保留，请先核对记忆目录")
+        if source.is_dir():
+            conflict = destination.exists() and not destination.is_dir()
+        elif source.is_file():
+            conflict = destination.exists() and (not destination.is_file() or source.read_bytes() != destination.read_bytes())
+        else:
+            conflict = True
+        if conflict:
+            raise SharedResourceConflict("项目记忆存在同名内容冲突，两份记忆均已保留，请先核对后重试")
+    backup = shared_root() / "backups/runtime-memory" / (alias.name + "-" + str(time.time_ns()))
+    backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+    shutil.copytree(alias, backup, symlinks=True)
+    for source in entries:
+        destination = memory / source.relative_to(alias)
+        if source.is_dir():
+            destination.mkdir(mode=PRIVATE_MODE, exist_ok=True)
+        else:
+            # Exclusive publication also preserves a note written by an active
+            # CLI after preflight. On failure both the source and backup remain.
+            try:
+                with destination.open("xb") as output, source.open("rb") as input:
+                    shutil.copyfileobj(input, output)
+            except FileExistsError:
+                if not destination.is_file() or destination.read_bytes() != source.read_bytes():
+                    raise SharedResourceConflict("项目记忆在恢复期间发生冲突，两份记忆均已保留，请先核对后重试")
+    # Retain the original directory too: an older process may still hold it
+    # open or write to it. Nothing in recovery recursively deletes user notes.
+    alias.rename(alias.with_name(backup.name + ".recovered"))
+    return _runtime["path"](memory)
+
+
 def shared_launch_arguments_locked(base, args, settings_fd):
     directory = Path.cwd().resolve()
     try:
@@ -525,7 +589,7 @@ def shared_launch_arguments_locked(base, args, settings_fd):
             _platform["resource_link"](own_memory, memory)
         else:
             own_memory.symlink_to(memory, target_is_directory=True)
-    settings = {"autoMemoryDirectory": _runtime["path"](memory)}
+    settings = {"autoMemoryDirectory": shared_memory_path(memory)}
     # Only local behavior is shared. Never copy env, apiKeyHelper, login/org
     # constraints, OAuth metadata, or account-synced remote configuration.
     common_settings = json_file(Path.home() / ".claude/settings.json")
@@ -710,15 +774,24 @@ def macos_open(args):
             return 0 if reply.read(4) == b"OK" else 1
 
 
-if __name__ == "__main__":
+def entrypoint(args):
     try:
-        sys.exit(macos_open(sys.argv[1:]) if sys.platform == "darwin" and Path(sys.argv[0]).name == "cage-open" else main(sys.argv[1:]))
+        return macos_open(args) if sys.platform == "darwin" and Path(sys.argv[0]).name == "cage-open" else main(args)
     except KeyboardInterrupt:
-        sys.exit(130)
+        return 130
     except SharedResourceConflict as error:
         print(str(error), file=sys.stderr)
-        sys.exit(1)
+    except SubscriptionStatusTimeout:
+        print("读取 Claude 订阅状态超时，请稍后重试；现有登录信息已保留。", file=sys.stderr)
+    except SubscriptionStatusError:
+        print("无法读取 Claude 订阅状态，请确认官方 CLI 可正常运行后重试；现有登录信息已保留。", file=sys.stderr)
+    except _runtime["RuntimePathConflict"]:
+        print("终端运行路径发生冲突，原数据已保留，请同步环境组件后重试。", file=sys.stderr)
     except (OSError, ValueError, subprocess.SubprocessError, TypeError):
         # No raw CLI output, paths, credentials or callback URLs go to logs.
-        print("无法读取 Claude 订阅状态或启动官方 CLI，请检查环境组件与登录状态。", file=sys.stderr)
-        sys.exit(1)
+        print("准备终端或启动官方 Claude CLI 失败，请检查目录权限并同步环境组件后重试；现有登录信息已保留。", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(entrypoint(sys.argv[1:]))

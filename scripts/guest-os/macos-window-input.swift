@@ -12,14 +12,22 @@ struct MacInputWindow {
 
 @MainActor
 func checkedMacInputWindow(_ input: Request, window: SCWindow) throws -> MacInputWindow {
+    let project = input.action == "project-click"
+    func unavailable(_ reason: String) -> Failure {
+        Failure(7, project ? "project_" + reason : "window_changed")
+    }
     guard AXIsProcessTrusted() else { throw Failure(9, "accessibility_permission") }
-    guard let pid = window.owningApplication?.processID, input.pid == pid, input.window == window.windowID,
-          NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw Failure(7, "window_changed") }
+    guard let pid = window.owningApplication?.processID, input.pid == pid, input.window == window.windowID else {
+        throw unavailable("window_identity_changed")
+    }
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+        throw unavailable("window_not_frontmost")
+    }
     let app = AXUIElementCreateApplication(pid)
     AXUIElementSetMessagingTimeout(app, 1)
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
-          let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { throw Failure(7, "window_changed") }
+          let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { throw unavailable("window_focus_unavailable") }
     let focused = value as! AXUIElement
     var position: CFTypeRef?, size: CFTypeRef?
     var origin = CGPoint.zero, extent = CGSize.zero
@@ -27,12 +35,12 @@ func checkedMacInputWindow(_ input: Request, window: SCWindow) throws -> MacInpu
           AXUIElementCopyAttributeValue(focused, kAXSizeAttribute as CFString, &size) == .success,
           let position, let size, CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID(),
           AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &extent) else {
-        throw Failure(7, "window_changed")
+        throw unavailable("window_geometry_unavailable")
     }
-    let tolerance: CGFloat = input.action == "project-click" ? 24 : 1
+    let tolerance: CGFloat = project ? 24 : 1
     guard abs(origin.x - window.frame.minX) < tolerance, abs(origin.y - window.frame.minY) < tolerance,
           abs(extent.width - window.frame.width) < tolerance, abs(extent.height - window.frame.height) < tolerance else {
-        throw Failure(7, "window_changed")
+        throw unavailable("window_geometry_changed")
     }
     return MacInputWindow(app: app, focused: focused, pid: pid, origin: origin, extent: extent)
 }

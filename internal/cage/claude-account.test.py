@@ -1,4 +1,6 @@
 import hashlib
+import contextlib
+import io
 from datetime import datetime, timezone
 import importlib.util
 import json
@@ -49,9 +51,9 @@ printf '%s\\n' "$@"
         self.env = {"HOME": str(self.home), "PATH": os.defpath, "TEST_EMAIL": self.email,
                     "CAGE_CLAUDE_SUBJECT": self.subject, "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": str(self.home)}
 
-    def run_helper(self, mode, account, *args, data=None, env=None, check=True):
+    def run_helper(self, mode, account, *args, data=None, env=None, check=True, cwd=None):
         return subprocess.run([sys.executable, str(source), mode, account, *args], env=env or self.env,
-                              cwd=self.home, input=json.dumps(data) if data else None, text=True,
+                              cwd=cwd or self.home, input=json.dumps(data) if data else None, text=True,
                               capture_output=True, check=check)
 
     def test_isolated_cli_snapshot_and_subject_bound_quota(self):
@@ -244,6 +246,112 @@ printf '%s\\n' "$@"
         args = self.run_helper("run", FIRST, "--model", "sonnet").stdout.splitlines()
         self.assertEqual(args[-2:], ["--model", "sonnet"])
         self.assertEqual((config / "settings.json").read_text(), original)
+
+    def replaced_memory_alias(self):
+        project = self.home / "Cage/Projects/example"
+        project.mkdir(parents=True)
+        args = self.run_helper("run", FIRST, cwd=project).stdout.splitlines()
+        alias = Path(json.loads(Path(args[1]).read_text())["autoMemoryDirectory"])
+        target = alias.resolve()
+        self.assertTrue(alias.is_symlink())
+        (target / "existing.md").write_text("original memory")
+        alias.unlink()
+        alias.mkdir()
+        (alias / "new.md").write_text("new memory")
+        return project, alias, target
+
+    def test_launch_recovers_replaced_memory_alias_without_losing_notes(self):
+        project, alias, target = self.replaced_memory_alias()
+        (alias / "nested").mkdir()
+        (alias / "nested/detail.md").write_text("nested memory")
+        self.run_helper("run", FIRST, cwd=project)
+        self.assertTrue(alias.is_symlink())
+        self.assertEqual(alias.resolve(), target)
+        self.assertEqual((target / "existing.md").read_text(), "original memory")
+        self.assertEqual((alias / "new.md").read_text(), "new memory")
+        self.assertEqual((target / "nested/detail.md").read_text(), "nested memory")
+        backups = list((self.home / ".local/share/cage/claude-shared/backups/runtime-memory").glob("*/new.md"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), "new memory")
+        self.run_helper("run", FIRST, cwd=project)
+
+    def test_memory_alias_conflict_preserves_both_versions_and_explains_failure(self):
+        project, alias, target = self.replaced_memory_alias()
+        (alias / "existing.md").write_text("changed memory")
+        result = self.run_helper("run", FIRST, cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("记忆", result.stderr)
+        self.assertIn("冲突", result.stderr)
+        self.assertNotIn("登录状态", result.stderr)
+        self.assertNotIn(str(self.home), result.stderr)
+        self.assertEqual((target / "existing.md").read_text(), "original memory")
+        self.assertEqual((alias / "existing.md").read_text(), "changed memory")
+        self.assertFalse(alias.is_symlink())
+
+    def test_memory_alias_backup_failure_preserves_source_and_target(self):
+        project, alias, target = self.replaced_memory_alias()
+        with patch.dict(os.environ, self.env, clear=True), patch.object(helper.Path, "cwd", return_value=project), \
+                patch.dict(helper._runtime["path"].__globals__, {"root": lambda: alias.parent.parent}), \
+                patch.object(helper.shutil, "copytree", side_effect=OSError("private path or credential")):
+            with self.assertRaises(OSError):
+                helper.shared_launch_arguments(helper.profile(FIRST), [])
+        self.assertFalse(alias.is_symlink())
+        self.assertEqual((alias / "new.md").read_text(), "new memory")
+        self.assertEqual((target / "existing.md").read_text(), "original memory")
+
+    def test_memory_alias_recovery_does_not_follow_links(self):
+        project, alias, target = self.replaced_memory_alias()
+        outside = self.home / "outside.md"
+        outside.write_text("unrelated data")
+        (alias / "linked.md").symlink_to(outside)
+        result = self.run_helper("run", FIRST, cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("异常链接", result.stderr)
+        self.assertEqual(outside.read_text(), "unrelated data")
+        self.assertFalse((target / "linked.md").exists())
+        self.assertEqual((alias / "new.md").read_text(), "new memory")
+
+    def test_memory_alias_recovery_preserves_concurrent_destination(self):
+        project, alias, target = self.replaced_memory_alias()
+        original = helper.shutil.copytree
+        def backup_then_write(*args, **kwargs):
+            # copytree recurses through the patched module; this tree is flat.
+            result = original(*args, **kwargs)
+            (target / "new.md").write_text("concurrent memory")
+            return result
+        with patch.dict(os.environ, self.env, clear=True), patch.object(helper.Path, "cwd", return_value=project), \
+                patch.dict(helper._runtime["path"].__globals__, {"root": lambda: alias.parent.parent}), \
+                patch.object(helper.shutil, "copytree", side_effect=backup_then_write):
+            with self.assertRaises(helper.SharedResourceConflict):
+                helper.shared_launch_arguments(helper.profile(FIRST), [])
+        self.assertEqual((target / "new.md").read_text(), "concurrent memory")
+        self.assertEqual((alias / "new.md").read_text(), "new memory")
+        self.assertFalse(alias.is_symlink())
+
+    def test_launch_errors_are_specific_and_do_not_expose_private_details(self):
+        private = "private/path credential=secret"
+        cases = [
+            (helper.SubscriptionStatusTimeout(private), "读取 Claude 订阅状态超时"),
+            (helper.SubscriptionStatusError(private), "无法读取 Claude 订阅状态"),
+            (helper._runtime["RuntimePathConflict"](Path(private), Path(private)), "运行路径"),
+            (OSError(private), "准备终端"),
+        ]
+        for error, message in cases:
+            with self.subTest(error=type(error).__name__), patch.object(helper, "main", side_effect=error):
+                output = io.StringIO()
+                with contextlib.redirect_stderr(output):
+                    self.assertEqual(helper.entrypoint(["run", FIRST]), 1)
+                self.assertIn(message, output.getvalue())
+                self.assertNotIn(private, output.getvalue())
+
+    def test_subscription_probe_distinguishes_timeout_from_invalid_response(self):
+        with patch.object(helper.subprocess, "run", side_effect=subprocess.TimeoutExpired("private-command", 10)):
+            with self.assertRaises(helper.SubscriptionStatusTimeout):
+                helper.identity("claude", self.env, self.home)
+        for raw in (b"invalid json with private credentials", b"[]"):
+            with patch.object(helper.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, raw)):
+                with self.assertRaises(helper.SubscriptionStatusError):
+                    helper.identity("claude", self.env, self.home)
 
     def test_official_process_receives_no_controller_flags_and_callbacks_still_work(self):
         capture = self.home / "child-environment"

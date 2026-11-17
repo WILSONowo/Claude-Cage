@@ -13,6 +13,12 @@ _KEYS = ("CAGE_CLI_STATE_ROOT", "CAGE_CLI_ACCOUNT_ROOT", "CAGE_CLI_SHARED_ROOT",
          "CAGE_CLI_ACCOUNT_HELPER", "CAGE_CLI_BINARY", "CAGE_CLAUDE_SUBJECT")
 
 
+class RuntimePathConflict(ValueError):
+    def __init__(self, alias, target):
+        super().__init__("Runtime path is already in use")
+        self.alias, self.target = alias, target
+
+
 def root():
     owner = hashlib.sha256(str(Path.home()).encode()).hexdigest()[:16]
     directory = Path(tempfile.gettempdir()) / ("runtime-" + owner)
@@ -48,7 +54,7 @@ def path(value):
         except FileExistsError:
             pass
     if alias.resolve() != target.resolve() and not (os.name == "nt" and alias.is_file() and os.path.samefile(alias, target)):
-        raise ValueError("Runtime path is already in use")
+        raise RuntimePathConflict(alias, target)
     return str(alias)
 
 
