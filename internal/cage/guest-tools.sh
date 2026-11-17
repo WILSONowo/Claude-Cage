@@ -211,6 +211,7 @@ cage_install_tool() (
     cage_install_mise "$wanted" "$arch" "$url" "$checksum" "$cache"
     exit $?
   fi
+  if [ "${CAGE_SETUP_PROGRESS:-}" = 1 ] && [ "$tool" = gh ]; then echo "Downloading GitHub CLI..."; fi
   cage_download_tool "$url" "$checksum" "$cache/$artifact" sha256sum "$mirror"
   if [ "${CAGE_SETUP_PROGRESS:-}" = 1 ]; then printf 'Installing %s...\n' "$tool"; fi
   sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get -o Acquire::Retries=3 install -y --no-install-recommends "$cache/$artifact" </dev/null

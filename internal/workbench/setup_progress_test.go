@@ -168,3 +168,17 @@ func TestMacOSSetupProgressReportsHostRetry(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubCLIDownloadSupersedesChromium(t *testing.T) {
+	for _, tc := range []struct{ line, label string }{
+		{"Installing Chromium...", "正在安装 Chromium 浏览器"},
+		{"Downloading GitHub CLI...", "正在下载 GitHub CLI"},
+		{"CAGE_TOOL_BYTES gh.deb 0", "正在下载 GitHub CLI"},
+		{"CAGE_TOOL_BYTES gh.deb 17 128", "正在下载 GitHub CLI"},
+		{"Installing gh...", "正在安装 GitHub CLI"},
+	} {
+		if p := parseSetupProgress(tc.line); p == nil || p.Label != tc.label {
+			t.Fatalf("incorrect progress for %q: %+v", tc.line, p)
+		}
+	}
+}

@@ -133,6 +133,8 @@ func parseSetupProgress(line string) *SetupProgress {
 			p.Total = total
 		}
 		switch fields[1] {
+		case "gh.deb":
+			p.Label = "正在下载 GitHub CLI"
 		case "mise.tar.gz":
 			p.Phase, p.Label = "packages", "正在下载 mise"
 		case "code-server.deb":
@@ -157,6 +159,10 @@ func parseSetupProgress(line string) *SetupProgress {
 		return &SetupProgress{Phase: "packages", Label: "正在安装 Linux 基础软件包"}
 	case "Installing Python 3...":
 		return &SetupProgress{Phase: "packages", Label: "正在安装 Python"}
+	case "Downloading GitHub CLI...":
+		return &SetupProgress{Phase: "tools", Label: "正在下载 GitHub CLI"}
+	case "Installing gh...":
+		return &SetupProgress{Phase: "tools", Label: "正在安装 GitHub CLI"}
 	case "Installing Chromium...":
 		return &SetupProgress{Phase: "packages", Label: "正在安装 Chromium 浏览器"}
 	case "Installing Node.js 24...":
