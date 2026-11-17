@@ -15,7 +15,6 @@ import (
 
 // Keep the authorization admitted by the middleware: locking and unlocking
 // while an entry request waits must not revive that request in a new epoch.
-type initializationEpochKey struct{}
 
 const initializationLockTimeout = 15 * time.Second
 
@@ -56,7 +55,7 @@ func (s *Server) lockInitialization(ctx context.Context, wait bool) error {
 
 func (s *Server) writeInitialization(r *http.Request, record initializationRecord) error {
 	lifetime := s.lifetimeContext()
-	epoch, _ := r.Context().Value(initializationEpochKey{}).(context.Context)
+	epoch, _ := r.Context().Value(accountEpochKey{}).(context.Context)
 	if s.account == nil {
 		return errors.New("Cage 已锁定，请先登录")
 	}

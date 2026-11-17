@@ -77,7 +77,7 @@ func TestSharedSendReceiptSurvivesReadFailure(t *testing.T) {
 	if !ok {
 		t.Fatal("missing unlock epoch")
 	}
-	ctx := context.WithValue(context.Background(), mobileEpochKey{}, epoch)
+	ctx := context.WithValue(context.Background(), accountEpochKey{}, epoch)
 	requestID := uuid.NewString()
 	view, err := s.terminalConversationAction(ctx, id, map[string]any{"action": "send", "request_id": requestID, "text": "accepted message"})
 	if err != nil || view.AcknowledgedRequestID != requestID {

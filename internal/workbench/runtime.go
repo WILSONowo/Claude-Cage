@@ -675,8 +675,8 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 // A pre-sampled interface avoids holding the lifecycle lock while Windows
 // PowerShell queries the host's physical adapters. The guest gate is unchanged.
 type physicalInterfaceSample struct {
-	name string
-	err error
+	name     string
+	err      error
 	duration time.Duration
 }
 
@@ -717,29 +717,49 @@ func (s *Server) monitorNetworkTickWithInterface(sample *physicalInterfaceSample
 }
 
 func (s *Server) monitorNetwork(ctx context.Context) {
+	var sample *physicalInterfaceSample
+	s.runNetworkMonitor(ctx, func() {
+		started := time.Now()
+		name, err := physicalProxyInterface(ctx)
+		sample = &physicalInterfaceSample{name: name, err: err, duration: time.Since(started)}
+	}, func() { s.monitorNetworkTickWithInterface(sample) })
+}
+
+func (s *Server) runNetworkMonitor(ctx context.Context, probe, tick func()) {
 	skipped := 0
 	for ctx.Err() == nil {
-		// Do not let a slow Windows adapter query monopolize the lock that
-		// user actions (including opening a project) also require. Acquire
-		// briefly first so a busy worker does not start an extra probe.
-		locked := s.op.TryLock()
-		var sample *physicalInterfaceSample
-		if locked {
+		s.mu.Lock()
+		yielded := s.projectOperationWaiters > 0
+		acquired := !yielded && s.op.TryLock()
+		if acquired && probe != nil {
+			// A slow adapter query runs outside both locks.
 			s.op.Unlock()
-			started := time.Now()
-			name, err := physicalProxyInterface(ctx)
+			s.mu.Unlock()
+			probe()
 			if ctx.Err() != nil {
 				return
 			}
-			sample = &physicalInterfaceSample{name: name, err: err, duration: time.Since(started)}
-			// Reacquire before inspecting configuration or changing the gate.
-			// Another user operation may have started during the probe.
-			locked = s.op.TryLock()
+			s.mu.Lock()
+			yielded = s.projectOperationWaiters > 0
+			acquired = !yielded && s.op.TryLock()
 		}
-		if locked {
+		if acquired {
+			s.networkMonitorDone = make(chan struct{})
+		}
+		s.mu.Unlock()
+		if acquired {
 			skipped = 0
-			s.monitorNetworkTickWithInterface(sample)
+			tick()
+			s.mu.Lock()
 			s.op.Unlock()
+			close(s.networkMonitorDone)
+			s.networkMonitorDone = nil
+			s.mu.Unlock()
+		} else if yielded {
+			skipped = 0
+			timing := s.startMonitorTiming()
+			timing.result = "project_operations_waiting"
+			s.recordMonitorTiming("network", timing)
 		} else {
 			skipped++
 			timing := s.startMonitorTiming()

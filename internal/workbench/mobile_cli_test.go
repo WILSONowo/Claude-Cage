@@ -196,7 +196,7 @@ func TestMobileCLIStopFromPreviousUnlock(t *testing.T) {
 		req.SetPathValue("id", id)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
-		s.mobileStop(w, req.WithContext(context.WithValue(req.Context(), mobileEpochKey{}, epoch)))
+		s.mobileStop(w, req.WithContext(context.WithValue(req.Context(), accountEpochKey{}, epoch)))
 		return w.Code
 	}
 	oldEpoch, _ := s.account.access()

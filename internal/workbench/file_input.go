@@ -247,7 +247,7 @@ func (s *Server) fileInputAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if action == "directory" {
-		if !s.op.TryLock() {
+		if !s.lockProjectOperation(r.Context()) {
 			http.Error(w, "另一个操作仍在进行，请稍候", 409)
 			return
 		}

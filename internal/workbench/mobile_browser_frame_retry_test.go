@@ -99,7 +99,7 @@ func TestPhoneBrowserFrameNetworkConflictIsNotRetryable(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "http://phone/api/mobile/browser/"+id+"/frame", nil)
 			r.SetPathValue("id", id)
 			r.Header.Set(mobilelink.PhoneRoomHeader, s.phones.roomProof)
-			r = r.WithContext(context.WithValue(r.Context(), mobileEpochKey{}, epoch))
+			r = r.WithContext(context.WithValue(r.Context(), accountEpochKey{}, epoch))
 			w := httptest.NewRecorder()
 			s.phoneSurfaceRequest(phoneBrowser, w, r)
 			if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "确保网络检查已放行") {

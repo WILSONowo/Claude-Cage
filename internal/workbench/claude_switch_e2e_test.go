@@ -239,7 +239,7 @@ func testClaudeAccountSwitchThroughSharedSession(t *testing.T, automatic bool) {
 			t.Fatal(err)
 		}
 		epoch, _ := s.account.access()
-		ctx := context.WithValue(context.Background(), mobileEpochKey{}, epoch)
+		ctx := context.WithValue(context.Background(), accountEpochKey{}, epoch)
 		lastUsage := time.Now()
 		s.maybeSwitchClaudeAccount(ctx, id, &lastUsage)
 		m.mu.Lock()
