@@ -333,7 +333,10 @@ def query_usage(binary, env, base, expected):
     status = "error"
     summary = {}
     options = ["--setting-sources", "user", "--settings", '{"disableAllHooks":true}']
-    with tempfile.TemporaryDirectory(prefix="cage-claude-usage-") as cwd:
+    scratch = Path(tempfile.gettempdir()).resolve()
+    if os.name == "posix" and scratch.is_relative_to(Path.home().resolve()):
+        scratch = Path("/tmp")
+    with tempfile.TemporaryDirectory(prefix="cage-claude-usage-", dir=scratch) as cwd:
         try:
             summary = identity(binary, env, cwd, options, timeout=4)
             if subject(summary) != expected:
@@ -526,12 +529,12 @@ def shared_memory_path(memory):
         if conflict:
             raise SharedResourceConflict("项目记忆存在同名内容冲突，两份记忆均已保留，请先核对后重试")
     backup = shared_root() / "backups/runtime-memory" / (alias.name + "-" + str(time.time_ns()))
-    backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+    backup.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     shutil.copytree(alias, backup, symlinks=True)
     for source in entries:
         destination = memory / source.relative_to(alias)
         if source.is_dir():
-            destination.mkdir(mode=PRIVATE_MODE, exist_ok=True)
+            destination.mkdir(mode=0o700, exist_ok=True)
         else:
             # Exclusive publication also preserves a note written by an active
             # CLI after preflight. On failure both the source and backup remain.

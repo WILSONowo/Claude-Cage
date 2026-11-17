@@ -42,6 +42,43 @@ func holdProjectNetworkMonitor(t *testing.T, s *Server) func() {
 	return stop
 }
 
+func TestQueuedProjectOpensGrantBothDirectories(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := testServer(t)
+		s.ready = true
+		s.projectShares = make(map[string]*projectShare)
+		paths := []string{t.TempDir(), t.TempDir()}
+		for i, raw := range paths {
+			path, err := filepath.EvalSymlinks(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			paths[i] = path
+			s.projectShares[path] = &projectShare{done: make(chan struct{})}
+		}
+		stop := holdProjectNetworkMonitor(t, s)
+		defer stop()
+		var requests []<-chan *httptest.ResponseRecorder
+		for _, path := range paths {
+			requests = append(requests, startProjectOperationRequest(t, s, context.Background(), "/api/projects/open", map[string]any{"workspace": path, "add": true}))
+		}
+		for _, req := range requests {
+			assertProjectOperationWaiting(t, req)
+		}
+		stop()
+		for _, req := range requests {
+			if res := projectOperationResponse(t, req); res.Code != http.StatusOK {
+				t.Fatal(res.Code, res.Body.String())
+			}
+		}
+		for _, path := range paths {
+			if _, err := s.projectWorkspace(path); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
+
 func TestProjectDirectoryWaitPreservesAuthorization(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := testServer(t)
@@ -230,7 +267,7 @@ func projectOperationResponse(t *testing.T, done <-chan *httptest.ResponseRecord
 	}
 }
 
-func TestProjectSaveAbandonsNetworkWait(t *testing.T) {
+func TestProjectOpenAbandonsNetworkWait(t *testing.T) {
 	for _, scenario := range []struct {
 		name string
 		stop func(*Server, context.CancelFunc)

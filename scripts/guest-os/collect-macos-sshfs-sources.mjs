@@ -48,11 +48,6 @@ export function inspectDependency(name, prefix) {
   return { spec, formula, receipt: { ...selected, source: { spec: 'stable', version: spec.version, tap: receipt.source.tap, tap_git_head: receipt.source.tap_git_head } } };
 }
 
-function isIntel() {
-  const arch = process.env.CAGE_MACOS_GUEST_ARCH || process.arch;
-  return arch === 'x86_64' || arch === 'x64';
-}
-
 function brewDependency(name) {
   let prefix;
   try { prefix = realpathSync(run('brew', ['--prefix', name]).trim()); }
@@ -71,7 +66,7 @@ function brewDependency(name) {
 
 export function checkDependencies() {
   const problems = [];
-  for (const name of isIntel() ? ['gettext'] : Object.keys(inputs)) {
+  for (const name of Object.keys(inputs)) {
     try { brewDependency(name); }
     catch (error) { problems.push(error.message); }
   }

@@ -34,7 +34,7 @@ function Run-Setup([string]$installDir, [string]$phase, [int]$expected, [scriptb
     }
 }
 try {
-    foreach ($name in 'Cage.ico','installation-files.ps1','verified-file-deletion.cs') { Copy-Item -LiteralPath (Join-Path $PackagingDirectory $name) -Destination $build }
+    foreach ($name in 'Cage.ico','CageInstallerOptions.nsh','installation-files.ps1','verified-file-deletion.cs') { Copy-Item -LiteralPath (Join-Path $PackagingDirectory $name) -Destination $build }
     foreach ($name in 'close-installation.ps1','installer-process.cs') {
         $file = Join-Path $PackagingDirectory $name
         if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination $build }

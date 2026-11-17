@@ -21,7 +21,7 @@ export function ProjectDialog({
   onSettings,
 }) {
   const projects = status.projects || [];
-  const [adding, setAdding] = useState(Boolean(initialPath) || projects.length === 0);
+  const [adding, setAdding] = useState((Boolean(initialPath) && !projects.includes(initialPath)) || projects.length === 0);
   const [path, setPath] = useState(initialPath || selectedWorkspace || status.workspace || projects[0] || "");
   const [error, setError] = useState("");
   const [recovery, setRecovery] = useState("");

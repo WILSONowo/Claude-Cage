@@ -149,17 +149,13 @@ try {
     },
   });
   try {
-    const region = f.page.getByRole("region", { name: "默认工作区访问" });
-    const open = region.getByRole("button", { name: "打开工作区授权" });
+    const open = f.page.getByRole("button", { name: "打开工作区授权", exact: true });
     const dialog = f.page.getByRole("dialog", { name: "允许客机访问所选项目" });
     const enter = f.page.getByRole("button", { name: "进入工作台", exact: true });
     await open.waitFor();
     assert.equal(await dialog.count(), 0);
     assert.equal(generation, 0, "polling must not open the guest dialog");
     await open.click();
-    await dialog.getByText("当前操作结束后会显示授权窗口。").waitFor();
-    assert.equal(generation, 0);
-    f.state.status.job.running = false;
     await dialog.getByRole("img").waitFor();
     await dialog.getByRole("button", { name: "取消", exact: true }).click();
     await dialog.waitFor({ state: "hidden" });

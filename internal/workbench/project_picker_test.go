@@ -142,11 +142,11 @@ func TestProjectPickerWaitsForTransientOperationLock(t *testing.T) {
 	s.projectShares = map[string]*projectShare{root: {done: make(chan struct{})}}
 	body, _ := json.Marshal(map[string]any{"workspace": root, "add": true})
 
-	s.op.Lock()
+	stopMonitor := holdProjectNetworkMonitor(t, s)
 	released := make(chan struct{})
 	go func() {
 		time.Sleep(90 * time.Millisecond)
-		s.op.Unlock()
+		stopMonitor()
 		close(released)
 	}()
 	w := request(s, "POST", "/api/projects/open", s.origin, string(body), true)

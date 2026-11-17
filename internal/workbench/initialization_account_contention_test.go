@@ -12,7 +12,7 @@ func TestInitializationRecordDoesNotWaitOnAccountAfterSafetyCheck(t *testing.T) 
 		s := initializationWaitServer(t)
 		before := initializationWaitRecord(t, s)
 		epoch, _ := s.account.access()
-		r := initializationWaitHTTPRequest(s, context.WithValue(context.Background(), initializationEpochKey{}, epoch), "complete")
+		r := initializationWaitHTTPRequest(s, context.WithValue(context.Background(), accountEpochKey{}, epoch), "complete")
 		s.account.mu.Lock()
 		started := time.Now()
 		// Exercise the final writer directly: the real middleware also reads
