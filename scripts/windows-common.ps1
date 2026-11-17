@@ -10,16 +10,44 @@ function Invoke-BuildTool {
 }
 
 function Get-WindowsWorkbenchTestBase {
+    param([switch]$WorkbenchProfile)
     if ($env:RUNNER_TEMP) { return [IO.Path]::GetFullPath($env:RUNNER_TEMP) }
-    $temp = [IO.Path]::GetTempPath()
-    if ($IsWindows) {
-        $relative = [IO.Path]::GetRelativePath($env:USERPROFILE, $temp)
-        if (-not [IO.Path]::IsPathRooted($relative) -and $relative -ne '..' -and -not $relative.StartsWith('..\')) {
-            $buildTemp = Join-Path $PSScriptRoot '../_output/windows-test-temp'
-            return [IO.Directory]::CreateDirectory($buildTemp).FullName
+    if ($WorkbenchProfile) {
+        # The smoke profile includes project storage, which Cage rejects inside AppData.
+        return Join-Path (Split-Path $PSScriptRoot -Parent) '_output/workbench-smoke'
+    }
+    return [IO.Path]::GetTempPath()
+}
+
+function Resolve-WindowsBuildDirectory {
+    param([string]$Directory)
+    $full = [IO.Path]::GetFullPath($Directory)
+    $resolved = [IO.Path]::GetPathRoot($full)
+    foreach ($part in ($full.Substring($resolved.Length) -split '[\\/]')) {
+        if (-not $part) { continue }
+        $resolved = Join-Path $resolved $part
+        $info = [IO.DirectoryInfo]::new($resolved)
+        if ($info.Exists -and ($info.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            $target = $info.ResolveLinkTarget($true)
+            if ($target) { $resolved = $target.FullName }
         }
     }
-    return $temp
+    return $resolved
+}
+
+function Assert-WindowsWorkbenchTestBase {
+    param([string]$Directory = (Get-WindowsWorkbenchTestBase -WorkbenchProfile))
+    if (-not $IsWindows) { return }
+    $path = (Resolve-WindowsBuildDirectory $Directory).TrimEnd('\', '/') + '\'
+    $blocked = @($env:APPDATA, $env:LOCALAPPDATA, $env:XDG_CONFIG_HOME)
+    if ($env:USERPROFILE) { $blocked += Join-Path $env:USERPROFILE 'AppData' }
+    foreach ($root in $blocked) {
+        if (-not $root -or -not [IO.Path]::IsPathFullyQualified($root)) { continue }
+        $prefix = (Resolve-WindowsBuildDirectory $root).TrimEnd('\', '/') + '\'
+        if ($path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The workbench smoke test directory resolves inside AppData or another private configuration directory. Set RUNNER_TEMP to a writable local directory outside it, such as D:\CageBuildTemp.'
+        }
+    }
 }
 
 function Invoke-InIsolatedTestTemp {
@@ -129,7 +157,9 @@ function Save-WindowsWorkbenchPublicReport {
 function Assert-WindowsWorkbench {
     param([Parameter(Mandatory)][string]$AppDirectory)
     if (-not $IsWindows) { throw 'Workbench acceptance requires Windows.' }
-    $testRoot = Join-Path (Get-WindowsWorkbenchTestBase) ('cage-build-ui-' + [guid]::NewGuid().ToString('N'))
+    $base = Get-WindowsWorkbenchTestBase -WorkbenchProfile
+    Assert-WindowsWorkbenchTestBase $base
+    $testRoot = Join-Path $base ('cage-build-ui-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
     $privateRoot = Join-Path $testRoot 'private'
     New-Item -ItemType Directory -Path $privateRoot | Out-Null
@@ -274,7 +304,16 @@ function Get-VerifiedGitArchive {
                 $git = Get-BuildCommand @('git.exe', 'git')
                 $checkout = Join-Path $stage 'git'
                 Invoke-BuildTool $git @('init', '--bare', '--quiet', $checkout)
-                Invoke-BuildTool $git @('--git-dir', $checkout, 'fetch', '--depth=1', $Dependency.repository, $Dependency.commit)
+                for ($attempt = 1; ; $attempt++) {
+                    try {
+                        Invoke-BuildTool $git @('--git-dir', $checkout, 'fetch', '--depth=1', $Dependency.repository, $Dependency.commit)
+                        break
+                    } catch {
+                        if ($attempt -ge 3) { throw }
+                        Write-Warning "Fetching the pinned QEMU source failed (attempt $attempt). Retrying."
+                        Start-Sleep -Seconds (2 * $attempt)
+                    }
+                }
                 $actualCommit = & $git '--git-dir' $checkout 'rev-parse' 'FETCH_HEAD'
                 if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $Dependency.commit) { throw 'Fetched source commit does not match the pinned QEMU build.' }
                 # Keep the pinned tar identical to the reviewed POSIX-generated archive.
@@ -290,6 +329,89 @@ function Get-VerifiedGitArchive {
     $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualHash -ne $Dependency.hash) { throw "Source archive checksum mismatch: $($Dependency.file); expected $($Dependency.hash), actual $actualHash. Remove the cached file and retry." }
     return $archive
+}
+
+function Invoke-WindowsQemuProbe {
+    param([string]$Executable, [string[]]$Arguments)
+    $start = [Diagnostics.ProcessStartInfo]::new([IO.Path]::GetFullPath($Executable))
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.WorkingDirectory = Split-Path $start.FileName -Parent
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    # QEMU uses the Windows ANSI code page for redirected path output. Decode
+    # just this pipe instead of changing the calling shell's output encoding.
+    $codePage = Get-ItemPropertyValue -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\CodePage' -Name ACP
+    [Text.Encoding]::RegisterProvider([Text.CodePagesEncodingProvider]::Instance)
+    $start.StandardOutputEncoding = [Text.Encoding]::GetEncoding([int]$codePage)
+    $start.StandardErrorEncoding = $start.StandardOutputEncoding
+    # Catch missing DLLs even on a host with MSYS2 or another QEMU on PATH.
+    $start.Environment['PATH'] = [Environment]::SystemDirectory
+    foreach ($argument in $Arguments) { $start.ArgumentList.Add($argument) }
+    $process = [Diagnostics.Process]::Start($start)
+    try {
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(15000)) {
+            $process.Kill()
+            throw "QEMU runtime probe timed out: $([IO.Path]::GetFileName($Executable))."
+        }
+        if ($process.ExitCode -ne 0) {
+            throw "QEMU runtime probe failed: $([IO.Path]::GetFileName($Executable)) (0x$($process.ExitCode.ToString('X8'))). $($stderr.GetAwaiter().GetResult().Trim())"
+        }
+        return $stdout.GetAwaiter().GetResult()
+    } finally { $process.Dispose() }
+}
+
+function Assert-WindowsQemuRuntime {
+    param([string]$Directory, [switch]$Firmware)
+    foreach ($binary in @('qemu-system-x86_64.exe', 'qemu-img.exe')) {
+        $version = Invoke-WindowsQemuProbe (Join-Path $Directory $binary) @('--version')
+        if ($version -notmatch 'version \d+\.\d+\.\d+') { throw "Invalid QEMU version output from $binary." }
+    }
+    if ($Firmware) {
+        $directories = (Invoke-WindowsQemuProbe (Join-Path $Directory 'qemu-system-x86_64.exe') @('-L', 'help')) -split '\r?\n'
+        $bundled = [IO.Path]::GetFullPath((Join-Path $Directory 'share')).TrimEnd('\', '/')
+        $found = $directories | Where-Object { $_ -and [IO.Path]::GetFullPath($_).TrimEnd('\', '/') -eq $bundled }
+        if (-not $found) { throw 'QEMU cannot locate its bundled firmware after relocation.' }
+    }
+}
+
+function Get-WindowsQemuBinaries {
+    param([string]$Directory)
+    foreach ($binary in @('qemu-system-x86_64.exe', 'qemu-img.exe')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $Directory $binary) -PathType Leaf)) { throw "Missing QEMU runtime executable: $binary" }
+    }
+    return Get-ChildItem -LiteralPath $Directory -File -Recurse | Where-Object Extension -in @('.exe', '.dll')
+}
+
+function Assert-CageReleaseSignature {
+    param([string]$Path)
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($signature.Status -ne 'Valid' -or -not $signature.TimeStamperCertificate -or
+        $signature.SignerCertificate.Thumbprint -ne $env:CAGE_WINDOWS_CERT_SHA1) {
+        throw "Invalid or missing timestamped release signature: $Path"
+    }
+}
+
+function Get-WindowsQemuSourceManifestHash {
+    param([string]$Archive)
+    # Read only the raw manifest, without extracting arbitrary archive paths.
+    $start = [Diagnostics.ProcessStartInfo]::new((Join-Path $env:SystemRoot 'System32/tar.exe'))
+    $start.UseShellExecute = $false
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    foreach ($arg in @('-xqOf', [IO.Path]::GetFullPath($Archive), 'source/cage/cage-build.json')) {
+        $start.ArgumentList.Add($arg)
+    }
+    $process = [Diagnostics.Process]::Start($start)
+    try {
+        $errors = $process.StandardError.ReadToEndAsync()
+        $hash = [Security.Cryptography.SHA256]::HashData($process.StandardOutput.BaseStream)
+        $process.WaitForExit()
+        if ($process.ExitCode -ne 0) { throw "Could not read the QEMU source manifest: $($errors.GetAwaiter().GetResult().Trim())" }
+        return [Convert]::ToHexString($hash)
+    } finally { $process.Dispose() }
 }
 
 function Get-SigningTool {

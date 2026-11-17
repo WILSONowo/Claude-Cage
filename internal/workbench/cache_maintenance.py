@@ -157,11 +157,37 @@ def private_directory(path):
         info = path.stat()
         if not path.is_dir() or os.name != "nt" and (info.st_uid != os.geteuid() or info.st_mode & 0o077):
             raise Refused("unavailable")
-        return
-    path.mkdir(mode=0o700)
+    else:
+        path.mkdir(mode=0o700)
     if os.name == "nt":
         executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-        script = "$ErrorActionPreference='Stop'; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetAccessRuleProtection($true,$false); $acl.SetOwner($sid); foreach($id in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; Set-Acl -LiteralPath $env:MAINTENANCE_DIRECTORY -AclObject $acl"
+        # Persist just the changed sections. A user-owned directory needs a
+        # DACL update, which does not require WRITE_OWNER or SACL access.
+        script = """
+$ErrorActionPreference = 'Stop'
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$sid = $identity.User
+$directory = [IO.DirectoryInfo]::new($env:MAINTENANCE_DIRECTORY)
+if ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Invalid recovery directory.' }
+$sections = [Security.AccessControl.AccessControlSections]::Access -bor [Security.AccessControl.AccessControlSections]::Owner
+$acl = $directory.GetAccessControl($sections)
+$owner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
+if ($owner -ne $sid) {
+    # Elevated Windows processes can create directories owned by Administrators.
+    $admins = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    if ($owner -ne $admins -or -not $principal.IsInRole($admins)) { throw 'Recovery directory has an unexpected owner.' }
+    $acl.SetOwner($sid)
+}
+$acl.SetAccessRuleProtection($true, $false)
+foreach ($rule in $acl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier])) {
+    $acl.RemoveAccessRuleSpecific($rule)
+}
+foreach ($id in @($sid, [Security.Principal.SecurityIdentifier]::new('S-1-5-18'))) {
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+}
+$directory.SetAccessControl($acl)
+"""
         try:
             subprocess.run([str(executable), "-NoProfile", "-NonInteractive", "-Command", script], env={**os.environ, "MAINTENANCE_DIRECTORY": str(path), "PSModulePath": str(executable.parent / "Modules")},
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=15, check=True)

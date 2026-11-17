@@ -32,15 +32,20 @@ try {
     Assert-SmokeContract ($env:TEMP -eq $savedTemp -and $env:TMP -eq $savedTmp) 'Failed tests changed the caller temp environment.'
     Assert-SmokeContract (-not (Test-Path -LiteralPath $childEnv.temp)) 'Owned test temp was not cleaned.'
     Remove-Item Env:RUNNER_TEMP -ErrorAction SilentlyContinue
-    if ($IsWindows) {
-        $originalTemp = $env:TEMP
-        try {
-            $env:TEMP = Join-Path $env:USERPROFILE 'AppData/Local/Temp'
-            $expected = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../_output/windows-test-temp'))
-            Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq $expected) 'Smoke projects must be outside AppData.'
-        } finally { $env:TEMP = $originalTemp }
-    } else {
-        Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq [IO.Path]::GetTempPath()) 'Local report directory lost its OS temp fallback.'
+    Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq [IO.Path]::GetTempPath()) 'Local report directory lost its OS temp fallback.'
+    $checkout = Split-Path $PSScriptRoot -Parent
+    Push-Location $directory
+    try {
+        Assert-SmokeContract ((Get-WindowsWorkbenchTestBase -WorkbenchProfile) -eq (Join-Path $checkout '_output/workbench-smoke')) 'Local workbench profile must stay in the checkout output directory.'
+    } finally { Pop-Location }
+    if ($IsWindows -and $env:LOCALAPPDATA) {
+        # An AppData checkout recreates the old timeout even with the new
+        # checkout-relative default. No files need to be written there.
+        $privateStage = Join-Path $env:LOCALAPPDATA 'Cage-test-checkout/_output/workbench-smoke'
+        $rejected = $false
+        try { Assert-WindowsWorkbenchTestBase $privateStage }
+        catch { $rejected = $_.Exception.Message -match 'Set RUNNER_TEMP' }
+        Assert-SmokeContract $rejected 'Smoke preflight accepted a checkout under AppData.'
     }
     $report = Join-Path $directory 'smoke.json'
     $fixture = Join-Path $directory 'fixture.json'

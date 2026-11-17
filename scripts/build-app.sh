@@ -42,6 +42,8 @@ export CAGE_SIGNING_IDENTITY="$identity"
 export MACOSX_DEPLOYMENT_TARGET=14.0
 export CGO_CFLAGS="${CGO_CFLAGS:-} -mmacosx-version-min=14.0"
 export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=14.0"
+command -v uv >/dev/null || { echo 'Building the workbench requires uv: https://docs.astral.sh/uv/getting-started/installation/' >&2; exit 1; }
+node scripts/guest-os/collect-macos-sshfs-sources.mjs check
 bash scripts/fetch-proxy-core.sh
 if [[ "$(uname -m)" == arm64 ]]; then
   bash scripts/guest-os/build-macos-guest-core.sh "$version"

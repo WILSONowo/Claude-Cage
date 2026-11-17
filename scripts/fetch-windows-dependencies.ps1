@@ -11,3 +11,6 @@ foreach ($name in @('mihomo', 'mihomoSource', 'openssh', 'qemu', 'webview2', 'qe
     $path = Get-VerifiedDependency $dependencies.$name $DependencyCache
     Write-Host "Verified $name at $path"
 }
+Push-Location $repository
+try { Invoke-BuildTool (Get-BuildCommand @('node.exe', 'node')) @('scripts/bundle-cloud-kit.mjs', '--prefetch') }
+finally { Pop-Location }

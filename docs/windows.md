@@ -68,6 +68,7 @@ Cage 支持含中文的安装目录。启动时优先读取随附 QEMU 的 UEFI 
 
 - 提示虚拟化不可用：检查 BIOS/UEFI 的虚拟化开关及 Windows 虚拟机监控程序平台，重启后再试。远程或嵌套虚拟机还需要外层宿主允许嵌套虚拟化。
 - 提示缺少 WebView2：重新运行完整安装程序。不要从第三方站点下载同名 DLL。
+- 提示 Windows 应用程序控制或签名校验阻止了 QEMU：检查 Windows 安全中心和 CodeIntegrity/Operational 事件。使用带可信签名的完整发布包，保留原来的环境存储位置和虚拟磁盘。
 - 工作台能打开，环境不能联网：检查 Cage 内是否已选择节点及网络检查结果。Windows 浏览器能联网不表示 Cage 节点已配置。
 - 提示权限或路径不可用：使用当前用户有权限访问的本地目录，不把 Cage 安装目录、私有配置或磁盘根目录作为共享项目。更新器拒绝含符号链接或目录联接的安装路径。
 
@@ -80,9 +81,9 @@ Cage 支持含中文的安装目录。启动时优先读取随附 QEMU 的 UEFI 
 | 工具 | 版本与用途 |
 | --- | --- |
 | [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows) | 用 `pwsh --version` 检查。系统自带的 `powershell.exe` 是 5.1。 |
-| [Git](https://git-scm.com/install/windows)、[Node.js](https://nodejs.org/en/download) | Git 用于获取源码，CI 使用 Node.js 24 和随附的 npm 构建工作台。 |
+| [Git](https://git-scm.com/install/windows)、[Node.js](https://nodejs.org/en/download) | Git 用于获取源码，CI 使用 Node.js 24 和随附的 npm 构建工作台。建议使用 24.x 的最新补丁版。旧版 Node 在部分 Windows 路径环境曾以 `0xC0000409` 退出。 |
 | [Go](https://go.dev/dl/) | 核对根目录 [go.mod](../go.mod) 和 [tools/tailnet/go.mod](../tools/tailnet/go.mod)。当前最低版本分别为 1.26.10 和 1.27.3。安装 Go 1.27.3 可同时满足两者。使用 `GOTOOLCHAIN=auto` 时可联网下载所需工具链。 |
-| [.NET SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 在仓库根目录运行 `dotnet --version`，应输出 [global.json](../global.json) 锁定的 10.0.403。构建还会核对 [dependencies.json](../packaging/windows/dependencies.json) 中的 .NET 运行时 10.0.14。 |
+| [.NET SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 在仓库根目录运行 `dotnet --version`，应输出 [global.json](../global.json) 锁定的 10.0.404。构建还会核对 [dependencies.json](../packaging/windows/dependencies.json) 中的 .NET 运行时 10.0.15。 |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/)、[7-Zip](https://www.7-zip.org/) | 工作台构建需要 `uv` 运行 noVNC 补丁脚本。Windows 构建需要 `7z` 或 `7zz` 解包依赖。可用 `uv --version` 和 `Get-Command 7z, 7zz -ErrorAction SilentlyContinue` 检查。 |
 | [WebView2 Evergreen 运行时](https://developer.microsoft.com/microsoft-edge/webview2/) | 本机需安装此运行时，构建完成后会启动工作台进行自检。 |
 | [MSYS2](https://www.msys2.org/)、NSIS | MSYS2 的 UCRT64 环境用于编译 QEMU。生成安装包还需要 NSIS。 |
@@ -101,9 +102,11 @@ $env:CAGE_MSYS2_ROOT = 'C:\msys64'
 .\scripts\build-windows.ps1
 ```
 
-首次构建会下载并校验 QEMU 源码，再编译 `qemu-system-x86_64.exe` 和 `qemu-img.exe`。源码优先使用项目发行页上的归档，下载失败时回退到 Git。两种方式都校验源码 tar 文件的 SHA-256。QEMU 在 MSYS2 的临时目录中编译，因此 Cage 仓库路径可以有空格。
+首次构建会下载并校验 QEMU 源码，再编译 `qemu-system-x86_64.exe` 和 `qemu-img.exe`。源码优先使用项目发行页上的归档，下载失败时回退到 Git。两种方式都校验源码 tar 文件的 SHA-256。Cage 仓库路径可以有空格；QEMU 会在另一个短路径目录下编译，默认尝试 MSYS2 的 `tmp`。如果该目录不可写，可在当前会话设置 `$env:CAGE_QEMU_BUILD_ROOT = 'D:\CageBuildTemp'`，使用普通用户可写、无空格且仅含 ASCII 字符的路径。
 
-应用输出到 `_output/windows-amd64/app`。若工作台自检失败，在提示的诊断目录中查看 `smoke.json` 和 `profile/logs/events.jsonl`。报告中的 `prepareStatus=prepared` 是自检结束时的后台停止确认。排查启动超时时，请结合事件日志和报告里的页面错误。本地默认自检目录在仓库的 `_output/workbench-smoke` 下，也可以把 `RUNNER_TEMP` 设为用户可写的普通本地目录，例如 `D:\CageBuildTemp`，供该会话的自检使用。
+依赖默认缓存到 `_output/windows-deps`，可给构建和打包命令传入相同的 `-DependencyCache` 复用缓存。云部署包的 Linux Mihomo 归档缓存在 `_output/linux-deps`，下载完成并通过 SHA-256 校验后才写入缓存。也可先运行 `.\scripts\fetch-windows-dependencies.ps1` 预取。若公司网络要求代理，在当前构建会话按需设置 `HTTPS_PROXY`、`HTTP_PROXY` 和获准使用的 `GOPROXY`，再重试 NuGet、Go 或构建依赖下载。保留原有证书与哈希校验。
+
+应用输出到 `_output/windows-amd64/app`。本地默认自检目录是仓库内的 `_output/workbench-smoke`。源码如果检出到 AppData 或重解析到其他私有目录，构建会在开始前提示把 `RUNNER_TEMP` 指向 AppData 外的普通本地目录，例如 `D:\CageBuildTemp`。若自检失败，可查看 `smoke.json` 和 `profile/logs/events.jsonl`。`prepareStatus=prepared` 是自检结束时后台的停止确认。
 
 生成未签名安装包时，用仓库脚本安装校验过的 NSIS，再打包刚构建的应用。
 
@@ -116,6 +119,8 @@ $env:Path = "$(Join-Path $tools 'nsis-3.13');$env:Path"
 
 安装包及 SHA-256 校验文件位于 `_output/releases/<版本>/windows`。
 
+正式发布还会检查随包 QEMU 两个 EXE 及其 DLL 的发布者签名、时间戳和文件哈希。签名后的运行时路径与对应源码归档必须来自同一次构建。发布验收应在开启智能应用控制的 Windows 11 测试机上，用正式签名的安装包升级并启动已有 Linux 环境。普通的构建自检只检查工作台、QEMU 加载及固件路径。
+
 ## Windows 客机里的 PowerShell
 
 Hyper-V 装机流程为新建的 Windows 11 x64 客机预装 PowerShell 7.6.9 LTS。首次登录后，在客机终端运行 `pwsh --version` 即可查看版本；旧脚本仍可用 `powershell.exe` 调用系统的 5.1。
@@ -124,7 +129,7 @@ Windows 开发包将创建脚本放在安装目录的 `resources\guest-os\new-wi
 
 ## 静默安装选项
 
-静默安装可传入 `/DESKTOPSHORTCUT=0|1` 和 `/STARTMENUSHORTCUT=0|1`，参数放在最后的 `/D=` 安装目录之前。未提供参数的静默更新沿用已保存的快捷方式选择。
+静默安装可同时传入 `/DESKTOPSHORTCUT=0|1` 和 `/STARTMENUSHORTCUT=0|1`。若指定安装目录，`/D=` 必须是最后一项，只出现一次。目录要用绝对盘符和反斜杠，路径中有空格也无需加引号。未提供快捷方式参数的静默更新沿用上次选择。
 
 ## Windows 本地构建
 

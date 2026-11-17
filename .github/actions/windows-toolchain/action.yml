@@ -53,8 +53,10 @@ runs:
     - uses: actions/cache/restore@v4
       id: deps_cache
       with:
-        path: _output/windows-deps
-        key: windows-deps-v2-${{ hashFiles('packaging/windows/dependencies.json', 'patches/qemu/**', 'scripts/build-qemu-windows.*') }}
+        path: |
+          _output/windows-deps
+          _output/linux-deps/mihomo-*.gz
+        key: windows-deps-v2-${{ hashFiles('packaging/windows/dependencies.json', 'packaging/linux/dependencies.json', 'patches/qemu/**', 'scripts/build-qemu-windows.*') }}
         restore-keys: |
           windows-deps-v2-
           cage-windows-deps-
@@ -77,8 +79,10 @@ runs:
       if: steps.deps_cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
-        path: _output/windows-deps
-        key: windows-deps-v2-${{ hashFiles('packaging/windows/dependencies.json', 'patches/qemu/**', 'scripts/build-qemu-windows.*') }}
+        path: |
+          _output/windows-deps
+          _output/linux-deps/mihomo-*.gz
+        key: windows-deps-v2-${{ hashFiles('packaging/windows/dependencies.json', 'packaging/linux/dependencies.json', 'patches/qemu/**', 'scripts/build-qemu-windows.*') }}
     - uses: actions/cache/restore@v4
       if: inputs.corresponding-sources == 'true'
       id: qemu_sources

@@ -341,7 +341,7 @@ func qemuHelp(ctx context.Context, exe string, args ...string) ([]byte, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("failed to run %v: stdout=%#q, stderr=%#q", cmd.Args, stdout.String(), stderr.String())
+		return nil, fmt.Errorf("failed to run %v: stdout=%#q, stderr=%#q: %w", cmd.Args, stdout.String(), stderr.String(), qemuExecutionError(err))
 	}
 	// on older versions qemu will write "help" output to stderr
 	if stdout.Len() == 0 {
@@ -1308,7 +1308,7 @@ func getQemuVersion(ctx context.Context, qemuExe string) (*semver.Version, error
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("failed to run %v: stdout=%#q, stderr=%#q", cmd.Args, stdout.String(), stderr.String())
+		return nil, fmt.Errorf("failed to run %v: stdout=%#q, stderr=%#q: %w", cmd.Args, stdout.String(), stderr.String(), qemuExecutionError(err))
 	}
 
 	return parseQemuVersion(stdout.String())

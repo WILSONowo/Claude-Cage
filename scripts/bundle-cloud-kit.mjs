@@ -3,23 +3,29 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createGzip } from "node:zlib";
 import { pipeline } from "node:stream/promises";
+import { fetchBuildArtifact, sha256 as digest } from "./fetch-build-artifact.mjs";
 
-const target = path.resolve(process.argv[2], "cloud-linux-amd64.tar");
-const digest = async file => {
-  const hash = createHash("sha256");
-  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
-  return hash.digest("hex");
-};
+const destination = process.argv[2];
 const offline = process.env.CAGE_CLOUD_KIT;
+async function prepareCore() {
+  const {mihomo} = JSON.parse(fs.readFileSync("packaging/linux/dependencies.json"));
+  const archive = await fetchBuildArtifact(mihomo.url, mihomo.sha256, path.resolve("_output/linux-deps", mihomo.file));
+  return { archive, checksum: mihomo.sha256 };
+}
+if (destination === "--prefetch") {
+  if (!offline) console.log("Verified cloud kit dependency at " + (await prepareCore()).archive);
+  process.exit(0);
+}
+const target = path.resolve(destination, "cloud-linux-amd64.tar");
 if (offline) {
   if (await digest(offline) !== fs.readFileSync(offline + ".sha256", "utf8").trim())
     throw Error("Cloud deployment kit checksum mismatch");
   fs.copyFileSync(offline, target);
 } else {
+  const { archive, checksum } = await prepareCore();
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), "cage-bootstrap-"));
   try {
     const version = fs.readFileSync("VERSION", "utf8").trim();
@@ -32,32 +38,9 @@ if (offline) {
     });
     await pipeline(fs.createReadStream(binary), createGzip(), fs.createWriteStream(binary + ".gz"));
     fs.unlinkSync(binary);
-    const {mihomo} = JSON.parse(fs.readFileSync("packaging/linux/dependencies.json"));
-    const cache = path.resolve("_output/linux-deps", mihomo.file);
     const core = path.join(stage, "mihomo.gz");
-    if (!fs.existsSync(cache)) {
-      fs.mkdirSync(path.dirname(cache), {recursive:true});
-      const download = fs.mkdtempSync(path.join(path.dirname(cache), "cloud-core-"));
-      const partial = path.join(download, "partial");
-      try {
-        for (let attempt = 0; ; attempt++) {
-          try {
-            execFileSync("curl", ["--fail", "--location", "--connect-timeout", "30",
-              "--speed-limit", "1", "--speed-time", "120", "--continue-at", "-",
-              "--output", partial, mihomo.url], {stdio:"inherit"});
-            break;
-          } catch (error) {
-            if (attempt >= 3) throw error;
-            // A server that refuses ranges must receive a fresh full request.
-            if (error.status === 33) fs.rmSync(partial, {force:true});
-          }
-        }
-        if (await digest(partial) !== mihomo.sha256) throw Error("Linux Mihomo checksum mismatch");
-        fs.renameSync(partial, cache);
-      } finally { fs.rmSync(download, {recursive:true, force:true}); }
-    }
-    fs.copyFileSync(cache, core);
-    if (await digest(core) !== mihomo.sha256) throw Error("Linux Mihomo checksum mismatch");
+    fs.copyFileSync(archive, core);
+    if (await digest(core) !== checksum) throw Error("Linux Mihomo checksum mismatch");
     const recipe = path.join(stage, "deploy/cloud");
     fs.mkdirSync(recipe, {recursive:true});
     for (const name of ["Dockerfile.guest","restore-apt-sources.sh","build-guest.sh"])

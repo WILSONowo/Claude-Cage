@@ -73,17 +73,14 @@ LangString CageDesktopShortcut ${LANG_SIMPCHINESE} "添加桌面快捷方式"
 LangString CageStartMenuShortcuts ${LANG_ENGLISH} "Add to the Start menu"
 LangString CageStartMenuShortcuts ${LANG_SIMPCHINESE} "添加到开始菜单"
 
-Var UpdateMode
+!include "CageInstallerOptions.nsh"
 Var StageDir
 Var BackupDir
 Var ExistingInstall
-Var DesktopShortcut
-Var StartMenuShortcuts
 Var DesktopShortcutControl
 Var StartMenuShortcutsControl
 Var InstallationMutex
 Var TransactionRecord
-Var DiagnosticFile
 Var InstallPhase
 Var InstallOutcome
 Var HelperExit
@@ -226,27 +223,6 @@ Function LoadShortcutOptions
   ${IfNot} ${Errors}
     StrCpy $StartMenuShortcuts $0
   ${EndIf}
-  ${GetParameters} $0
-  ClearErrors
-  ${GetOptions} $0 "/DESKTOPSHORTCUT=" $1
-  ${IfNot} ${Errors}
-    ${If} $1 != "0"
-    ${AndIf} $1 != "1"
-      SetErrorLevel 2
-      !insertmacro AbortTransaction "DESKTOPSHORTCUT must be 0 or 1."
-    ${EndIf}
-    StrCpy $DesktopShortcut $1
-  ${EndIf}
-  ClearErrors
-  ${GetOptions} $0 "/STARTMENUSHORTCUT=" $1
-  ${IfNot} ${Errors}
-    ${If} $1 != "0"
-    ${AndIf} $1 != "1"
-      SetErrorLevel 2
-      !insertmacro AbortTransaction "STARTMENUSHORTCUT must be 0 or 1."
-    ${EndIf}
-    StrCpy $StartMenuShortcuts $1
-  ${EndIf}
 FunctionEnd
 
 Function ShortcutOptionsPage
@@ -272,11 +248,8 @@ Function ShortcutOptionsLeave
 FunctionEnd
 
 Function SetDefaultInstallDirectory
-  ; NSIS removes /D= from $CMDLINE, so inspect the original command line.
-  System::Call 'kernel32::GetCommandLineW() w .r0'
-  ClearErrors
-  ${GetOptions} $0 "/D=" $1
-  ${IfNot} ${Errors}
+  ${If} $CageInstallDirectory != ""
+    StrCpy $INSTDIR $CageInstallDirectory
     Return
   ${EndIf}
   ; Keep upgrades in the registered location, including installations on C:.
@@ -334,15 +307,24 @@ FunctionEnd
 Function .onInit
   StrCpy $InstallOutcome "running"
   StrCpy $HelperExit ""
-  ${GetParameters} $0
-  ${GetOptions} $0 "/DIAGNOSTICS=" $DiagnosticFile
+  SetShellVarContext current
+  SetRegView 64
+  Call LoadShortcutOptions
+  Call ParseCageInstallOptions
+  ${If} $CageOptionError != ""
+    StrCpy $InstallPhase "parsing_arguments"
+    StrCpy $InstallOutcome "failed"
+    StrCpy $HelperExit "invalid_installer_arguments"
+    Call WriteInstallDiagnostic
+    MessageBox MB_ICONSTOP "$CageOptionError" /SD IDOK
+    SetErrorLevel 2
+    Quit
+  ${EndIf}
   StrCpy $DiagnosticArguments ""
   ${If} $DiagnosticFile != ""
     StrCpy $DiagnosticArguments '-Diagnostics "$DiagnosticFile.helper.json"'
   ${EndIf}
   !insertmacro InstallPhase "initializing"
-  SetShellVarContext current
-  SetRegView 64
   ${IfNot} ${IsNativeAMD64}
     MessageBox MB_ICONSTOP "This Cage package requires an Intel/AMD 64-bit version of Windows. Windows on ARM and 32-bit Windows are not supported."
     SetErrorLevel 1633
@@ -355,15 +337,6 @@ Function .onInit
     Quit
   ${EndIf}
   Call SetDefaultInstallDirectory
-  Call LoadShortcutOptions
-  StrCpy $UpdateMode "0"
-  ${GetParameters} $0
-  ClearErrors
-  ${GetOptions} $0 "/UPDATE" $1
-  ${IfNot} ${Errors}
-    StrCpy $UpdateMode "1"
-    SetSilent silent
-  ${EndIf}
 FunctionEnd
 
 Function CheckDestination

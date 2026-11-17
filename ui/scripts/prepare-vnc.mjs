@@ -1,7 +1,20 @@
-import { cpSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-mkdirSync(".generated", { recursive: true });
-cpSync("vendor/novnc", ".generated/novnc", { recursive: true, force: true });
+import { join } from "node:path";
+
+// The vendored tree has only regular files and directories. Avoid recursive
+// fs.cpSync, which can crash older Node 24 builds on Windows.
+function copyVendor(source, target) {
+  mkdirSync(target, { recursive: true });
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    const from = join(source, entry.name);
+    const to = join(target, entry.name);
+    if (entry.isDirectory()) copyVendor(from, to);
+    else if (entry.isFile()) copyFileSync(from, to);
+    else throw new Error(`Unexpected noVNC vendor entry: ${from}`);
+  }
+}
+copyVendor("vendor/novnc", ".generated/novnc");
 try {
   execFileSync(
     "uv",

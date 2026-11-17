@@ -553,11 +553,11 @@ func (l *LimaQemuDriver) Start(ctx context.Context) (chan error, error) {
 	logrus.Infof("Starting QEMU (hint: to watch the boot progress, see %#q)", filepath.Join(qCfg.InstanceDir, "serial*.log"))
 	logrus.Debugf("qCmd.Args: %v", qCmd.Args)
 	if err := qCmd.Start(); err != nil {
-		return nil, err
+		return nil, qemuExecutionError(err)
 	}
 	l.qCmd = qCmd
 	l.vhostCmds = vhostCmds
-	l.qWaitCh = watchQEMU(qCmd.Wait, func() error {
+	l.qWaitCh = watchQEMU(func() error { return qemuExecutionError(qCmd.Wait()) }, func() error {
 		client := l.usernetClient
 		if usernetIndex := limayaml.FirstUsernetIndex(l.Instance.Config); usernetIndex != -1 {
 			client = usernet.NewClientByName(l.Instance.Config.Networks[usernetIndex].Lima)

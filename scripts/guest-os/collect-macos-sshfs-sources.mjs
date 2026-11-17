@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const lock = JSON.parse(readFileSync(join(here, 'macos-sshfs-dependencies.json')));
+const inputs = { glib: ['lib/libgthread-2.0.a', 'lib/libglib-2.0.a', 'include/glib-2.0', 'lib/glib-2.0/include'], gettext: ['lib/libintl.a', 'include/libintl.h'], pcre2: ['lib/libpcre2-8.a', 'include/pcre2.h', 'include/pcre2posix.h'] };
 const sha256 = file => createHash('sha256').update(readFileSync(file)).digest('hex');
 const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
 const saveJSON = (file, value) => writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
@@ -19,17 +20,62 @@ function files(root, relative = '') {
   });
 }
 
+function compareVersions(actual, expected) {
+  if (!/^\d+(\.\d+)*$/.test(actual ?? '') || !/^\d+(\.\d+)*$/.test(expected)) return null;
+  const left = actual.split('.').map(Number), right = expected.split('.').map(Number);
+  for (let index = 0; index < Math.max(left.length, right.length); index++) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference) return difference;
+  }
+  return 0;
+}
+
 export function inspectDependency(name, prefix) {
   const spec = lock[name];
   const formula = join(prefix, '.brew', `${name}.rb`);
   const receipt = JSON.parse(readFileSync(join(prefix, 'INSTALL_RECEIPT.json')));
   const formulaDigest = sha256(formula);
-  if (![spec.formulaSha256, ...(spec.additionalFormulaSha256 ?? [])].includes(formulaDigest) || receipt.source?.spec !== 'stable' || receipt.source?.versions?.stable !== spec.version) {
-    throw new Error(`${name}: installed formula/version differs from the reviewed SSHFS dependency lock; actual version=${receipt.source?.versions?.stable}, formulaSHA256=${formulaDigest}. Update the source lock before building.`);
+  const actual = receipt.source?.versions?.stable;
+  if (![spec.formulaSha256, ...(spec.additionalFormulaSha256 ?? [])].includes(formulaDigest) || receipt.source?.spec !== 'stable' || actual !== spec.version) {
+    const comparison = compareVersions(actual, spec.version);
+    const advice = comparison !== null && comparison < 0
+      ? `Install the reviewed version (use brew upgrade ${name} if Homebrew provides ${spec.version}).`
+      : 'Use the reviewed Homebrew recipe, or ask a maintainer to review the version/recipe change.';
+    throw new Error(`${name}: installed formula/version differs from the reviewed SSHFS dependency lock; expected version=${spec.version}, actual version=${actual ?? 'unknown'}, formulaSHA256=${formulaDigest}. ${advice}`);
   }
   // The raw receipt can contain personal paths. Keep only build identity fields.
   const selected = Object.fromEntries(['homebrew_version', 'compiler', 'arch', 'built_as_bottle', 'poured_from_bottle', 'built_on', 'used_options', 'runtime_dependencies'].map(key => [key, receipt[key]]));
   return { spec, formula, receipt: { ...selected, source: { spec: 'stable', version: spec.version, tap: receipt.source.tap, tap_git_head: receipt.source.tap_git_head } } };
+}
+
+function isIntel() {
+  const arch = process.env.CAGE_MACOS_GUEST_ARCH || process.arch;
+  return arch === 'x86_64' || arch === 'x64';
+}
+
+function brewDependency(name) {
+  let prefix;
+  try { prefix = realpathSync(run('brew', ['--prefix', name]).trim()); }
+  catch {
+    throw new Error(`${name}: Homebrew dependency not found. Install the reviewed version ${lock[name].version} before building SSHFS.`);
+  }
+  if (!existsSync(join(prefix, 'INSTALL_RECEIPT.json')) || !existsSync(join(prefix, '.brew', `${name}.rb`))) {
+    throw new Error(`${name}: Homebrew receipt or formula missing. Install the reviewed version ${lock[name].version} before building SSHFS.`);
+  }
+  const verified = inspectDependency(name, prefix);
+  for (const file of inputs[name]) {
+    if (!existsSync(join(prefix, file))) throw new Error(`${name} ${verified.spec.version}: required SSHFS build input missing: ${file}`);
+  }
+  return { prefix, ...verified };
+}
+
+export function checkDependencies() {
+  const problems = [];
+  for (const name of isIntel() ? ['gettext'] : Object.keys(inputs)) {
+    try { brewDependency(name); }
+    catch (error) { problems.push(error.message); }
+  }
+  if (problems.length) throw new Error(problems.join('\n'));
 }
 
 function download(url, expected, dest) {
@@ -45,7 +91,7 @@ export function extractLicenses(archive, output, component) {
     gettext: [/^COPYING$/, /^gettext-runtime\/(COPYING|intl\/(COPYING.LIB|AUTHORS))$/],
     pcre2: [/^COPYING$/, /^LICENCE(?:\.md)?$/, /^deps\/sljit\/LICENSE$/],
   }[component];
-  const names = run('tar', ['-tf', archive]).trim().split('\n');
+  const names = run('tar', ['-tf', archive]).trim().split(/\r?\n/);
   const selected = names.filter(name => !name.endsWith('/') && selectors.some(match => match.test(name.replace(/^[^/]+\//, ''))));
   if (!selected.length) throw new Error(`No license material in ${basename(archive)}`);
   const temp = mkdtempSync(join(tmpdir(), 'cage-sshfs-licenses-'));
@@ -65,9 +111,8 @@ export function extractLicenses(archive, output, component) {
 export function prepare(sdk, output) {
   if (existsSync(output)) throw new Error('Source materials destination already exists.');
   // Resolve and verify all installed recipes before downloading or compiling.
-  const installed = Object.fromEntries(['glib', 'gettext', 'pcre2'].map(name => {
-    const prefix = realpathSync(run('brew', ['--prefix', name]).trim());
-    return [name, { prefix, ...inspectDependency(name, prefix) }];
+  const installed = Object.fromEntries(Object.keys(inputs).map(name => {
+    return [name, brewDependency(name)];
   }));
   mkdirSync(output, { recursive: true });
   copy(join(here, 'rebuild-macos-sshfs.sh'), join(output, 'rebuild-macos-sshfs.sh'));
@@ -77,7 +122,6 @@ export function prepare(sdk, output) {
   download(lock.sshfs.url, lock.sshfs.sha256, join(output, 'upstream/sshfs.tar.gz'));
   extractLicenses(join(output, 'upstream/sshfs.tar.gz'), join(output, 'licenses/sshfs'), 'sshfs');
   const archives = { glib: 'glib.tar.xz', gettext: 'gettext.tar.gz', pcre2: 'pcre2.tar.bz2' };
-  const inputs = { glib: ['lib/libgthread-2.0.a', 'lib/libglib-2.0.a', 'include/glib-2.0', 'lib/glib-2.0/include'], gettext: ['lib/libintl.a', 'include/libintl.h'], pcre2: ['lib/libpcre2-8.a', 'include/pcre2.h', 'include/pcre2posix.h'] };
   for (const [name, { prefix, spec, formula, receipt }] of Object.entries(installed)) {
     copy(formula, join(output, 'homebrew', `${name}.rb`));
     saveJSON(join(output, 'homebrew', `${name}-receipt.json`), receipt);
@@ -133,8 +177,12 @@ export function verifyArchive(archive, binary, version) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [action, ...args] = process.argv.slice(2);
-  if (action === 'prepare' && args.length === 2) prepare(...args);
+  if (action === 'check' && args.length === 0) {
+    try { checkDependencies(); }
+    catch (error) { console.error(error.message); process.exitCode = 1; }
+  }
+  else if (action === 'prepare' && args.length === 2) prepare(...args);
   else if (action === 'finish' && args.length === 4) finish(...args);
   else if (action === 'verify' && args.length === 3) verifyArchive(...args);
-  else throw new Error('Usage: collect-macos-sshfs-sources.mjs prepare SDK DIRECTORY | finish DIRECTORY BINARY ARCHIVE LICENSES | verify ARCHIVE BINARY VERSION');
+  else throw new Error('Usage: collect-macos-sshfs-sources.mjs check | prepare SDK DIRECTORY | finish DIRECTORY BINARY ARCHIVE LICENSES | verify ARCHIVE BINARY VERSION');
 }

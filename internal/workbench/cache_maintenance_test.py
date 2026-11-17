@@ -229,27 +229,65 @@ class CacheMaintenanceTests(unittest.TestCase):
         self.assertEqual(linux[2], Path("/home/cage-browser/profile/Default"))
         self.assertFalse(self.service.recovery.exists())
 
+    def windows_powershell(self, script, **fixture):
+        executable = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        env = {**os.environ, **{name: str(value) for name, value in fixture.items()},
+               "PSModulePath": str(executable.parent / "Modules")}
+        return care.subprocess.check_output(
+            [str(executable), "-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n" + script],
+            env=env, text=True, timeout=15,
+        )
+
+    def assert_private_windows_recovery(self):
+        output = self.windows_powershell("""
+$a = Get-Acl -LiteralPath $env:FIXTURE_TARGET
+@{ protected = $a.AreAccessRulesProtected
+   sids = @($a.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]) | ForEach-Object { $_.IdentityReference.Value })
+   owner = $a.GetOwner([Security.Principal.SecurityIdentifier]).Value
+   user = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value } | ConvertTo-Json -Compress
+""", FIXTURE_TARGET=self.service.recovery)
+        acl = json.loads(output)
+        self.assertTrue(acl["protected"])
+        self.assertEqual(acl["owner"], acl["user"])
+        self.assertEqual(set(acl["sids"]), {acl["user"], "S-1-5-18"})
+
     @unittest.skipUnless(os.name == "nt", "Native Windows junction and ACL check runs in Windows CI")
     def test_windows_junction_and_recovery_acl(self):
         link = self.home / ".claude/cache/junction"
-        executable = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-        env = {**os.environ, "FIXTURE_LINK": str(link), "FIXTURE_TARGET": str(self.home / "project"),
-               "PSModulePath": str(executable.parent / "Modules")}
-        care.subprocess.run([str(executable), "-NoProfile", "-NonInteractive", "-Command",
-                             "$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path $env:FIXTURE_LINK -Target $env:FIXTURE_TARGET | Out-Null"], env=env, check=True, capture_output=True)
+        self.windows_powershell("New-Item -ItemType Junction -Path $env:FIXTURE_LINK -Target $env:FIXTURE_TARGET | Out-Null",
+                               FIXTURE_LINK=link, FIXTURE_TARGET=self.home / "project")
         try:
             row = next(row for row in self.service.inspect()["items"] if row["id"] == "cli-default")
             self.assertEqual(row["state"], "blocked")
+            with self.assertRaises(care.Refused):
+                care.private_directory(link)
             self.assert_protected()
         finally:
             link.rmdir()
         care.private_directory(self.service.recovery)
-        env["FIXTURE_TARGET"] = str(self.service.recovery)
-        script = "$a=Get-Acl -LiteralPath $env:FIXTURE_TARGET; @{protected=$a.AreAccessRulesProtected; sids=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object {$_.IdentityReference.Value}); user=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value} | ConvertTo-Json -Compress"
-        output = care.subprocess.check_output([str(executable), "-NoProfile", "-NonInteractive", "-Command", script], env=env, text=True)
-        acl = json.loads(output)
-        self.assertTrue(acl["protected"])
-        self.assertEqual(set(acl["sids"]), {acl["user"], "S-1-5-18"})
+        self.assert_private_windows_recovery()
+
+    @unittest.skipUnless(os.name == "nt", "Native Windows ownership check runs in Windows CI")
+    def test_windows_admin_owned_recovery_is_transferred_to_user(self):
+        owner = self.windows_powershell("""
+$admin = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+$principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole($admin)) { return }
+$directory = [IO.DirectoryInfo]::new($env:FIXTURE_TARGET)
+$directory.Create()
+$section = [Security.AccessControl.AccessControlSections]::Owner
+$acl = $directory.GetAccessControl($section)
+$acl.SetOwner($admin)
+$directory.SetAccessControl($acl)
+$directory.GetAccessControl($section).GetOwner([Security.Principal.SecurityIdentifier]).Value
+""", FIXTURE_TARGET=self.service.recovery).strip()
+        if not owner:
+            self.skipTest("The Administrators-owned fixture requires an elevated Windows process")
+        self.assertEqual(owner, "S-1-5-32-544")
+        result = self.service.clean(self.selection(["cli-default"]))
+        self.assertEqual(result["status"], "complete")
+        self.assert_private_windows_recovery()
+        self.assertEqual(self.service.restore(result["batch"])["status"], "complete")
 
 
 if __name__ == "__main__":
