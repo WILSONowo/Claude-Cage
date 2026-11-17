@@ -511,6 +511,7 @@ internal sealed class MainWindow : Form
                 }
                 case "clipboardReadContent":
                     if (Clipboard.ContainsFileDropList()) result = RememberFiles(Clipboard.GetFileDropList().Cast<string>().ToArray());
+                    else if (SharedClipboard.RichText() is { } copiedText) result = new { text = copiedText };
                     else if (Clipboard.ContainsImage())
                     {
                         using var clipboardImage = Clipboard.GetImage() ?? throw new InvalidDataException("无法读取剪贴板图片");

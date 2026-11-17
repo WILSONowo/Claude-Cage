@@ -440,6 +440,23 @@ static void clipboard_content_image(GtkClipboard *clipboard, GdkPixbuf *image, g
     g_free(buffer);
     pending_free(pending);
 }
+static void clipboard_rich_text(GtkClipboard *clipboard, const gchar *text, gpointer data) {
+    if (text && *text) clipboard_content_text(clipboard, text, data);
+    else gtk_clipboard_request_image(clipboard, clipboard_content_image, data);
+}
+/* Word processors and spreadsheets publish a rendered picture next to the
+   text they copied. Such a copy is text: sharing the picture would replace
+   the text with an image on both sides. */
+static void clipboard_content_targets(GtkClipboard *clipboard, GdkAtom *targets, gint count, gpointer data) {
+    gboolean rich = FALSE;
+    for (gint index = 0; targets && index < count && !rich; index++) {
+        char *name = gdk_atom_name(targets[index]);
+        rich = name && (!strcmp(name, "text/rtf") || !strcmp(name, "application/rtf") || !strcmp(name, "text/richtext"));
+        g_free(name);
+    }
+    if (rich && gtk_targets_include_text(targets, count)) gtk_clipboard_request_text(clipboard, clipboard_rich_text, data);
+    else gtk_clipboard_request_image(clipboard, clipboard_content_image, data);
+}
 static void file_selection_free(gpointer data) {
     FileSelection *selection = data;
     g_ptr_array_unref(selection->paths);
@@ -512,7 +529,7 @@ static void reply_selected_uris(char **uris, PendingReply *pending) {
 }
 static void clipboard_gnome_files(GtkClipboard *clipboard, GtkSelectionData *selection, gpointer data) {
     gint length = gtk_selection_data_get_length(selection);
-    if (length <= 0) { gtk_clipboard_request_image(clipboard, clipboard_content_image, data); return; }
+    if (length <= 0) { gtk_clipboard_request_targets(clipboard, clipboard_content_targets, data); return; }
     if (length > MAX_MESSAGE) {
         PendingReply *pending = data; reply_error(pending->reply, "剪贴板文件列表过大。"); pending_free(pending); return;
     }

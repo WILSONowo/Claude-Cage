@@ -288,6 +288,14 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         guard UUID(uuidString: id) != nil else { reply(nil,"下载标识无效"); return }
         fileCommand(["browser-file", "--json", "--connection", connection, operation, id] + (path.map { [$0] } ?? []), reply: reply)
     }
+    // Word processors and spreadsheets publish a rendered preview (PDF or a
+    // bitmap) next to the text they copied. Such a copy is text: sharing the
+    // preview would replace the text with a picture on both sides.
+    private func clipboardText(_ board: NSPasteboard) -> String? {
+        guard let text = board.string(forType: .string), !text.isEmpty, let types = board.types else { return nil }
+        if types.contains(.rtf) || types.contains(.rtfd) { return text }
+        return types.contains { UTType($0.rawValue)?.conforms(to: .image) == true } ? nil : text
+    }
     private func clipboardCacheCommand(_ action: String, id: String = "", reply: @escaping (Any?, String?) -> Void) {
         guard let data = try? JSONSerialization.data(withJSONObject: ["action": action, "cache_id": id]),
               let request = String(data: data, encoding: .utf8) else { reply(nil,"剪贴板缓存请求无效"); return }
@@ -473,6 +481,8 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
                     payload["revision"] = revision
                     replyHandler(payload,nil)
                 }
+            } else if let text = clipboardText(board) {
+                replyHandler(["revision":revision,"text":text],nil)
             } else if let image = NSImage(pasteboard:board), let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data:tiff) {
                 guard bitmap.pixelsWide > 0, bitmap.pixelsHigh > 0, bitmap.pixelsWide <= 40_000_000 / bitmap.pixelsHigh,
                       let png = bitmap.representation(using:.png,properties:[:]), png.count <= 20 * 1024 * 1024 else { replyHandler(nil,"图片不能超过 20 MB 或 4000 万像素"); return }
@@ -518,6 +528,8 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
             if let urls = board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
                 do { replyHandler(try rememberFiles(urls), nil) }
                 catch { replyHandler(nil, error.localizedDescription) }
+            } else if let text = clipboardText(board) {
+                replyHandler(["text":text],nil)
             } else if let image = NSImage(pasteboard: board), let tiff = image.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: tiff) {
                 guard bitmap.pixelsWide > 0, bitmap.pixelsHigh > 0,
