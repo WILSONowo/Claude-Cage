@@ -196,12 +196,12 @@ function Get-CageVersion {
 }
 
 function Get-BuildCommand {
-    param([string[]]$Names)
+    param([string[]]$Names, [switch]$Optional)
     foreach ($name in $Names) {
         $command = Get-Command $name -ErrorAction SilentlyContinue
         if ($command) { return $command.Source }
     }
-    throw "Missing build tool: $($Names -join ' or ')"
+    if (-not $Optional) { throw "Missing build tool: $($Names -join ' or ')" }
 }
 
 function Get-VerifiedDependency {
@@ -240,27 +240,51 @@ function Expand-BuildArchive {
     Invoke-BuildTool $SevenZip @('x', '-y', '-bso0', '-bsp0', "-o$Destination", $Archive)
 }
 
+function Save-ReleaseSourceTar {
+    param([string]$Uri, [string]$Tar)
+    if ($Uri -notlike 'https://*') { throw 'Source archive downloads must use HTTPS.' }
+    $gzip = "$Tar.gz"
+    try {
+        Invoke-WebRequest -Uri $Uri -OutFile $gzip -TimeoutSec 120 -MaximumRedirection 5 -ErrorAction Stop
+    } catch {
+        Write-Warning "Release source download failed. Falling back to Git: $($_.Exception.Message)"
+        return $false
+    }
+    $inputStream = [IO.File]::OpenRead($gzip)
+    try {
+        $stream = [IO.Compression.GZipStream]::new($inputStream, [IO.Compression.CompressionMode]::Decompress)
+        try {
+            $outputStream = [IO.File]::Create($Tar)
+            try { $stream.CopyTo($outputStream) } finally { $outputStream.Dispose() }
+        } finally { $stream.Dispose() }
+    } finally { $inputStream.Dispose() }
+    return $true
+}
+
 function Get-VerifiedGitArchive {
     param($Dependency, [string]$Cache)
     $archive = Join-Path $Cache $Dependency.file
-    if (-not (Test-Path -LiteralPath $archive)) {
-        $git = Get-BuildCommand @('git.exe', 'git')
-        $checkout = Join-Path $Cache ('source-' + [guid]::NewGuid().ToString('N'))
-        $partial = "$archive.partial"
+    if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+        $stage = Join-Path $Cache ('source-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $stage -Force | Out-Null
+        $partial = Join-Path $stage 'source.tar'
         try {
-            Invoke-BuildTool $git @('init', '--bare', '--quiet', $checkout)
-            Invoke-BuildTool $git @('--git-dir', $checkout, 'fetch', '--depth=1', $Dependency.repository, $Dependency.commit)
-            $actualCommit = & $git '--git-dir' $checkout 'rev-parse' 'FETCH_HEAD'
-            if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $Dependency.commit) { throw 'Fetched source commit does not match the pinned QEMU build.' }
-            # Git for Windows defaults can change archive bytes. Keep the
-            # pinned source identical to the reviewed POSIX-generated archive.
-            Invoke-BuildTool $git @('--git-dir', $checkout, '-c', 'core.autocrlf=false', '-c', 'tar.umask=0002', 'archive', '--format=tar', "--prefix=$($Dependency.prefix)", "--output=$partial", $Dependency.commit)
+            $fromRelease = $Dependency.PSObject.Properties['archiveUrl'] -and (Save-ReleaseSourceTar $Dependency.archiveUrl $partial)
+            if (-not $fromRelease) {
+                $git = Get-BuildCommand @('git.exe', 'git')
+                $checkout = Join-Path $stage 'git'
+                Invoke-BuildTool $git @('init', '--bare', '--quiet', $checkout)
+                Invoke-BuildTool $git @('--git-dir', $checkout, 'fetch', '--depth=1', $Dependency.repository, $Dependency.commit)
+                $actualCommit = & $git '--git-dir' $checkout 'rev-parse' 'FETCH_HEAD'
+                if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $Dependency.commit) { throw 'Fetched source commit does not match the pinned QEMU build.' }
+                # Keep the pinned tar identical to the reviewed POSIX-generated archive.
+                Invoke-BuildTool $git @('--git-dir', $checkout, '-c', 'core.autocrlf=false', '-c', 'tar.umask=0002', 'archive', '--format=tar', "--prefix=$($Dependency.prefix)", "--output=$partial", $Dependency.commit)
+            }
             $actualHash = (Get-FileHash -LiteralPath $partial -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($actualHash -ne $Dependency.hash) { throw "Source archive checksum mismatch: $($Dependency.file); expected $($Dependency.hash), actual $actualHash" }
-            Move-Item -LiteralPath $partial -Destination $archive
+            Move-Item -LiteralPath $partial -Destination $archive -Force
         } finally {
-            Remove-Item -LiteralPath $checkout -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
     $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()

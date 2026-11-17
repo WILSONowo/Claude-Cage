@@ -17,11 +17,12 @@ if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repository "_output/r
 $AppDirectory = [IO.Path]::GetFullPath($AppDirectory)
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath (Join-Path $AppDirectory 'CageData')) { throw 'App directory contains CageData user data. Package a clean build directory; do not package an installed application.' }
+$makeNSIS = Get-BuildCommand @('makensis.exe', 'makensis') -Optional
+if (-not $makeNSIS) { throw 'NSIS (makensis) is missing from PATH. See scripts/install-nsis.ps1 and docs/windows.md#windows-源码构建.' }
+$sevenZip = Get-BuildCommand @('7z.exe', '7zz', '7z')
 if (-not $SkipBuild) { & (Join-Path $PSScriptRoot 'build-windows.ps1') -Release:$Release -Sign:$Sign -OutputDirectory $AppDirectory }
 if ((Get-Content -LiteralPath (Join-Path $AppDirectory 'Cage.install-id') -Raw) -ne 'io.github.lee-xeo.claude-cage') { throw 'Invalid Cage app directory.' }
 if ((Get-Content -LiteralPath (Join-Path $AppDirectory 'version.txt') -Raw).Trim() -ne $version) { throw 'App version differs from VERSION; rebuild before packaging.' }
-$makeNSIS = Get-BuildCommand @('makensis.exe', 'makensis')
-$sevenZip = Get-BuildCommand @('7z.exe', '7zz', '7z')
 if ($IsWindows) {
     if ([Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $AppDirectory 'Cage.exe')).ProductVersion -ne $version) { throw 'Cage.exe version differs from VERSION; rebuild before packaging.' }
     Invoke-BuildTool (Join-Path $AppDirectory 'resources/cage.exe') @('verify-vm-assets')
@@ -95,7 +96,8 @@ if (Test-Path (Join-Path $qemuRuntime 'cage-build.json')) {
     $keymapSource = Join-Path $OutputDirectory ('qemu-keycodemapdb-' + $dependencies.qemuKeycodemap.version + '-source.tar.gz')
     Copy-Item $keymapArchive $keymapSource -Force
     $changesSource = Join-Path $OutputDirectory ('qemu-' + $dependencies.qemu.version + '-cage-changes-source.tar.gz')
-    Invoke-BuildTool 'tar' @('-czf', $changesSource, '-C', $repository, 'patches/qemu', 'scripts/build-qemu-windows.ps1',
+    $tar = if ($IsWindows) { Join-Path $env:SystemRoot 'System32/tar.exe' } else { 'tar' }
+    Invoke-BuildTool $tar @('-czf', $changesSource, '-C', $repository, 'patches/qemu', 'scripts/build-qemu-windows.ps1',
         'scripts/build-qemu-windows.sh', '-C', $qemuRuntime, 'cage-build.json', 'build-packages.txt')
     $releaseFiles += @($keymapSource, $changesSource)
 }

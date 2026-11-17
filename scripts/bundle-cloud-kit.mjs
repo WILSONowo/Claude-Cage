@@ -68,7 +68,9 @@ if (offline) {
       fs.copyFileSync(path.join("deploy/cloud",name),path.join(stage,name));
     const runtime = JSON.parse(fs.readFileSync("deploy/cloud/runtime-artifacts.json"));
     fs.writeFileSync(path.join(stage,"engine-downloads"),runtime.artifacts.map(a=>[a.sha256,a.file,a.url].join(" ")).join("\n")+"\n");
-    execFileSync("tar", ["-cf",target,"-C",stage,"."],{env:{...process.env,COPYFILE_DISABLE:"1"},stdio:"inherit"});
+    // Git Bash's GNU tar treats the drive letter in a Windows path as a remote host.
+    const tar = process.platform === "win32" ? path.join(process.env.SystemRoot, "System32", "tar.exe") : "tar";
+    execFileSync(tar, ["-cf",target,"-C",stage,"."],{env:{...process.env,COPYFILE_DISABLE:"1"},stdio:"inherit"});
   } finally { fs.rmSync(stage,{recursive:true,force:true}); }
 }
 fs.writeFileSync(target+".sha256",await digest(target)+"\n");

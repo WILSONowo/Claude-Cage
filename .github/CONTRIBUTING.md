@@ -28,6 +28,10 @@ Cage 采用“贡献 Issue 审核 → 邀请成为协作者 → 提交 PR → �
 
 源代码、配置、日志和附件中均不得包含密码、令牌、订阅链接等敏感信息。引用第三方代码时注明来源并保留所需许可。
 
+## 工作台构建
+
+macOS、Linux 和 Windows 的工作台构建都通过 `PATH` 上的 `uv` 运行 noVNC 补丁脚本。[uv 安装说明](https://docs.astral.sh/uv/getting-started/installation/) · [Windows 源码构建](../docs/windows.md#windows-源码构建)
+
 ## 维护者：配置自动邀请
 
 自动邀请使用 `contribution-invites` Environment 中的 Secret `CONTRIBUTION_INVITE_TOKEN`。使用只授权 `Lee-xeo/Claude-Cage` 的 fine-grained personal access token，并授予仓库权限 **Administration: Read and write**；其余权限保持最小范围。令牌应设置有效期，并在到期前更新。

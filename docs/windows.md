@@ -73,6 +73,49 @@ Cage 支持含中文的安装目录。启动时优先读取随附 QEMU 的 UEFI 
 
 反馈问题时提供 Cage 版本、Windows 版本与内部版本号、CPU 架构、失败步骤和错误原文。不要附带代理密码、订阅链接、会话地址或未脱敏的配置文件。
 
+## Windows 源码构建
+
+在 Windows x64 上从仓库根目录运行以下步骤。构建脚本需要 PowerShell 7，可用 `pwsh` 打开终端。安装命令行工具后重新打开终端，或在当前会话中更新 `PATH`。
+
+| 工具 | 版本与用途 |
+| --- | --- |
+| [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows) | 用 `pwsh --version` 检查。系统自带的 `powershell.exe` 是 5.1。 |
+| [Git](https://git-scm.com/install/windows)、[Node.js](https://nodejs.org/en/download) | Git 用于获取源码，CI 使用 Node.js 24 和随附的 npm 构建工作台。 |
+| [Go](https://go.dev/dl/) | 核对根目录 [go.mod](../go.mod) 和 [tools/tailnet/go.mod](../tools/tailnet/go.mod)。当前最低版本分别为 1.26.10 和 1.27.3。安装 Go 1.27.3 可同时满足两者。使用 `GOTOOLCHAIN=auto` 时可联网下载所需工具链。 |
+| [.NET SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 在仓库根目录运行 `dotnet --version`，应输出 [global.json](../global.json) 锁定的 10.0.403。构建还会核对 [dependencies.json](../packaging/windows/dependencies.json) 中的 .NET 运行时 10.0.14。 |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/)、[7-Zip](https://www.7-zip.org/) | 工作台构建需要 `uv` 运行 noVNC 补丁脚本。Windows 构建需要 `7z` 或 `7zz` 解包依赖。可用 `uv --version` 和 `Get-Command 7z, 7zz -ErrorAction SilentlyContinue` 检查。 |
+| [WebView2 Evergreen 运行时](https://developer.microsoft.com/microsoft-edge/webview2/) | 本机需安装此运行时，构建完成后会启动工作台进行自检。 |
+| [MSYS2](https://www.msys2.org/)、NSIS | MSYS2 的 UCRT64 环境用于编译 QEMU。生成安装包还需要 NSIS。 |
+
+把 MSYS2 安装到简短、只含 ASCII 且无空格的本地路径，例如 `C:\msys64`。打开 **MSYS2 UCRT64**，运行 `pacman -Syu` 更新。若更新时终端关闭，重新打开 UCRT64 再运行一次。更新完成后安装下列依赖，包清单与 CI 一致。[Windows CI 工具配置](../.github/actions/windows-toolchain/action.yml)
+
+```bash
+pacman -S --needed make patch diffutils git findutils curl \
+  mingw-w64-ucrt-x86_64-{gcc,glib2,pixman,libslirp,dtc,ninja,python,pkgconf}
+```
+
+回到普通用户的 PowerShell 7，从仓库根目录构建。按实际安装位置设置 `CAGE_MSYS2_ROOT`。
+
+```powershell
+$env:CAGE_MSYS2_ROOT = 'C:\msys64'
+.\scripts\build-windows.ps1
+```
+
+首次构建会下载并校验 QEMU 源码，再编译 `qemu-system-x86_64.exe` 和 `qemu-img.exe`。源码优先使用项目发行页上的归档，下载失败时回退到 Git。两种方式都校验源码 tar 文件的 SHA-256。QEMU 在 MSYS2 的临时目录中编译，因此 Cage 仓库路径可以有空格。
+
+应用输出到 `_output/windows-amd64/app`。若工作台自检失败，在提示的诊断目录中查看 `smoke.json` 和 `profile/logs/events.jsonl`。报告中的 `prepareStatus=prepared` 是自检结束时的后台停止确认。排查启动超时时，请结合事件日志和报告里的页面错误。本地默认自检目录在仓库的 `_output/workbench-smoke` 下，也可以把 `RUNNER_TEMP` 设为用户可写的普通本地目录，例如 `D:\CageBuildTemp`，供该会话的自检使用。
+
+生成未签名安装包时，用仓库脚本安装校验过的 NSIS，再打包刚构建的应用。
+
+```powershell
+$tools = Join-Path (Get-Location).Path '_output/windows-tools'
+.\scripts\install-nsis.ps1 -Destination $tools
+$env:Path = "$(Join-Path $tools 'nsis-3.13');$env:Path"
+.\scripts\package-windows.ps1 -SkipBuild
+```
+
+安装包及 SHA-256 校验文件位于 `_output/releases/<版本>/windows`。
+
 ## Windows 客机里的 PowerShell
 
 Hyper-V 装机流程为新建的 Windows 11 x64 客机预装 PowerShell 7.6.9 LTS。首次登录后，在客机终端运行 `pwsh --version` 即可查看版本；旧脚本仍可用 `powershell.exe` 调用系统的 5.1。

@@ -33,24 +33,19 @@ if (Test-Path $manifestPath) {
 if (-not $MsysDirectory) {
     $MsysDirectory = @('C:\msys64', 'D:\msys64') | Where-Object { Test-Path (Join-Path $_ 'ucrt64/bin/gcc.exe') } | Select-Object -First 1
 }
-if (-not $MsysDirectory -or -not (Test-Path (Join-Path $MsysDirectory 'ucrt64/bin/pkg-config.exe'))) {
-    throw 'Set CAGE_MSYS2_ROOT to MSYS2 with the UCRT64 QEMU build dependencies described in docs/windows.md.'
+if (-not $MsysDirectory -or -not (Test-Path (Join-Path $MsysDirectory 'usr/bin/bash.exe')) -or
+    -not (Test-Path (Join-Path $MsysDirectory 'ucrt64/bin/pkg-config.exe'))) {
+    throw 'Set CAGE_MSYS2_ROOT to an MSYS2 installation with the UCRT64 packages listed in docs/windows.md#windows-源码构建.'
 }
 $archive = Get-VerifiedGitArchive $dependencies.qemuSource $DependencyCache
-$stage = Join-Path $repository ('_output/windows-qemu-' + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $stage -Force | Out-Null
-Invoke-BuildTool 'tar.exe' @('-xf', $archive, '-C', $stage)
-$source = Join-Path $stage $dependencies.qemuSource.prefix.TrimEnd('/')
 $keymapArchive = Get-VerifiedDependency $dependencies.qemuKeycodemap $DependencyCache
-Invoke-BuildTool 'tar.exe' @('-xf', $keymapArchive, '-C', (Join-Path $source 'subprojects'))
-Move-Item (Join-Path $source ('subprojects/keycodemapdb-' + $dependencies.qemuKeycodemap.version)) (Join-Path $source 'subprojects/keycodemapdb')
+$built = Join-Path $DependencyCache ('qemu-runtime-' + [guid]::NewGuid().ToString('N'))
 $savedSystem, $savedHere = $env:MSYSTEM, $env:CHERE_INVOKING
 try {
     $env:MSYSTEM = 'UCRT64'
     $env:CHERE_INVOKING = '1'
     Invoke-BuildTool (Join-Path $MsysDirectory 'usr/bin/bash.exe') @('-l', (Join-Path $PSScriptRoot 'build-qemu-windows.sh'),
-        $source, (Join-Path $stage 'build'), (Join-Path $stage 'runtime'), $patchDirectory)
-    $built = Join-Path $stage 'runtime'
+        $archive, $keymapArchive, $built, $patchDirectory)
     $files = @(Get-ChildItem $built -File | ForEach-Object {
         @{ name = $_.Name; sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
     })
@@ -61,5 +56,6 @@ try {
 } finally {
     $env:MSYSTEM = $savedSystem
     $env:CHERE_INVOKING = $savedHere
+    if (Test-Path -LiteralPath $built) { Remove-Item -LiteralPath $built -Recurse -Force -ErrorAction SilentlyContinue }
 }
 Write-Host "Built Windows QEMU runtime at $OutputDirectory"

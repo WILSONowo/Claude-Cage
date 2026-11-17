@@ -44,6 +44,7 @@
   },
   "qemuSource": {
     "repository": "https://repo.or.cz/qemu/ar7.git",
+    "archiveUrl": "https://github.com/Lee-xeo/Claude-Cage/releases/download/v0.1.8/qemu-e470268ff446ec56728215a987ed166d5ed8fb64-source.tar.gz",
     "commit": "e470268ff446ec56728215a987ed166d5ed8fb64",
     "prefix": "qemu-e470268ff446ec56728215a987ed166d5ed8fb64/",
     "file": "qemu-e470268ff446ec56728215a987ed166d5ed8fb64-source.tar",

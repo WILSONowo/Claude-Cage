@@ -17,11 +17,26 @@ if (Test-Path -LiteralPath (Join-Path $OutputDirectory 'Uninstall.exe')) { throw
 $version = Get-CageVersion $repository
 $signed = $Release -or $Sign
 if ($signed) { Assert-WindowsSigningConfiguration }
-$go = Get-BuildCommand @('go')
-$dotnet = Get-BuildCommand @('dotnet')
-$node = Get-BuildCommand @('node')
-$npm = Get-BuildCommand @('npm.cmd', 'npm')
-$sevenZip = Get-BuildCommand @('7z.exe', '7zz', '7z')
+$requiredTools = [ordered]@{
+    'Go' = @('go')
+    '.NET SDK' = @('dotnet')
+    'Node.js' = @('node')
+    '7-Zip' = @('7z.exe', '7zz', '7z')
+}
+if (-not $SkipUI) {
+    $requiredTools['npm'] = @('npm.cmd', 'npm')
+    $requiredTools['uv'] = @('uv')
+}
+$tools = @{}
+$missing = foreach ($name in $requiredTools.Keys) {
+    $command = Get-BuildCommand $requiredTools[$name] -Optional
+    if ($command) { $tools[$name] = $command } else { $name }
+}
+if ($missing) { throw "Missing Windows build tools on PATH: $($missing -join ', '). See docs/windows.md#windows-源码构建 for setup instructions." }
+$go = $tools['Go']
+$dotnet = $tools['.NET SDK']
+$node = $tools['Node.js']
+$sevenZip = $tools['7-Zip']
 $dependencies = Get-Content -LiteralPath (Join-Path $repository 'packaging/windows/dependencies.json') -Raw | ConvertFrom-Json
 $stage = Join-Path $repository ("_output/windows-build-" + [guid]::NewGuid().ToString('N'))
 $savedGoOS, $savedGoArch, $savedCGO = $env:GOOS, $env:GOARCH, $env:CGO_ENABLED
@@ -30,9 +45,12 @@ $buildCompleted = $false
 $moveEvidence = $null
 Push-Location $repository
 try {
+    Invoke-BuildTool $dotnet @('--version')
+    $qemuBuilt = Join-Path $DependencyCache 'qemu-cage'
+    & (Join-Path $PSScriptRoot 'build-qemu-windows.ps1') -DependencyCache $DependencyCache -OutputDirectory $qemuBuilt
     if (-not $SkipUI) {
-        Invoke-BuildTool $npm @('--prefix', 'ui', 'ci', '--no-audit', '--no-fund')
-        Invoke-BuildTool $npm @('run', '--prefix', 'ui', 'build')
+        Invoke-BuildTool $tools['npm'] @('--prefix', 'ui', 'ci', '--no-audit', '--no-fund')
+        Invoke-BuildTool $tools['npm'] @('run', '--prefix', 'ui', 'build')
     } else {
         Invoke-BuildTool $node @('ui/scripts/verify-build.mjs')
     }
@@ -86,8 +104,7 @@ try {
     Invoke-BuildTool $dotnet @('publish', 'desktop/windows/Cage.Windows.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
         '-p:EnableWindowsTargeting=true', '-p:PublishSingleFile=true', '-p:RestoreLockedMode=true', "-p:Version=$version", "-p:InformationalVersion=$version", '-o', $app)
     Get-ChildItem -LiteralPath $app -File | Where-Object { $_.Extension -in @('.pdb', '.xml') } | Remove-Item -Force
-    node scripts/bundle-cloud-kit.mjs $resources
-    if ($LASTEXITCODE -ne 0) { throw "Cloud deployment kit verification failed." }
+    Invoke-BuildTool $node @('scripts/bundle-cloud-kit.mjs', $resources)
     $coreArchive = Get-VerifiedDependency $dependencies.mihomo $DependencyCache
     $core = Join-Path $stage 'mihomo'
     Expand-BuildArchive $coreArchive $core $sevenZip
@@ -106,8 +123,6 @@ try {
     $qemuArchive = Get-VerifiedDependency $dependencies.qemu $DependencyCache
     $qemuTarget = Join-Path $resources 'runtime/qemu'
     Expand-BuildArchive $qemuArchive $qemuTarget $sevenZip
-    $qemuBuilt = Join-Path $DependencyCache 'qemu-cage'
-    & (Join-Path $PSScriptRoot 'build-qemu-windows.ps1') -DependencyCache $DependencyCache -OutputDirectory $qemuBuilt
     $runtimeManifest = Get-Content (Join-Path $qemuBuilt 'cage-build.json') -Raw | ConvertFrom-Json
     $ownedRuntime = @($runtimeManifest.files | ForEach-Object { $_.name }) + @('cage-build.json')
     foreach ($name in $ownedRuntime) {
