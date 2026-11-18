@@ -118,7 +118,7 @@ final class CageUpdateInstaller: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async { _ = app.terminate() }
                 let terminationDeadline = Date().addingTimeInterval(10)
                 while !app.isTerminated && Date() < terminationDeadline { Thread.sleep(forTimeInterval: 0.1) }
-                if app.isTerminated { self.recover("新版 Cage未能就绪，正在恢复原应用") }
+                if app.isTerminated { self.recover("新版 Cage 未能就绪，正在恢复原应用") }
                 else {
                     self.record(success: false, message: "新版本未确认就绪，请退出 Cage 后重试；原应用备份已保留")
                     self.exitHelper()

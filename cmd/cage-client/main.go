@@ -164,7 +164,7 @@ func run(args []string) error {
 	case "app-update":
 		return printJSON(map[string]any{"phase": "manual", "currentVersion": version.Version, "message": "轻量客户端使用独立安装包更新；连接配置会保留，云端任务不受影响。"}, nil)
 	default:
-		return errors.New("轻量客户端只负责连接；请在远程 Cage管理运行环境")
+		return errors.New("轻量客户端只负责连接；请连接远程 Cage 后再管理运行环境")
 	}
 }
 

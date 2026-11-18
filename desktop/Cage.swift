@@ -638,7 +638,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         case "shareLocalProject":
             guard !nativeFilePanelOpen, let connection = body["connection_id"] as? String,
                   !connection.isEmpty, let mode = body["mode"] as? String, ["read","write"].contains(mode)
-            else { replyHandler(nil,"请在远程 Cage重新选择项目"); return }
+            else { replyHandler(nil,"请在远程 Cage 中重新选择项目"); return }
             let panel = NSOpenPanel()
             panel.canChooseDirectories = true; panel.canChooseFiles = false
             panel.canCreateDirectories = false; panel.allowsMultipleSelection = false

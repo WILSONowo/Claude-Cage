@@ -111,7 +111,7 @@ internal static class UpdateInstaller
                 }
                 await Task.Delay(500);
             }
-            if (!ready) throw new IOException("新版 Cage未能完成启动确认");
+            if (!ready) throw new IOException("新版 Cage 未能完成启动确认");
             succeeded = true;
             Result(true, "Cage 已更新至 " + plan.Version);
             // The currently executing helper cannot delete itself on Windows.

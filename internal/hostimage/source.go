@@ -72,7 +72,7 @@ func (p Plan) Validate() error {
 			return errors.New("macOS 恢复镜像与本机版本不匹配")
 		}
 		if !semver.IsValid("v"+p.Version) || semver.Compare("v"+p.Version, "v26.4") < 0 {
-			return errors.New("自动匹配 macOS 镜像需要本机运行 macOS 26.4 或更新版本，以支持Cage 使用的 FSKit 只读挂载")
+			return errors.New("自动匹配 macOS 镜像需要本机运行 macOS 26.4 或更新版本，以支持 Cage 使用的 FSKit 只读挂载")
 		}
 	case "windows-11":
 		if p.Format != "esd" || p.Host.Arch != "amd64" || p.Host.Edition == "" || p.Host.Language == "" || p.Build == "" {

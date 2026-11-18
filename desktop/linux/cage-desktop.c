@@ -899,7 +899,7 @@ static gboolean bridge_received(WebKitUserContentManager *manager, JSCValue *val
     } else if (!strcmp(name, "shareLocalProject")) {
         const char *connection = text_member(request, "connection_id"), *mode = text_member(request, "mode");
         if (app.picker_open || !*connection || (strcmp(mode,"read") && strcmp(mode,"write"))) {
-            reply_error(reply, "请在远程 Cage重新选择项目。");
+            reply_error(reply, "请在远程 Cage 中重新选择项目。");
         } else {
             const char *prompt = !strcmp(mode,"write") ? "云端 Cage 可以读取、修改和删除所选项目中的文件。" : "云端 Cage 可以读取所选项目中的文件。";
             char *path = choose_file(GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER, prompt, NULL);

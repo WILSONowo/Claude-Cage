@@ -459,7 +459,7 @@ internal sealed class MainWindow : Form
                 {
                     var connection = request.Text("connection_id");
                     var accessMode = request.Text("mode");
-                    if (connection.Length == 0 || accessMode is not ("read" or "write")) throw new InvalidDataException("请在远程 Cage重新选择项目");
+                    if (connection.Length == 0 || accessMode is not ("read" or "write")) throw new InvalidDataException("请在远程 Cage 中重新选择项目");
                     using var picker = new FolderBrowserDialog {
                         Description = accessMode == "write" ? "云端 Cage 可以读取、修改和删除所选项目中的文件。" : "云端 Cage 可以读取所选项目中的文件。",
                         UseDescriptionForTitle = true, ShowNewFolderButton = false
