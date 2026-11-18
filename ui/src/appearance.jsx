@@ -113,7 +113,7 @@ export function AppearanceProvider({ children, connected = true }) {
         foreground: variables["--sidebar-ink"],
         translucent: !theme.opaqueWindows,
       }).catch(() =>
-        setError("外观已应用到工作台，原生窗口未能同步，请重新打开 Cage。"),
+        setError("界面外观已更新。重新打开 Cage 以同步窗口外观。"),
       );
   }, [appearance, variant, systemReduced]);
   const update = (next) => {

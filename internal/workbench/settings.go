@@ -237,7 +237,7 @@ func validateWorkspace(path, profile string) (string, error) {
 	}
 	if executable, e := os.Executable(); e == nil {
 		if real, e := paths.Resolve(executable); e == nil && cage.StorageContains(abs, real) {
-			return "", errors.New("不能共享正在运行的工作台程序所在目录。请将安装版 Cage 放在项目外，并重启控制服务后选择此项目。")
+			return "", errors.New("不能共享正在运行的 Cage 程序所在目录。请将安装版 Cage 放在项目外，并重启控制服务后选择此项目。")
 		}
 	}
 	if mounts.UnderName(filepath.ToSlash(abs), nil) {

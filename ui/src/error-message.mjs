@@ -26,7 +26,7 @@ export function operationName(path = "", method = "GET") {
   if (path.startsWith("/terminals")) return "连接终端";
   if (path === "/start") return "启动环境";
   if (path === "/stop") return "停止环境";
-  return "连接 Cage 工作台";
+  return "连接 Cage";
 }
 
 export function httpErrorMessage(path, status, text = "", contentType = "", method = "GET") {
@@ -41,7 +41,7 @@ export function httpErrorMessage(path, status, text = "", contentType = "", meth
   const reasons = {
     400: "请检查填写的内容。仍然失败时，可在设置中导出诊断包。",
     401: "登录会话已过期，请重新连接 Cage。",
-    403: "访问被拒绝，请从 Cage 重新打开工作台。",
+    403: "访问被拒绝，请重新打开 Cage。",
     404: "此功能不可用，请检查 Cage 和后台是否已更新。",
     409: "状态已变化或有操作正在进行。请刷新状态后重试。",
     413: "内容超过大小限制，请缩小文件或分批处理。",
@@ -61,6 +61,6 @@ export function connectionErrorMessage(path, method = "GET") {
 
 export function nativeFailureMessage(action, message = "") {
   if (/\p{Script=Han}/u.test(message) && !["文件操作失败", "原生操作超时，请重试", "操作失败"].includes(message)) return message;
-  const names = { chooseFolder: "选择本机文件夹", chooseUploadFiles: "选择上传文件", uploadHostFiles: "上传本机文件", openHostPath: "打开本机文件", exportDiagnostics: "导出诊断包", appUpdate: "检查或安装应用更新", clipboardRead: "读取剪贴板", clipboardWrite: "写入剪贴板", refreshSession: "恢复工作台登录会话" };
+  const names = { chooseFolder: "选择本机文件夹", chooseUploadFiles: "选择上传文件", uploadHostFiles: "上传本机文件", openHostPath: "打开本机文件", exportDiagnostics: "导出诊断包", appUpdate: "检查或安装应用更新", clipboardRead: "读取剪贴板", clipboardWrite: "写入剪贴板", refreshSession: "恢复登录会话" };
   return `${names[action] || "执行本机操作"}失败：${/timeout|超时/i.test(message) ? "等待本机组件响应超时" : "本机组件没有返回可识别的原因"}。请重新连接 Cage；仍失败时在设置中导出诊断包。`;
 }

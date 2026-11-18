@@ -167,7 +167,7 @@ export function MacOSAccountGate({ children }) {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
-  return <main className="setup-scene account-gate"><SetupBrand context={isRemoteClient() ? "远程工作台" : "本机工作台"} /><section className="account-entry">
+  return <main className="setup-scene account-gate"><SetupBrand context={isRemoteClient() ? "远程账户" : "本机账户"} /><section className="account-entry">
     <h1>设置 Cage 与 macOS 共用账密</h1>
     <p className="account-entry-intro">{account.trusted_local ? "先设置 Cage 用户名和密码。原账户、文件和登录状态会保留。" : "输入当前 Cage 密码供客机使用。原客机用户名和用户目录会保留。"}</p>
     <form onSubmit={submit}><fieldset disabled={busy}>
@@ -277,7 +277,7 @@ export function AccountGate({ children }) {
   };
   return (
     <main className="setup-scene account-gate">
-      <SetupBrand context={isRemoteClient() ? "远程工作台" : "本机工作台"} />
+      <SetupBrand context={isRemoteClient() ? "远程账户" : "本机账户"} />
       <section
         className="account-entry"
         aria-label={creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 Cage"}
@@ -292,9 +292,9 @@ export function AccountGate({ children }) {
         </h1>
         <p className="account-entry-intro">
           {creating
-            ? isRemoteClient() ? "用此账户解锁云端工作台。" : account?.macos_account_host ? "macOS 客机将共用此用户名和密码。" : "用此账户解锁本机工作台。"
+            ? isRemoteClient() ? "使用此账户解锁远程 Cage。" : account?.macos_account_host ? "macOS 客机将共用此用户名和密码。" : "使用此账户解锁本机 Cage。"
             : account
-              ? account.trusted_local ? "本机工作区" : "输入密码解锁工作台。"
+              ? account.trusted_local ? "本机工作区" : "输入密码解锁 Cage。"
               : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…"}
         </p>
         {account?.background_running && (

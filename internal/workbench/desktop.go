@@ -97,7 +97,7 @@ func connectController(profile string) (*controllerClient, error) {
 	u, err := url.Parse(c.launch.URL)
 	if err != nil || u.Scheme != "http" || u.Host != fmt.Sprintf("localhost:%d", record.Port) || u.User != nil || u.Fragment == "" {
 		c.close()
-		return nil, errors.New("后台返回了无效入口，未连接旧工作台。")
+		return nil, errors.New("后台返回了无效入口，未连接旧版 Cage 服务。")
 	}
 	if c.launch.Controller.Protocol != 0 && c.launch.Controller.PID != record.PID {
 		c.close()
@@ -246,7 +246,7 @@ func desktopLaunch(profile string, gateway bool, options DesktopOptions, start f
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return DesktopResult{}, errors.New("工作台未能启动，请查看私有配置中的 control.log 后重试。")
+	return DesktopResult{}, errors.New("Cage 服务未能启动，请查看私有配置中的 control.log 后重试。")
 }
 
 // PrepareUpdate is shared by the explicit migration button and the installer.
@@ -270,7 +270,7 @@ func PrepareUpdate(configPath string, stop bool) (DesktopResult, error) {
 			return DesktopResult{}, lockErr
 		}
 		if controllerHasVM(filepath.Dir(configPath)) {
-			return DesktopResult{}, errors.New("后台无法连接，但仍有环境进程。请恢复工作台连接并保存停止后再更新。")
+			return DesktopResult{}, errors.New("后台无法连接，但仍有环境进程。请重新连接 Cage，保存文件并停止环境后再更新。")
 		}
 		return DesktopResult{Status: "prepared"}, nil
 	}
@@ -388,7 +388,7 @@ func (c *controllerClient) stopAndHandoff() error {
 		}
 		if !state.Job.Running {
 			if state.Job.Error != "" || *state.VMRunning {
-				return errors.New("环境未能安全停止，未继续更新。请在原工作台查看停止结果。")
+				return errors.New("环境未能安全停止，未继续更新。请在原 Cage 窗口查看停止结果。")
 			}
 			break
 		}

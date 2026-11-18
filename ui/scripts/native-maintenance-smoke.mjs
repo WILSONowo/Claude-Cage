@@ -37,7 +37,7 @@ for (const system of ["macos", "windows-11", "debian"]) {
         assert.ok(text.includes("聊天历史、项目文件与登录资料会保留"));
         assert.equal(text.includes("验证已绑定客机的管理员账户"), system === "windows-11");
       } else {
-        assert.ok(text.includes("工作台终端、项目文件和登录状态会保留"));
+        assert.ok(text.includes("Cage 终端、项目文件和登录状态会保留"));
       }
       await dialog.getByRole("button", { name: `更新${operation}`, exact: true }).click();
       await panel.getByRole("alert").filter({ hasText: "结束正在运行的终端" }).waitFor();

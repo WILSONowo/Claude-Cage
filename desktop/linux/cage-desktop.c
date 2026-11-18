@@ -692,7 +692,7 @@ static void session_refreshed(JsonObject *object, const GError *error, gpointer 
     PendingReply *pending = data;
     const char *url = text_member(object, "url");
     if (error || !valid_workbench(url, 0, TRUE))
-        reply_error(pending->reply, error ? error->message : "工作台会话恢复失败，请重新连接。");
+        reply_error(pending->reply, error ? error->message : "登录会话恢复失败，请重新连接。");
     else {
         char *quoted = quote(url);
         char *json = g_strdup_printf("{\"url\":%s}", quoted);
@@ -899,7 +899,7 @@ static gboolean bridge_received(WebKitUserContentManager *manager, JSCValue *val
     } else if (!strcmp(name, "shareLocalProject")) {
         const char *connection = text_member(request, "connection_id"), *mode = text_member(request, "mode");
         if (app.picker_open || !*connection || (strcmp(mode,"read") && strcmp(mode,"write"))) {
-            reply_error(reply, "请在云端工作台重新选择项目。");
+            reply_error(reply, "请在远程 Cage重新选择项目。");
         } else {
             const char *prompt = !strcmp(mode,"write") ? "云端 Cage 可以读取、修改和删除所选项目中的文件。" : "云端 Cage 可以读取所选项目中的文件。";
             char *path = choose_file(GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER, prompt, NULL);
@@ -1117,7 +1117,7 @@ static void bootstrapped(JsonObject *object, const GError *error, gpointer data)
         }
         if (chinese) show_error(error->message);
         else {
-            char *message = g_strdup_printf("启动工作台失败：本机后台未返回可识别的原因（错误码 %d）。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。", error->code);
+            char *message = g_strdup_printf("Cage 启动失败：本机后台未返回可识别的原因（错误码 %d）。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。", error->code);
             show_error(message); g_free(message);
         }
         return;
@@ -1131,7 +1131,7 @@ static void bootstrapped(JsonObject *object, const GError *error, gpointer data)
     }
     const char *url = text_member(object, "url");
     if ((strcmp(status, "ready") && strcmp(status, "existing")) || !valid_workbench(url, 0, TRUE)) {
-        show_error("后台返回了无效的工作台入口。"); return;
+        show_error("后台返回了无效的服务地址。"); return;
     }
     GUri *uri = g_uri_parse(url, G_URI_FLAGS_NONE, NULL);
     app.port = g_uri_get_port(uri);
@@ -1144,7 +1144,7 @@ static void bootstrapped(JsonObject *object, const GError *error, gpointer data)
 static void bootstrap(const char *option) {
     if (app.bootstrapping) return;
     app.bootstrapping = TRUE;
-    gtk_label_set_text(GTK_LABEL(app.status), "正在连接 Cage 工作台…");
+    gtk_label_set_text(GTK_LABEL(app.status), "正在连接 Cage…");
     gtk_stack_set_visible_child_name(GTK_STACK(app.stack), "status");
     gtk_widget_hide(app.retry); gtk_widget_hide(app.existing); gtk_widget_hide(app.complete);
     backend("desktop", option, bootstrapped, NULL);
@@ -1198,14 +1198,14 @@ static gboolean load_failed(WebKitWebView *web, WebKitLoadEvent event, const cha
     (void)web; (void)event; (void)uri; (void)data;
     app.navigation_failed = TRUE;
     if (error) diagnostic_event(error->message);
-    char *message = g_strdup_printf("打开工作台失败：内置网页组件未能加载本机后台（错误码 %d）。请点击“重试连接”；仍失败时请保留此错误提示并反馈给维护者。后台任务不会因此自动结束。", error ? error->code : 0);
+    char *message = g_strdup_printf("无法打开 Cage 界面：内置网页组件未能加载本机后台（错误码 %d）。请点击“重试连接”；仍失败时请保留此错误提示并反馈给维护者。后台任务不会因此自动结束。", error ? error->code : 0);
     show_error(message);
     g_free(message);
     return TRUE;
 }
 static void process_terminated(WebKitWebView *web, WebKitWebProcessTerminationReason reason, gpointer data) {
     (void)web; (void)reason; (void)data;
-    show_error("工作台显示进程已退出。后台任务保留，可重试连接。");
+    show_error("界面显示进程已退出。后台任务保留，可重试连接。");
 }
 static void menu_action(GSimpleAction *simple, GVariant *parameter, gpointer data) {
     (void)parameter; (void)data;
@@ -1270,7 +1270,7 @@ static void create_window(void) {
     GtkWidget *status_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_widget_set_margin_start(status_box, 32); gtk_widget_set_margin_end(status_box, 32);
     gtk_widget_set_margin_top(status_box, 32); gtk_widget_set_valign(status_box, GTK_ALIGN_START);
-    app.status = gtk_label_new("正在启动 Cage 工作台…");
+    app.status = gtk_label_new("正在启动 Cage…");
     gtk_label_set_line_wrap(GTK_LABEL(app.status), TRUE);
     gtk_label_set_xalign(GTK_LABEL(app.status), 0);
     gtk_box_pack_start(GTK_BOX(status_box), app.status, FALSE, FALSE, 0);

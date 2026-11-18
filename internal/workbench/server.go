@@ -169,9 +169,9 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 	defer lock.Close()
 	if err = lockControllerForStart(lock); err != nil {
 		if controllerLockContended(err) {
-			return errors.New("此配置已有工作台服务正在运行")
+			return errors.New("此配置已有 Cage 服务正在运行")
 		}
-		return fmt.Errorf("无法锁定工作台控制文件: %w", err)
+		return fmt.Errorf("无法锁定后台控制文件: %w", err)
 	}
 	if err := host.ProtectFile(lock.Name()); err != nil {
 		return err
@@ -529,7 +529,7 @@ func (s *Server) handler() http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/session" && r.URL.Path != "/api/launch" && r.URL.Path != "/api/handoff" {
 			c, e := r.Cookie(s.cookieName())
 			if e != nil || !equalSecret(c.Value, s.session) {
-				http.Error(w, "请从 Cage 应用重新打开工作台", 401)
+				http.Error(w, "请重新打开 Cage 应用", 401)
 				return
 			}
 		}

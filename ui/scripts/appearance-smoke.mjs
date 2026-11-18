@@ -134,7 +134,7 @@ try {
     ),
     false,
   );
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.getByRole("button", { name: "启动 Cage 环境", exact: true }).click();
   await page
     .getByRole("button", { name: "新建终端", exact: true })
@@ -150,7 +150,7 @@ try {
   await showAppearance();
   await page.getByRole("button", { name: "浅色", exact: true }).click();
   await saved();
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   assert.equal(state.terminalConnections, count);
   assert.equal(
     await page

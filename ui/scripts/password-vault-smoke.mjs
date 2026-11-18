@@ -89,7 +89,7 @@ try {
   await page.setViewportSize({ width: 820, height: 558 });
   await page.screenshot({ path: output + "vault-settings-small.png" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   state.status.ready = true; state.status.vm_running = true;
   state.tabs = [{ id: "web-vault", title: "邮箱", kind: "web", url: "https://mail.example.test/login" }]; state.active = "web-vault";
   await page.reload();
@@ -130,7 +130,7 @@ try {
   await page.getByRole("button", { name: "删除", exact: true }).click();
   await page.getByRole("button", { name: "删除密码", exact: true }).click();
   await page.getByText("还没有保存密码", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.getByRole("button", { name: /^账户菜单，/ }).click();
   await page.getByRole("menuitem", { name: /锁定 Cage/ }).click();
   await page.getByRole("region", { name: "解锁 Cage", exact: true }).waitFor();

@@ -167,7 +167,7 @@ try {
     ),
     false,
   );
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page
     .getByRole("button", { name: "启动 Cage 环境", exact: true })
     .click();
@@ -187,7 +187,7 @@ try {
   await select("light", "high-contrast");
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await saved();
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await waitForTerminalColor("rgb(18, 27, 36)");
   assert.equal(state.terminalConnections, connections);
   await page.setViewportSize({ width: 1280, height: 850 });

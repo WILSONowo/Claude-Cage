@@ -71,7 +71,7 @@ try {
   await page.getByLabel('确认新密码',{exact:true}).fill('changed-fixture-password');
   await page.getByRole('button',{name:'修改密码',exact:true}).click();
   await page.getByRole('status').filter({hasText:'密码已修改'}).waitFor();
-  await page.getByRole('button',{name:'返回工作台',exact:true}).click();
+  await page.getByRole('button',{name:'关闭设置',exact:true}).click();
   state.status.vm_running=true;state.status.ready=true;
   await page.reload();
   await page.getByRole('button',{name:/^在 .* 新建终端$/}).click();
@@ -99,7 +99,7 @@ try {
   assert.equal(await page.getByLabel('用户名',{exact:true}).inputValue(),'山雀的工作室');
   await page.setViewportSize({width:820,height:558});
   await page.screenshot({path:output+'settings-small.png'});
-  await page.getByRole('button',{name:'返回工作台',exact:true}).click();
+  await page.getByRole('button',{name:'关闭设置',exact:true}).click();
   await checkMenuLayout();
   await accountMenu().click();
   await page.getByRole('menuitem',{name:'退出账户',exact:true}).click();

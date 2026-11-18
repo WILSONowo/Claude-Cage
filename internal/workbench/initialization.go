@@ -18,7 +18,7 @@ import (
 
 const initializationLockTimeout = 15 * time.Second
 
-var errInitializationCheckBusy = errors.New("后台检查仍在进行，尚未进入工作台，请稍后重试；持续出现时请导出诊断包")
+var errInitializationCheckBusy = errors.New("后台检查仍在进行，请稍后重试；持续出现时请导出诊断包")
 
 // Only completion may wait for a monitor. Real lifecycle jobs still reject
 // immediately, and no detached lock waiter can outlive a canceled request.
@@ -63,11 +63,11 @@ func (s *Server) writeInitialization(r *http.Request, record initializationRecor
 	// account.mu during lock acquisition, VM checks or network observation.
 	if !s.account.mu.TryLock() {
 		// Do not wait behind account I/O after checking the network lease.
-		return errors.New("账户状态正在更新，请稍后重新进入工作台")
+		return errors.New("账户状态正在更新，请稍后重新打开 Cage")
 	}
 	defer s.account.mu.Unlock()
 	if epoch == nil || epoch != s.account.epoch || epoch.Err() != nil || len(s.account.key) != 32 {
-		return errors.New("Cage 登录状态已变化，请重新进入工作台")
+		return errors.New("Cage 登录状态已变化，请重新打开 Cage")
 	}
 	if err := r.Context().Err(); err != nil {
 		return err

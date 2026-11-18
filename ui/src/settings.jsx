@@ -230,10 +230,10 @@ export function SettingsPanel({
           id="settings-back"
           className="back-to-workspace"
           onClick={close}
-          aria-label="返回工作台"
+          aria-label="关闭设置"
         >
           <ArrowLeft size={17} />
-          <span>返回<span className="back-destination">工作台</span></span>
+          <span>关闭<span className="back-destination">设置</span></span>
         </button>
         <h2>设置</h2>
         <div className="compact-settings-nav">
@@ -498,7 +498,7 @@ export function SettingsPanel({
                   </InlineSelect>
                 </label>
                 <p className="footnote">
-                  网页仍可按自己的规则选择语言。工作台界面使用中文。
+                  此设置影响网页的首选语言。Cage 界面使用中文。
                 </p>
               </>
             )}
@@ -519,7 +519,7 @@ export function SettingsPanel({
                   </InlineSelect>
                 </label>
                 <p className="field-help">
-                  默认使用 24 小时制。保存后更新工作台底部时钟，无需重启环境；12 小时制使用 AM/PM 区分上午和下午。
+                  保存后立即更新底部时钟。
                 </p>
                 <label>
                   Claude 终端启动命令
@@ -592,7 +592,7 @@ export function SettingsPanel({
                   终端使用 {usesControl ? "Ctrl+Shift+C / Ctrl+Shift+V" : "⌘C / ⌘V"} 复制粘贴；Ctrl+C 始终用于中断命令。
                   {isRemoteClient() && "键盘习惯立即生效，仅保存在当前客户端，不修改云端设置。"}
                 </p>
-                <h4>工作台快捷键</h4>
+                <h4>键盘快捷键</h4>
                 <div className="shortcut-list">
                   {[
                     ["打开项目", "⌘O"],
@@ -723,7 +723,7 @@ export function SettingsPanel({
                       : "有尚未保存的修改"
                     : "没有未保存的修改"}
               </span>
-              <button onClick={close}>返回工作台</button>
+              <button onClick={close}>关闭设置</button>
               <button
                 className="primary"
                 disabled={!changed || busy}
@@ -764,7 +764,7 @@ function MacOSScreenSharingSettings({ disabled, onError }) {
   return (
     <section aria-label="客机屏幕共享">
       <h4>客机屏幕共享</h4>
-      <p className="field-help">日常「打开客机屏幕共享」只在本机建立 SSH 环回转发，不给客机增加外网出口，因此不要求先断网。首次安装会在置备阶段启用服务，并在系统授权引导中检查是否真正可用；macOS 26 还需在「系统设置 → 通用 → 共享」中手动打开一次。之后若要重新启用服务或再次打开该设置页，必须先在工作台暂停外网。</p>
+      <p className="field-help">日常「打开客机屏幕共享」只在本机建立 SSH 环回转发，不给客机增加外网出口，因此不要求先断网。首次安装会在置备阶段启用服务，并在系统授权引导中检查是否真正可用；macOS 26 还需在「系统设置 → 通用 → 共享」中手动打开一次。之后若要重新启用服务或再次打开该设置页，必须先暂停 Cage 的外网连接。</p>
       <ScreenSharingChecks status={sharingStatus} />
       <div className="project-recovery-actions">
         <button

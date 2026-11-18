@@ -41,6 +41,7 @@ func executionFailure(action string, err error, output string) error {
 		{[]string{"curl: (28)", "connection timed out", "operation timed out"}, "下载或环境连接等待超时", "请检查所选代理是否可用，再继续；已保存的下载会尝试续传。"},
 		{[]string{"curl: (60)", "certificate verify failed", "certificate verification failed"}, "下载服务器的证书验证未通过", "请检查电脑时间和所选代理；仍失败时导出诊断包，不要关闭证书验证。"},
 		{[]string{"407 proxy authentication", "proxy authentication required"}, "代理服务器拒绝了当前登录凭据", "请在网络与代理设置中更新代理账号或订阅，再应用节点。"},
+		{[]string{"invalid response from proxy: http/1.1 403", "invalid response from proxy: http/1.0 403"}, "代理拒绝下载软件包或索引（HTTP 403）", "请在操作详情中查看被拒绝的软件源。若客机使用 HTTP 软件源，请改用受支持的官方 HTTPS 地址后重试。"},
 		{[]string{"permission denied", "access is denied"}, "系统拒绝访问安装所需的文件或程序", "请检查应用及环境目录的权限；若安全软件拦截了 Cage，请先核实其拦截记录。"},
 		{[]string{"tried to start delayed item"}, "环境的软件包下载程序反复重试，未能完成安装", "请使用包含 APT 修复的 Cage 构建后继续安装；仍失败时导出诊断包。"},
 	} {

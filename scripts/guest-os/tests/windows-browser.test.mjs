@@ -1087,6 +1087,20 @@ integration("a viewer's screen density replaces the configured one in a single c
   for (const target of [page, second.page, hidden.page]) assert.deepEqual(await state(target), [2, 500, 300, 500, 300]);
 });
 
+integration("a repeated guest connection keeps the resized viewport and JPEG dimensions", async t => {
+  const f = await fixture(t, {}, { displayScale: 1 }), { page } = await f.open();
+  await f.call("resize", { width: 1494, height: 881 });
+  await f.privateRequest({ operation: "configure", input: { proxy: "http://127.0.0.1:18501" } });
+  const frame = await f.call("frame", {}, "GET");
+  assert.deepEqual([frame.width, frame.height], [1494, 881]);
+  assert.deepEqual(await page.evaluate(async data => {
+    const image = new Image();
+    image.src = "data:image/jpeg;base64," + data;
+    await image.decode();
+    return [image.naturalWidth, image.naturalHeight];
+  }, frame.jpeg), [1494, 881]);
+});
+
 integration("default one-to-one frames stream without screenshot polling", async t => {
   const f = await fixture(t, {}, { displayScale: 1 }), { id, page } = await f.open();
   const frame = await f.call("frame", {}, "GET");

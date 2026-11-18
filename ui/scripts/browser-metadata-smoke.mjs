@@ -97,7 +97,7 @@ try {
   state.tabs[0].favicon = "https://third-party.test/icon.png";
   await sendState();
   assert.equal(await page.getByRole("tab", { name: "First site", exact: true }).locator("img").count(), 0);
-  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
+  await page.getByRole("button", { name: /^(首页|新建对话)$/ }).click();
   await copy("second", "hidden view");
   await settle();
   assert.equal(writes.length, 2);

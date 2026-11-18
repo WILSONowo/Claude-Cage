@@ -164,6 +164,7 @@ export function ClaudeDesktop({
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const pendingAction = useRef(false);
+  const failedInstall = useRef(null);
   const statusRequest = useRef(null);
   const statusRevision = useRef(0);
   const ownJob = status.job?.kind?.startsWith("claude-desktop-");
@@ -174,6 +175,13 @@ export function ClaudeDesktop({
     try {
       const value = await request;
       if (!valid() || revision !== statusRevision.current) return null;
+      if (failedInstall.current) {
+        if (!value.installed) failedInstall.current.observedMissing = true;
+        else if (failedInstall.current.observedMissing) {
+          setError("");
+          failedInstall.current = null;
+        }
+      }
       setDesktop(value);
       setStatusError("");
       return value;
@@ -187,6 +195,7 @@ export function ClaudeDesktop({
   const run = async (action, checkEnvironment = false, activate = false) => {
     if (pendingAction.current || (!checkEnvironment && status.job?.running)) return;
     pendingAction.current = true;
+    failedInstall.current = null;
     statusRevision.current++;
     statusRequest.current = null;
     setSubmitting(true);
@@ -242,6 +251,9 @@ export function ClaudeDesktop({
       setJobID("");
       setLaunchStage("");
       if (!job || job.error || job.canceled) {
+        if (job?.kind === "claude-desktop-install" && job.error && !job.canceled) {
+          failedInstall.current = { observedMissing: false };
+        }
         setError(job?.error || (job?.canceled ? "操作已取消。" : "无法确认本次操作的结果，请刷新应用状态。"));
       } else if (["claude-desktop-install", "claude-desktop-update"].includes(job.kind) && !status.job?.running) {
         run("start");

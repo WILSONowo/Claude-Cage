@@ -1562,7 +1562,7 @@ function App() {
       <>
         <div className="boot-screen">
           <Shield size={36} />
-          <h1>连接 Cage 工作台</h1>
+          <h1>无法连接 Cage</h1>
           <p>{fatal}</p>
           <p className="muted">
             请从 Cage 应用打开，或在终端运行 <code>cage desktop</code>。
@@ -1663,13 +1663,13 @@ function App() {
           </div>}
           {connectionError && (
             <div className="connection-banner" role="alert">
-              工作台连接中断，后台状态暂时未知。
+              与 Cage 的连接已断开，暂时无法获取后台状态。
               <button
                 onClick={() =>
                   nativeAvailable() ? native("reconnect") : location.reload()
                 }
               >
-                重新连接工作台
+                重新连接
               </button>
             </div>
           )}
@@ -1881,7 +1881,7 @@ function App() {
                       >
                         {!running && setupProxy ? <Globe2 size={16} /> : running ? <RefreshCw size={16} /> : <Power size={16} />}
                         {running ? "恢复浏览器" : setupProxy ? "配置网络与代理"
-                          : guestSystem?.activate ? "打开工作台" : guestSystem?.pending ? "继续安装"
+                          : guestSystem?.activate ? "使用此环境" : guestSystem?.pending ? "继续安装"
                           : guestSystem && guestSystem.guest_system !== "debian-13" ? "安装客户机" : "启动 Cage 环境"}
                       </button>
                     </div>

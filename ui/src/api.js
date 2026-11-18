@@ -22,7 +22,7 @@ async function renewSession() {
       const entry = new URL(url);
       if (entry.origin !== location.origin) {
         await native("reconnect");
-        throw new Error("工作台地址已更新，连接恢复后请重试刚才的操作。");
+        throw new Error("Cage 连接地址已更新，连接恢复后请重试刚才的操作。");
       }
       const response = await fetch("/api/session", {
         method: "POST",

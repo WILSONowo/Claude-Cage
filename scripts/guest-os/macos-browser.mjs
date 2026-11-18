@@ -24,7 +24,7 @@ try {
       const reply = await replies.next();
       if (reply.done) break;
       result = JSON.parse(reply.value);
-    } catch { result = { error: "请更新工作台以使用 Chrome 原生窗口" }; }
+    } catch { result = { error: "请更新 Cage以使用 Chrome 原生窗口" }; }
     if (!process.stdout.write(JSON.stringify(result) + "\n")) await once(process.stdout, "drain");
   }
 } finally { socket.destroy(); }

@@ -56,7 +56,7 @@ try {
  await page.reload();await menu().click();await page.getByRole('menuitem',{name:'设置',exact:true}).click();
  assert.equal(await automatic.isChecked(),false,'explicit opt-out was overridden');
  await automatic.click();await page.getByRole('status').filter({hasText:'已开启'}).waitFor();
- await page.getByRole('button',{name:'返回工作台',exact:true}).click();
+ await page.getByRole('button',{name:'关闭设置',exact:true}).click();
  await menu().click();await page.getByRole('menuitem',{name:/锁定 Cage/}).click();
  await page.getByRole('region',{name:'解锁 Cage',exact:true}).waitFor();
  await page.reload();await page.getByRole('button',{name:'使用 Touch ID 解锁',exact:true}).waitFor();

@@ -179,6 +179,62 @@ internal static class BrowserWindowCapture
         }
         finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
     }
+    // PrintWindow can wait on the owning UI thread. Bound both the frame wait
+    // and the number of outstanding renders if Edge stops answering.
+    private static readonly SemaphoreSlim PopupPrint = new(1, 1);
+    private static async Task<byte[]> CapturePopup(Pin pin, Popup popup)
+    {
+        void Check() => ValidatePopup(pin, popup);
+        try
+        {
+            return await GuestWindowCapture.Capture(popup.Window, pin.Process.Id,
+                popup.Client.Width, popup.Client.Height, Check, preserveAlpha: true);
+        }
+        catch (ClaudeGraphicsCapture.UnsupportedCaptureWindowException)
+        {
+            void CheckTool()
+            {
+                Check();
+                if (GetWindow(popup.Window, 4) == IntPtr.Zero || Class(popup.Window) != "Chrome_WidgetWin_1" ||
+                    (GetWindowLongW(popup.Window, -20) & 0x80) == 0)
+                    throw new InvalidDataException("browser_target_changed");
+            }
+            CheckTool();
+            if (!PopupPrint.Wait(0)) throw new InvalidDataException("browser_window_unavailable");
+            var print = Task.Run(() =>
+            {
+                try
+                {
+                    CheckTool();
+                    using var bitmap = new Bitmap(popup.Client.Width, popup.Client.Height, PixelFormat.Format24bppRgb);
+                    using (var g = Graphics.FromImage(bitmap))
+                    {
+                        var dc = g.GetHdc();
+                        try
+                        {
+                            if (!PrintWindow(popup.Window, dc, 3)) throw new InvalidDataException("browser_window_unavailable");
+                        }
+                        finally { g.ReleaseHdc(dc); }
+                    }
+                    CheckTool();
+                    if (!ClaudeGraphicsCapture.HasContent(bitmap)) throw new InvalidDataException("desktop_empty_frame");
+                    using var output = new MemoryStream();
+                    bitmap.Save(output, ImageFormat.Png);
+                    if (output.Length > Protocol.PngLimit) throw new InvalidDataException("desktop_frame_limit");
+                    return output.ToArray();
+                }
+                finally { PopupPrint.Release(); }
+            });
+            try { return await print.WaitAsync(TimeSpan.FromSeconds(3)); }
+            catch (TimeoutException)
+            {
+                _ = print.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                throw new InvalidDataException("browser_window_unavailable");
+            }
+        }
+    }
+    [DllImport("user32.dll")] private static extern int GetWindowLongW(IntPtr window, int index);
+    [DllImport("user32.dll")] private static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
     private static View Resolve(Process node,JsonObject proof)
     {
         ValidateNode(node);
@@ -273,8 +329,7 @@ internal static class BrowserWindowCapture
                 }
                 foreach(var popup in view.Popups.Reverse())
                 {
-                    void Check()=>ValidatePopup(view.Pin,popup);
-                    var png=await GuestWindowCapture.Capture(popup.Window,view.Pin.Process.Id,popup.Client.Width,popup.Client.Height,Check,preserveAlpha:true);
+                    var png=await CapturePopup(view.Pin,popup);
                     var sx=(double)view.Width/view.Surface.Width;var sy=(double)view.Height/view.Surface.Height;
                     var destination=new Rectangle(view.X+(int)Math.Round((popup.Client.X-view.Surface.X)*sx),view.Y+(int)Math.Round((popup.Client.Y-view.Surface.Y)*sy),(int)Math.Round(popup.Client.Width*sx),(int)Math.Round(popup.Client.Height*sy));
                     var clipped=Rectangle.Intersect(destination,new Rectangle(0,0,frame["width"]!.GetValue<int>(),frame["height"]!.GetValue<int>()));

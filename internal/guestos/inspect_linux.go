@@ -20,7 +20,7 @@ func Inspect(_ context.Context) Inspection {
 	r.HostCheckPassed = host.LinuxPrereqs(&details)
 	r.Detail = strings.TrimSpace(details.String())
 	if r.HostCheckPassed {
-		r.Detail = "已检测到 Debian 工作台所需的 Linux 虚拟化组件。"
+		r.Detail = "已检测到 Debian 虚拟机所需的 Linux 虚拟化组件。"
 	}
 	return r
 }

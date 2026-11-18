@@ -132,7 +132,7 @@ export function WorkspaceSidebar({
           onClick={onHome}
         >
           <SquarePen size={17} />
-          {ready ? "新建对话" : "工作台"}
+          {ready ? "新建对话" : "首页"}
         </button>
         <SearchField label="搜索项目与会话" placeholder="搜索项目或会话" value={query} onValueChange={setQuery} />
         <button

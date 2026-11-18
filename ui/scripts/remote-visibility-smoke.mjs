@@ -28,7 +28,7 @@ try {
   const originalTabs = structuredClone(state.tabs);
   const before = report.frames;
   await page.waitForFunction(() => document.querySelector(".remote-canvas canvas")?.width > 0);
-  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
+  await page.getByRole("button", { name: /^(首页|新建对话)$/ }).click();
   // Bounded observation proves frames stop, rather than only inspecting CSS.
   await new Promise((resolve) => setTimeout(resolve, 500));
   const hiddenStart = report.frames;

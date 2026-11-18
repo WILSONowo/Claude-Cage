@@ -92,6 +92,50 @@ func TestMaintenanceRequiresAuthenticationAndSoftwareSource(t *testing.T) {
 	}
 }
 
+func TestUbuntuDependencyFallsBackToSameOriginHTTPSOnForbidden(t *testing.T) {
+	const host = "archive.ubuntu.com"
+	const resource = "/ubuntu/pool/main/g/guest.deb"
+	var calls atomic.Int32
+	origin := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.Host != host || r.URL.Path != resource || r.Header.Get("Range") != "bytes=0-3" || r.Header.Get("Proxy-Authorization") != "" {
+			t.Errorf("unexpected HTTPS retry: host=%s path=%s range=%q", r.Host, r.URL.Path, r.Header.Get("Range"))
+		}
+		w.WriteHeader(http.StatusPartialContent)
+		io.WriteString(w, "data")
+	}))
+	defer origin.Close()
+	denied := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "proxy policy", http.StatusForbidden)
+	}))
+	defer denied.Close()
+	transport := origin.Client().Transport.(*http.Transport).Clone()
+	// The isolated TLS origin presents httptest's certificate for example.com.
+	transport.TLSClientConfig.ServerName = "example.com"
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		var target string
+		switch address {
+		case host + ":80":
+			target = denied.Listener.Addr().String()
+		case host + ":443":
+			target = origin.Listener.Addr().String()
+		default:
+			return nil, fmt.Errorf("unexpected target %q", address)
+		}
+		return (&net.Dialer{}).DialContext(ctx, network, target)
+	}
+	defer transport.CloseIdleConnections()
+	proxy := &maintenanceProxy{ctx: context.Background(), token: "test", transport: transport}
+	request := httptest.NewRequest(http.MethodGet, "http://"+host+":80"+resource, nil)
+	request.Header.Set("Range", "bytes=0-3")
+	request.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("cage-install:test")))
+	reply := httptest.NewRecorder()
+	proxy.ServeHTTP(reply, request)
+	if reply.Code != http.StatusPartialContent || reply.Body.String() != "data" || calls.Load() != 1 {
+		t.Fatalf("download: status=%d HTTPS requests=%d", reply.Code, calls.Load())
+	}
+}
+
 func TestMaintenanceClosesTLSConnectionsAndRefusesBusinessHosts(t *testing.T) {
 	proxy := &maintenanceProxy{token: "fixture", ctx: context.Background(), connections: map[net.Conn]bool{}, transport: &http.Transport{}}
 	proxy.dial = func(context.Context, string, string) (net.Conn, error) {

@@ -14,7 +14,7 @@ import (
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 )
 
-var errGuestUpdateRequired = errors.New("环境组件需要更新，请先保存浏览器和编辑器中的修改。工作台终端与磁盘保留，编辑器内终端可能结束。")
+var errGuestUpdateRequired = errors.New("环境组件需要更新，请先保存浏览器和编辑器中的修改。Cage 终端与磁盘保留，编辑器内终端可能结束。")
 
 const guestConnectionSnapshot = `sudo cat /etc/claude-cage/browser-control.json; printf '\n'; cat "$HOME/.config/claude-cage/browser-password"; printf '\n'; if sudo test -f /etc/claude-cage/components.json; then sudo cat /etc/claude-cage/components.json; else printf 'null'; fi`
 
@@ -159,7 +159,7 @@ func (s *Server) synchronizeEnvironment() error {
 	s.guestUpdateRequired = true
 	s.guestUpdateError = "环境组件更新尚未完成，请等待结果；失败时可以重试。"
 	s.mu.Unlock()
-	s.setMessage("正在重启浏览器与编辑器组件，工作台终端保持运行…")
+	s.setMessage("正在重启浏览器与编辑器组件，Cage 终端保持运行…")
 	if err := s.runCage("up"); err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (s *Server) upgradeEnvironmentTools() error {
 	manifest := s.guestManifest
 	s.mu.Unlock()
 	if !allowed {
-		return errors.New("工作台正在退出，请稍后重试工具更新。")
+		return errors.New("Cage 正在退出，请稍后重试工具更新。")
 	}
 	if manifest == nil || !manifest.Current() {
 		return errGuestUpdateRequired
@@ -219,7 +219,7 @@ func (s *Server) upgradeEnvironmentTools() error {
 		s.mu.Unlock()
 		<-monitorDone
 	}
-	s.setMessage("正在更新 Chromium、编辑器和开发工具，工作台终端与磁盘保持运行…")
+	s.setMessage("正在更新 Chromium、编辑器和开发工具，Cage 终端与磁盘保持运行…")
 	err := s.runCage("update-tools")
 	finishMonitor()
 	if err != nil {

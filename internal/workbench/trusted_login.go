@@ -63,7 +63,7 @@ func (d *desktopGateway) trustedLogin(w http.ResponseWriter, r *http.Request) {
 	session, remote, err := d.acquire(in.ConnectionID)
 	local, ok := d.local.(*desktopLocal)
 	if err != nil || remote || !ok {
-		http.Error(w, "请返回当前本机工作台", 409)
+		http.Error(w, "请返回当前本机 Cage 服务", 409)
 		return
 	}
 	c, err := openController(local.profile)

@@ -26,7 +26,7 @@ func ReleaseOrphanProxyForUpdate(configPath, installDir string) (DesktopResult, 
 	}
 	defer unlockController(lock)
 	if controllerHasVM(profile) {
-		return DesktopResult{}, errors.New("环境仍在运行或状态无法确认，请先在工作台停止环境")
+		return DesktopResult{}, errors.New("环境仍在运行或状态无法确认，请先在 Cage 中停止环境")
 	}
 	if err := managedproxy.ReleaseOrphanForUpdate(profile, installDir); err != nil {
 		return DesktopResult{}, err

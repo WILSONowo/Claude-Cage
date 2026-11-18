@@ -112,7 +112,7 @@ try {
   }
   const ssh = page.getByRole("button", { name: "SSH 主机", exact: true });
   await ssh.press("Enter");
-  const back = page.getByRole("button", { name: "返回工作台侧栏" });
+  const back = page.getByRole("button", { name: "返回主侧栏" });
   await back.waitFor();
   assert.ok(await back.evaluate(node => document.activeElement === node));
   await back.press("Enter");

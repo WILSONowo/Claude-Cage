@@ -24,6 +24,14 @@ func TestBrowserDependencyFailureIdentifiesGuestService(t *testing.T) {
 	}
 }
 
+func TestAPTProxyForbiddenExplainsDependencyDownload(t *testing.T) {
+	output := "Err:1 http://archive.ubuntu.com/ubuntu jammy InRelease\nInvalid response from proxy: HTTP/1.1 403 Forbidden\nE: Failed to fetch [URL]"
+	err := executionFailure("安装或更新环境软件", errors.New("exit status 100"), output)
+	if !strings.Contains(err.Error(), "403") || !strings.Contains(err.Error(), "HTTPS") || strings.Contains(err.Error(), "http://") {
+		t.Fatalf("unexpected APT proxy diagnostic: %v", err)
+	}
+}
+
 func TestWindowsMaintenanceFailureRetainsStageForBothJobs(t *testing.T) {
 	cause := errors.New("synthetic maintenance process failed")
 	for _, action := range []string{"修复 Windows 系统助手", "更新原生客机组件"} {

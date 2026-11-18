@@ -178,7 +178,7 @@ final class ConnectionModel: ObservableObject {
 
         guard item != nil || hasSaved else { status = "请导入连接文件或临时邀请。"; return }
         if let item, (item.expiry ?? .distantPast) <= Date() { invitation = nil; hasInvitation = false; status = "邀请已过期，请重新连接或导入新邀请。"; return }
-        guard let directory = Bundle.main.url(forResource: "mobile-ui", withExtension: nil) else { status = "安装包缺少工作台资源。"; return }
+        guard let directory = Bundle.main.url(forResource: "mobile-ui", withExtension: nil) else { status = "安装包缺少界面资源。"; return }
         invitation = nil; hasInvitation = false; connecting = true; generation += 1
         let attempt = generation
         status = "正在验证电脑并连接…"
@@ -445,7 +445,7 @@ private struct QRScannerScreen: View {
                     VStack(spacing: 12) {
                         Text("连接你的电脑").font(.title2.bold())
                         Text(hint).font(.subheadline).foregroundStyle(.white.opacity(0.88)).multilineTextAlignment(.center)
-                        Text(simulatorPreviewEnabled ? "模拟器预览 · 即将进入示例工作台" : "仅识别 Cage 配对码")
+                        Text(simulatorPreviewEnabled ? "模拟器预览 · 即将打开示例环境" : "仅识别 Cage 配对码")
                             .font(.caption).foregroundStyle(.white.opacity(0.6))
                     }.foregroundStyle(.white).padding(.horizontal, 24).padding(.bottom, 24).accessibilityElement(children: .combine)
                         .background(GeometryReader { content in
@@ -631,7 +631,7 @@ private struct SettingsScreen: View {
                     TextField("电脑指纹 sha256:…", text: $model.pin).textInputAutocapitalization(.never).autocorrectionDisabled()
                     Toggle("已核对电脑指纹", isOn: $model.verified)
                     Button("保存已核对的主机", action: model.saveTrust).disabled(!model.verified)
-                    if model.hasInvitation || model.hasSaved {Button("连接工作台", action: connect).disabled(!model.canConnect)}
+                    if model.hasInvitation || model.hasSaved {Button("连接 Cage", action: connect).disabled(!model.canConnect)}
                 }
                 if model.canForget {Button("忘记主机", role: .destructive) {confirmingForget = true}}
             }

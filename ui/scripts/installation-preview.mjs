@@ -15,7 +15,7 @@ const exampleChat = {
   id: "preview-chat", workspace: "/preview/workspace", title: "环境检查",
   generation: "preview-chat", revision: 1, can_send: false,
   turns: [{ id: "preview-turn", status: "completed", prompt: "这个工作区使用哪个环境？",
-    text: "当前使用 **本机工作区**。可在工作台查看代理出口、客机状态和项目目录。" }],
+    text: "当前使用 **本机工作区**。可在首页查看代理出口、客机状态和项目目录。" }],
 };
 
 async function jsonBody(req) {
@@ -137,7 +137,7 @@ http.createServer(async (req, res) => {
         for await (const chunk of req) raw += chunk;
         const body = JSON.parse(raw);
         if (!chat.turns.some(turn => turn.id === body.request_id)) {
-          chat.turns.push({ id: body.request_id, prompt: body.text, status: "completed", text: "这是验收示例回复。你可以继续输入，或返回工作台。" });
+          chat.turns.push({ id: body.request_id, prompt: body.text, status: "completed", text: "这是验收示例回复。你可以继续输入，或返回首页。" });
           chat.title = body.text.slice(0, 32); chat.revision++;
         }
       }

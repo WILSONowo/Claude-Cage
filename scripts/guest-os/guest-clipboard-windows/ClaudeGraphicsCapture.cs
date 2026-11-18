@@ -251,13 +251,17 @@ internal static class ClaudeGraphicsCapture
         return bytes;
     }
 
+    internal sealed class UnsupportedCaptureWindowException : ArgumentException { }
+
     private static GraphicsCaptureItem Item(IntPtr window)
     {
         using var factory = ActivationFactory.Get("Windows.Graphics.Capture.GraphicsCaptureItem", ItemInterop);
         var function = Marshal.ReadIntPtr(Marshal.ReadIntPtr(factory.ThisPtr),3*IntPtr.Size);
         var create = Marshal.GetDelegateForFunctionPointer<CreateWindow>(function);
         var iid = ItemInterface;
-        Marshal.ThrowExceptionForHR(create(factory.ThisPtr,window,ref iid,out var value));
+        var hr = create(factory.ThisPtr,window,ref iid,out var value);
+        if (hr == unchecked((int)0x80070057)) throw new UnsupportedCaptureWindowException();
+        Marshal.ThrowExceptionForHR(hr);
         try { return MarshalInterface<GraphicsCaptureItem>.FromAbi(value); } finally { Marshal.Release(value); }
     }
     private static IDirect3DDevice Device(uint driver)

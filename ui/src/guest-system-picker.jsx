@@ -35,7 +35,7 @@ export function HostCloneSummary({ pending, onChange }) {
     {host.system === "windows-11" && host.build !== plan.build && <small>Windows 的发行版本、版本类型和语言与本机一致，补丁版本有所不同。</small>}
     <small>本机的应用、个人文件和登录状态不会复制；客机中的工具、账户和文件会持续保存。</small>
     <small>{cached ? "已找到匹配的本地镜像，校验后直接使用，无需重新下载系统镜像。" : `从 ${source} 下载官方系统镜像，${download ? `预计还需下载 ${download}` : "下载大小将在连接后显示"}。`}</small>
-    <small>{result.installation_started ? "继续使用原虚拟磁盘，保留已有安装进度。" : `至少需要 ${result.minimum_free_gib} GiB 可用空间，虚拟磁盘按实际使用增长。`}浏览器、编辑器等工作台组件按需下载。</small>
+    <small>{result.installation_started ? "继续使用原虚拟磁盘，保留已有安装进度。" : `至少需要 ${result.minimum_free_gib} GiB 可用空间，虚拟磁盘按实际使用增长。`}浏览器、编辑器等组件按需下载。</small>
     {!result.enough_space && <small role="alert">当前可用 {result.free_gib} GiB，请在存储设置中选择空间充足的位置，再重新检查。</small>}
     {!pending && <button type="button" onClick={() => {
       setResult(null);
@@ -154,7 +154,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
           onChange({ guest_system: "debian-13", media: "", sha256: "", editor_terms: false });
         } catch (e) { setError(e.message); }
       }}>重新选择系统或镜像</button>}
-      {system.activate && <small className="guest-install-fields">客机已安装，可以打开工作台。</small>}
+      {system.activate && <small className="guest-install-fields">此环境已安装，可直接使用。</small>}
       {error && <p role="alert" className="guest-install-fields">{error}</p>}
     </div>
   );

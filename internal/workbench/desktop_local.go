@@ -47,7 +47,7 @@ func (c *controllerClient) localControl(ctx context.Context, action string, inpu
 	case http.StatusLocked:
 		return reply, errDesktopLocalLocked
 	case http.StatusNotFound:
-		return reply, errors.New("当前本机后台版本不支持环境切换，请先在原工作台保存任务并完成后台更新")
+		return reply, errors.New("当前本机后台版本不支持环境切换，请先在原 Cage 窗口保存任务并完成后台更新")
 	case http.StatusConflict:
 		return reply, errors.New("本机仍有操作或状态已变化，请重新确认")
 	default:
@@ -305,7 +305,7 @@ func (d *desktopLocal) localSession(life, bootstrap context.Context, c *controll
 	var m RemoteEntry
 	status, err = c.callContext(bootstrap, "GET", "/api/remote/manifest", nil, &m)
 	if err != nil || status != http.StatusOK || m.InstanceID != view.InstanceID || m.APIProtocol != remoteAPIProtocol || m.Origin != c.origin || m.Platform != runtime.GOOS {
-		return nil, errors.New("本机工作台版本或环境身份不符")
+		return nil, errors.New("本机服务版本或环境标识不匹配")
 	}
 	manifest := remotehost.PublicManifest{APIProtocol: m.APIProtocol, InstanceID: m.InstanceID, Version: m.Version, Platform: m.Platform, Runtime: m.Runtime, Capabilities: m.Capabilities}
 	c.client.Jar.SetCookies(u, []*http.Cookie{{

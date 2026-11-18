@@ -58,8 +58,8 @@ function fixture({ platform = "windows-11", native = true, visible = true, windo
         if (historyError) throw new Error(historyError);
         return [{ ...lastJob }];
       }
-      assert.equal(path, "/claude-desktop/start", "recovery must not close or reinstall the existing application");
-      lastJob = { id: `activation-${requests.length}`, kind: "claude-desktop-start", running: false };
+      assert.ok(path === "/claude-desktop/start" || (!native && path === "/claude-desktop/install"));
+      lastJob = { id: `action-${requests.length}`, kind: `claude-desktop-${path.split("/").pop()}`, running: false };
       return lastJob;
     },
     useWindowVisibility: () => windowVisible,
@@ -69,7 +69,7 @@ function fixture({ platform = "windows-11", native = true, visible = true, windo
   };
   const module = componentModule(dependencies);
   const h = {
-    props, requests,
+    props, requests, current,
     get starts() { return requests.filter((r) => r.path === "/claude-desktop/start"); },
     render() { cursor = 0; dirty = false; h.tree = module.ClaudeDesktop(props); },
     async flush() {
@@ -88,7 +88,7 @@ function fixture({ platform = "windows-11", native = true, visible = true, windo
       for (const callback of callbacks) callback();
       await h.flush();
     },
-    async finish() { await h.update({ status: { ...props.status, job: { ...lastJob } } }); },
+    async finish(result = {}) { await h.update({ status: { ...props.status, job: { ...lastJob, ...result } } }); },
     toolbar() {
       const view = find(h.tree, (node) => node.type === module.DesktopToolbar);
       // Toolbar has its own stable hook slot, distinct from the parent view.
@@ -166,6 +166,24 @@ test("recovery entry is confined to the running native Windows toolbar", async (
 
 const actionButton = (h, text) => find(h.tree, node =>
   node.type === "button" && node.props.children.includes(text));
+
+test("a later guest installation resolves a failed first install but not a failed repair", async () => {
+  for (const installed of [false, true]) {
+    const h = fixture({ platform: "linux", native: false, installed, running: false });
+    await h.flush();
+    await actionButton(h, installed ? "更新 / 修复安装" : "下载并安装").props.onClick();
+    await h.flush();
+    const error = "依赖下载被代理拒绝";
+    await h.finish({ error });
+    assert.ok(find(h.tree, node => node.props.message === error));
+    h.current.installed = true;
+    await h.poll();
+    assert.ok(actionButton(h, "打开 Claude Desktop"));
+    assert.equal(Boolean(find(h.tree, node => node.props.message === error)), installed);
+    assert.equal(h.props.status.job.error, error);
+    assert.equal(h.starts.length, 0);
+  }
+});
 
 test("an unreadable guest snapshot still allows one checked start, with no install", async () => {
   const h = fixture({ platform: "linux", snapshotError: "应用状态超时" });

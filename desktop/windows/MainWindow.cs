@@ -8,7 +8,7 @@ internal sealed class MainWindow : Form
 {
     private WebView2 web = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly NativeInput nativeInput;
-    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 Cage 工作台…", Margin = new Padding(0, 0, 0, 16) };
+    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 Cage…", Margin = new Padding(0, 0, 0, 16) };
     private readonly FlowLayoutPanel status = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(32), WrapContents = false };
     private readonly Button retry = new() { Text = "重试连接", AutoSize = true, Visible = false };
     private readonly Button existing = new() { Text = "打开现有环境保存文件", AutoSize = true, Visible = false };
@@ -207,16 +207,16 @@ internal sealed class MainWindow : Form
             core.DownloadStarting += (_, e) => e.Cancel = true;
             core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
             core.WebMessageReceived += Receive;
-            core.ProcessFailed += (_, _) => { webFailed = true; Error("工作台显示进程已退出。后台任务保留，可重试连接。"); };
+            core.ProcessFailed += (_, _) => { webFailed = true; Error("界面显示进程已退出。后台任务保留，可重试连接。"); };
             core.NavigationCompleted += (_, e) => {
                 if (!e.IsSuccess) {
                     var reason = e.WebErrorStatus.ToString() switch {
                         "Timeout" => "等待本机后台响应超时",
                         "CannotConnect" => "本机后台没有接受连接，可能尚未启动或已经退出",
-                        "ConnectionAborted" or "ConnectionReset" => "本机工作台连接在加载完成前中断",
-                        _ => "内置网页组件未能加载本机工作台（错误类型 " + e.WebErrorStatus + "）",
+                        "ConnectionAborted" or "ConnectionReset" => "连接本机服务时中断",
+                        _ => "内置网页组件未能加载本机界面（错误类型 " + e.WebErrorStatus + "）",
                     };
-                    Error("打开工作台失败：" + reason + "。请点击“重试连接”；仍失败时请保留此错误提示并反馈给维护者。后台任务不会因此自动结束。"); return;
+                    Error("无法打开 Cage 界面：" + reason + "。请点击“重试连接”；仍失败时请保留此错误提示并反馈给维护者。后台任务不会因此自动结束。"); return;
                 }
                 status.Hide(); web.Show(); web.Focus(); PublishVisibility();
             };
@@ -230,7 +230,7 @@ internal sealed class MainWindow : Form
             Error("缺少 Microsoft Edge WebView2 Runtime。请运行 Cage 安装程序安装随附运行时后重试。");
             webFailed = true;
         }
-        catch (Exception error) { if (!completingSmoke) { webFailed = true; Error("无法初始化工作台：" + error.Message); } }
+        catch (Exception error) { if (!completingSmoke) { webFailed = true; Error("无法加载 Cage 界面：" + error.Message); } }
         finally { retry.Enabled = true; }
     }
 
@@ -243,7 +243,7 @@ internal sealed class MainWindow : Form
 
     private async Task SmokeDeadline()
     {
-        try { await Task.Delay(TimeSpan.FromSeconds(120), lifetime.Token); await CompleteSmoke(false, "工作台未在自检期限内确认就绪"); }
+        try { await Task.Delay(TimeSpan.FromSeconds(120), lifetime.Token); await CompleteSmoke(false, "界面启动自检超时"); }
         catch (OperationCanceledException) { }
     }
 
@@ -278,7 +278,7 @@ internal sealed class MainWindow : Form
                         .WaitAsync(TimeSpan.FromSeconds(3));
                     page = JsonDocument.Parse(snapshot).RootElement.Clone();
                 }
-                catch (Exception error) { errors.Add("无法采集工作台错误状态：" + error.GetType().Name); }
+                catch (Exception error) { errors.Add("无法采集界面错误状态：" + error.GetType().Name); }
             }
             // Finish all admitted desktop/diagnostic CLI calls before reading
             // control.json: a late refresh can publish a new controller record.
@@ -337,7 +337,7 @@ internal sealed class MainWindow : Form
     {
         if (completingSmoke || bootstrapping || web.CoreWebView2 == null) return;
         bootstrapping = true;
-        message.Text = "正在连接 Cage 工作台…"; status.Show(); status.BringToFront();
+        message.Text = "正在连接 Cage…"; status.Show(); status.BringToFront();
         retry.Hide(); existing.Hide(); complete.Hide();
         try
         {
@@ -345,7 +345,7 @@ internal sealed class MainWindow : Form
             var (exit, data) = await Backend.Json(["desktop", "--json", ..options], lifetime.Token);
             if (completingSmoke) return;
             smokePhase = "backend_returned";
-            if (exit != 0) throw new IOException(data.Text("message") is { Length: > 0 } detail ? detail : "工作台未能启动");
+            if (exit != 0) throw new IOException(data.Text("message") is { Length: > 0 } detail ? detail : "Cage 服务未能启动");
             controllerNeedsUpdate = data.Text("status") != "ready";
             if (data.Text("status") == "upgrade_pending")
             {
@@ -356,11 +356,11 @@ internal sealed class MainWindow : Form
             Text = controllerNeedsUpdate ? "Cage（更新待完成）" : "Cage";
             web.CoreWebView2.Navigate(entry.AbsoluteUri);
         }
-        catch (OperationCanceledException) { if (!completingSmoke && !lifetime.IsCancellationRequested) Error("启动工作台失败：等待本机后台响应超时。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。"); }
+        catch (OperationCanceledException) { if (!completingSmoke && !lifetime.IsCancellationRequested) Error("Cage 启动失败：等待本机后台响应超时。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。"); }
         catch (Exception error) {
             if (completingSmoke) return;
             _ = Backend.Report("Workbench startup failed: " + error);
-            Error(error.Message.Any(c => c is >= '\u4E00' and <= '\u9FFF') ? error.Message : "启动工作台失败：本机后台未返回可识别的原因（错误类型 " + error.GetType().Name + "）。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。");
+            Error(error.Message.Any(c => c is >= '\u4E00' and <= '\u9FFF') ? error.Message : "Cage 启动失败：本机后台未返回可识别的原因（错误类型 " + error.GetType().Name + "）。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。");
         }
         finally { bootstrapping = false; }
     }
@@ -459,7 +459,7 @@ internal sealed class MainWindow : Form
                 {
                     var connection = request.Text("connection_id");
                     var accessMode = request.Text("mode");
-                    if (connection.Length == 0 || accessMode is not ("read" or "write")) throw new InvalidDataException("请在云端工作台重新选择项目");
+                    if (connection.Length == 0 || accessMode is not ("read" or "write")) throw new InvalidDataException("请在远程 Cage重新选择项目");
                     using var picker = new FolderBrowserDialog {
                         Description = accessMode == "write" ? "云端 Cage 可以读取、修改和删除所选项目中的文件。" : "云端 Cage 可以读取所选项目中的文件。",
                         UseDescriptionForTitle = true, ShowNewFolderButton = false
@@ -574,7 +574,7 @@ internal sealed class MainWindow : Form
                     result = new { supported = false }; break;
                 case "refreshSession":
                     var (exit, data) = await Backend.Json(controllerNeedsUpdate ? ["desktop", "--json", "--existing"] : ["desktop", "--json"], lifetime.Token);
-                    if (exit != 0) throw new IOException("工作台会话恢复失败");
+                    if (exit != 0) throw new IOException("登录会话恢复失败");
                     result = new { url = UpdatePolicy.Entry(data.Text("url")).AbsoluteUri }; break;
                 case "reconnect": result = true; _ = Bootstrap(); break;
                 case "quitNow": result = true; allowQuit = true; BeginInvoke(Close); break;

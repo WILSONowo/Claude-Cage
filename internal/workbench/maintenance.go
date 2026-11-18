@@ -147,6 +147,20 @@ func (p *maintenanceProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Software source proxy unavailable", 502)
 		return
 	}
+	// Some exits reject plain HTTP to Ubuntu archives. Retry only these
+	// stock origins through the same egress, retaining Range and TLS checks.
+	if response.StatusCode == http.StatusForbidden {
+		switch host := strings.ToLower(request.URL.Hostname()); host {
+		case "archive.ubuntu.com", "security.ubuntu.com", "ports.ubuntu.com":
+			response.Body.Close()
+			request.URL.Scheme, request.URL.Host, request.Host = "https", host, host
+			response, err = p.transport.RoundTrip(request)
+			if err != nil {
+				http.Error(w, "Ubuntu HTTPS software source unavailable", http.StatusBadGateway)
+				return
+			}
+		}
+	}
 	defer response.Body.Close()
 	for name, values := range response.Header {
 		if strings.EqualFold(name, "Connection") {
@@ -189,7 +203,7 @@ func StartGuestServices(ctx context.Context, configPath string, cfg cage.Config,
 	if err == nil {
 		prefs.BalancedDisplay = false
 		if err = json.Unmarshal(data, &prefs); err != nil {
-			return fmt.Errorf("读取工作台画质设置失败: %w", err)
+			return fmt.Errorf("读取画面质量设置失败: %w", err)
 		}
 	} else if !os.IsNotExist(err) {
 		return err

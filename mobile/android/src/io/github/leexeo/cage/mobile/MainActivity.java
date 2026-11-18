@@ -543,7 +543,7 @@ public final class MainActivity extends Activity {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
             startActivityForResult(intent, PICK_INVITATION);
         });
-        connect = button(form, credentials.saved() ? "重新连接" : "连接工作台", false, v -> connect());
+        connect = button(form, credentials.saved() ? "重新连接" : "连接 Cage", false, v -> connect());
         statusView();
     }
 
@@ -561,7 +561,7 @@ public final class MainActivity extends Activity {
                 credentials.save(relay, pin, record == null ? null : record.lookup);rememberRelay(relay);
                 runOnUiThread(() -> { if (generation == attempt) {
                     imported = null; verified.setChecked(false); setConnecting(false); forgetHost.setVisibility(View.VISIBLE);
-                    connect.setText(credentials.saved() && invitation == null ? "重新连接" : "连接工作台");
+                    connect.setText(credentials.saved() && invitation == null ? "重新连接" : "连接 Cage");
                     if (credentials.saved() && invitation == null) inviteStatus.setText("已保存电脑，可重新连接。");
                     status.setText(credentials.saved() ? "已保存电脑，可重新连接。" : "已保存主机指纹。");
                 } });
@@ -602,7 +602,7 @@ public final class MainActivity extends Activity {
                         displayRelay(saved.relay); pinField.setText(saved.pin); verified.setChecked(false);
                         inviteStatus.setText("请核对电脑上显示的指纹，再保存主机。");
                     } else { inviteStatus.setText("已导入临时邀请。"); }
-                    connect.setText("连接工作台");
+                    connect.setText("连接 Cage");
                 } });
             } catch (Exception e) {
                 runOnUiThread(() -> { if (attempt == generation) { setConnecting(false); inviteStatus.setText("文件无效或临时邀请已过期，请重新导入。"); } });
@@ -663,7 +663,7 @@ public final class MainActivity extends Activity {
             } catch (Exception e) {
                 close(opened);
                 runOnUiThread(() -> { if (attempt == generation) {
-                    setConnecting(false); if (page == Page.HOST) connect.setText(credentials.saved() ? "重新连接" : "连接工作台");
+                    setConnecting(false); if (page == Page.HOST) connect.setText(credentials.saved() ? "重新连接" : "连接 Cage");
                     status.setText(item == null ? "连接失败。请确认电脑的连接服务已启动，再重新连接。凭据已更换时，请导入新的连接文件。" : "连接未完成。请核对双方指纹与网络，再导入新邀请。");
                 } });
             }

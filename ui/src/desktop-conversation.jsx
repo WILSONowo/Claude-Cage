@@ -91,7 +91,7 @@ export function DesktopConversation({ id, drafts, ready, visible, onBack, onOpen
   const missing = useCallback(() => setNotice("这段会话已归档或移除。"), []);
   const denied = useCallback(error => setNotice(error.message), []);
   return <div className="desktop-conversation">
-    {notice ? <div role="alert">{notice} <button onClick={onBack}>返回工作台</button></div> :
+    {notice ? <div role="alert">{notice} <button onClick={onBack}>返回首页</button></div> :
       <Suspense fallback={<p role="status">正在打开对话…</p>}>
         <Chat id={id} drafts={drafts} ready={ready} visible={visible} onBack={onBack}
           onOpenWeb={onOpenWeb} onDenied={denied} onMissing={missing} onSnapshot={ignoreSnapshot} />

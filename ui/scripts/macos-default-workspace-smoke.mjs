@@ -74,7 +74,7 @@ try {
   const recovery = page.getByRole("dialog", { name: "恢复客机系统权限", exact: true });
   await recovery.getByRole("img").waitFor();
   assert.equal(maintenance.find(request => request.action === "open").maintenance, "screen");
-  await recovery.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await recovery.getByRole("button", { name: "退出客机画面", exact: true }).click();
   await recovery.waitFor({ state: "detached" });
   screenAllowed = true;
   await permission.getByRole("img").click();
@@ -86,7 +86,7 @@ try {
   await permission.getByRole("button", { name: "打开客机授权设置", exact: true }).click();
   await recovery.getByRole("img").waitFor();
   assert.equal(maintenance.filter(request => request.action === "open").at(-1).maintenance, "input");
-  await recovery.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await recovery.getByRole("button", { name: "退出客机画面", exact: true }).click();
   await recovery.waitFor({ state: "detached" });
   allowed = true;
   await permission.getByRole("button", { name: "验证授权", exact: true }).click();
@@ -151,7 +151,7 @@ try {
   try {
     const open = f.page.getByRole("button", { name: "打开工作区授权", exact: true });
     const dialog = f.page.getByRole("dialog", { name: "允许客机访问所选项目" });
-    const enter = f.page.getByRole("button", { name: "进入工作台", exact: true });
+    const enter = f.page.getByRole("button", { name: "开始使用 Cage", exact: true });
     await open.waitFor();
     assert.equal(await dialog.count(), 0);
     assert.equal(generation, 0, "polling must not open the guest dialog");

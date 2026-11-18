@@ -28,7 +28,7 @@ async function runScenario(name, firstWaitMs, rejectFirst = false) {
   let fixture;
   let completeCount = 0;
   let pending;
-  const timeoutMessage = "等待后台检查结束超时，请稍后重试进入工作台。";
+  const timeoutMessage = "等待后台检查结束超时，请稍后重试。";
   const screenshot = async (label) => {
     const filename = path.join(evidence, `${name}-${label}.png`);
     await fixture.page.screenshot({ path: filename, fullPage: true });
@@ -77,7 +77,7 @@ async function runScenario(name, firstWaitMs, rejectFirst = false) {
     const { page } = fixture;
     result.browserVersion = fixture.browser.version();
     page.setDefaultTimeout(5000);
-    const entryButton = () => page.getByRole("button", { name: "进入工作台", exact: true });
+    const entryButton = () => page.getByRole("button", { name: "开始使用 Cage", exact: true });
     const waitingButton = () => page.getByRole("button", { name: "正在进入…", exact: true });
     const workbench = () => page.getByRole("complementary", { name: "项目与终端" });
     await entryButton().waitFor();
@@ -121,7 +121,7 @@ async function runScenario(name, firstWaitMs, rejectFirst = false) {
         assert.deepEqual(sample, {
           buttonPresent: true, disabled: true, ariaBusy: "true", spinner: true,
           readyTitle: "Cage 已准备就绪", readyPanel: true,
-          waitingHeading: "正在进入工作台",
+          waitingHeading: "正在打开 Cage",
           waitingStatus: "正在等待后台检查结束…",
           stopInstallation: false, installationOperation: false,
           previousDisabled: true, workbenchPresent: false,

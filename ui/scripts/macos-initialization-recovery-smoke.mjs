@@ -58,7 +58,7 @@ for (const mode of ["project-approval", "legacy", "guest-login", "filesystem-per
       await approval.getByRole("button", { name: "验证授权", exact: true }).waitFor();
       connected = true;
       await approval.getByRole("button", { name: "验证授权", exact: true }).click();
-      await page.getByRole("button", { name: "进入工作台", exact: true }).waitFor();
+      await page.getByRole("button", { name: "开始使用 Cage", exact: true }).waitFor();
       assert.equal(checks, 1);
     } else if (mode === "restart") {
       await page.getByRole("button", { name: "保存后重启并检查", exact: true }).click();
@@ -69,7 +69,7 @@ for (const mode of ["project-approval", "legacy", "guest-login", "filesystem-per
       assert.equal(starts, 1);
     } else {
       await page.getByRole("button", { name: "运行网络与隔离检查", exact: true }).click();
-      await page.getByRole("button", { name: "进入工作台", exact: true }).waitFor();
+      await page.getByRole("button", { name: "开始使用 Cage", exact: true }).waitFor();
     }
     await page.setViewportSize({ width: 390, height: 700 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

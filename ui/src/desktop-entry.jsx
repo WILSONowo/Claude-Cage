@@ -21,7 +21,7 @@ function WorkbenchEntry() {
     return () => { current = false; };
   }, []);
   if (error) throw error;
-  return Workbench ? <Workbench /> : <div className="client-loading" role="status">正在打开工作台…</div>;
+  return Workbench ? <Workbench /> : <div className="client-loading" role="status">正在打开 Cage…</div>;
 }
 
 installDiagnostics();

@@ -77,7 +77,7 @@ try {
   state.status.safety.gate.until = new Date(Date.now() - 1000).toISOString();
   await page.locator(".status-safety").getByText("外网已关闭", { exact: true }).waitFor();
   assert.equal(await page.locator(".environment-shield.healthy").count(), 0);
-  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
+  await page.getByRole("button", { name: /^(首页|新建对话)$/ }).click();
   await shot("offline");
   state.status.ready = false;
   state.status.vm_running = false;

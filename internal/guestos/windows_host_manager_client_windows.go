@@ -86,7 +86,7 @@ func windowsHostManagerRequestCall(ctx context.Context, request windowsHostManag
 	}
 	if !response.OK || response.Error != "" {
 		if response.Error == "storage_pending" {
-			return errors.New("Windows 客机有待恢复的存储迁移，请重新打开原工作台完成恢复")
+			return errors.New("Windows 客机有待恢复的存储迁移，请重新打开原 Cage 窗口完成恢复")
 		}
 		if response.Error == "vm_running" {
 			return errors.New("请等待 Windows 客机完整关机，再迁移环境存储")

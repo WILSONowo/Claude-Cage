@@ -65,8 +65,8 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
       !(await onConfirm({
         title: "移除配对手机？",
         body: device?.model
-          ? `移除 ${device.model} 后，这部手机需要重新扫码才能访问工作台。`
-          : "这部手机需要重新扫码才能访问工作台。",
+          ? `移除 ${device.model} 后，这部手机需要重新扫码才能连接 Cage。`
+          : "这部手机需要重新扫码才能连接 Cage。",
         confirm: "移除手机",
       }))
     )
@@ -109,7 +109,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
           </p>
         )}
         {paired ? (
-          <p role="status">在手机上选择「重新连接」打开工作台。</p>
+          <p role="status">在手机上选择「重新连接」即可连接 Cage。</p>
         ) : (
           <p className="remote-pair-instruction">
             在手机 Cage 的「连接电脑」中选择「扫码连接」，或在「使用配对码」中粘贴配对码。

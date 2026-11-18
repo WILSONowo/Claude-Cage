@@ -379,7 +379,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       {proxy.active && status.location && (
         <p className="field-help">
           最近检测出口：{status.location.ip} · {status.location.country}{" "}
-          {status.location.city}。联网是否放行以工作台检查状态为准。
+          {status.location.city}。联网状态以 Cage 的网络检查结果为准。
         </p>
       )}
       {!proxy.core_available && (
@@ -1204,7 +1204,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <li>
             <strong>确认可以联网</strong>
             <p>
-              {initializing ? "点击「开始安装」，安装后查看网络检查结果。" : "回到工作台，启动环境并查看联网状态。"}「测速」显示节点延迟。浏览器、终端和开发工具共用所选节点。
+              {initializing ? "点击「开始安装」，安装后查看网络检查结果。" : "返回首页启动环境，查看联网状态。"}「测速」显示节点延迟。浏览器、终端和开发工具共用所选节点。
             </p>
           </li>
         </ol>

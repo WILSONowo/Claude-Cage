@@ -141,7 +141,7 @@ try {
   await click("SSH 主机");
   // The working surface survives opening the sidebar and a failed candidate.
   await page.getByRole("heading", { name: "开始使用 Cage" }).waitFor();
-  await click("返回工作台侧栏");
+  await click("返回主侧栏");
   await page.getByRole("navigation", { name: "主导航" }).waitFor();
   await click("SSH 主机");
   await click("连接此主机");

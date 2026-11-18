@@ -98,7 +98,7 @@ static void setError(NSError **error, NSString *text) {
     NSURLComponents *url = [NSURLComponents componentsWithString:entry];
     if (failure || ![url.scheme isEqualToString:@"http"] || ![url.host isEqualToString:@"127.0.0.1"] ||
         url.port.integerValue < 1 || url.port.integerValue > 65535 || url.user || url.password || !url.URL) {
-        [client close:nil]; setError(error, @"无法打开手机工作台。"); return nil;
+        [client close:nil]; setError(error, @"无法打开手机连接界面。"); return nil;
     }
     CMConnection *result = [[CMConnection alloc] init];
     result->_client = client; result->_launchURL = url.URL;

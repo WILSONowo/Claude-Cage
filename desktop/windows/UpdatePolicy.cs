@@ -14,7 +14,7 @@ internal static partial class UpdatePolicy
     {
         if (!Uri.TryCreate(raw, UriKind.Absolute, out var url) ||
             !IsWorkbench(raw, url.Port) || url.Port <= 0 || url.Fragment.Length < 2)
-            throw new InvalidDataException("后台返回了无效的工作台地址");
+            throw new InvalidDataException("后台返回了无效的服务地址");
         return url;
     }
 

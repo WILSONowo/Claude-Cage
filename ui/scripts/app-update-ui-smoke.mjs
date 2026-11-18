@@ -95,7 +95,7 @@ try {
 const recovered = await createWorkbench({ nativeRequest: async body => {
   if (body.action !== "appUpdate") return null;
   return body.operation === "status"
-    ? { phase: "failed", message: "新版本工作台未能就绪，已恢复原应用", retryable: true }
+    ? { phase: "failed", message: "新版 Cage未能就绪，已恢复原应用", retryable: true }
     : { phase: "current", currentVersion: "0.1.3-alpha.1" };
 } });
 try {

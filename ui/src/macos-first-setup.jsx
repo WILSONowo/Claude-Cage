@@ -180,7 +180,7 @@ export function MacOSFirstSetup() {
       <p>如需手动设置，在虚拟 Mac 的「系统设置 → 通用 → 登录项与扩展 → 按类别 → 文件系统扩展」中打开 macFUSE 和 macFUSE (local)。</p>
       <div className="initialization-recovery">{steps.map(({ id, label }) => <button key={id} disabled={!canOperate} onClick={() => act(id)}>重新打开{label}</button>)}</div>
     </details>
-    <p className="mac-setup-retention">授权后将检查共享工作区和网络隔离，通过后进入工作台。</p>
+    <p className="mac-setup-retention">授权后将检查共享工作区和网络隔离，通过后即可开始使用。</p>
     <div className="initialization-support"><button className="text-button" onClick={() => setDetails(true)}>查看操作详情</button><button className="text-button" onClick={() => setDiagnostics(!diagnostics)}>日志与诊断</button></div>
     {diagnostics && <DiagnosticSettings />}
     {details && <OperationLogDialog title="系统设置操作详情" job={state?.job} message={progress}

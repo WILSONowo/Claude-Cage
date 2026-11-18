@@ -84,7 +84,7 @@ async function checkLongAccountList() {
       "5h and 7d progress bars must start and end at the same horizontal positions");
     assert.ok(first.y + first.height <= second.y, "the two limits occupy separate rows");
   }
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 850 });
 }
 
@@ -154,7 +154,7 @@ async function checkUsagePanel() {
   assert.ok(await list.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), "window history fits the narrow account list");
   await page.setViewportSize({ width: 1280, height: 850 });
   assert.equal(waves(), before + 1, "polling the completed query does not start another query");
-  const back = page.getByRole("button", { name: "返回工作台", exact: true });
+  const back = page.getByRole("button", { name: "关闭设置", exact: true });
   await back.click();
   offlineUsage = true;
   await openAccounts();
@@ -241,7 +241,7 @@ try {
     await plus.click();
     await page.getByRole("menuitem", { name: "Claude 终端", exact: true }).press("Enter");
   };
-  const back = () => page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  const back = () => page.getByRole("button", { name: "关闭设置", exact: true }).click();
   const profileCard = (label) => page.getByRole("article", { name: label, exact: true });
   const rename = async (before, label) => {
     const row = profileCard(before);

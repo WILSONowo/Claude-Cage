@@ -88,7 +88,7 @@ try {
   await panel.getByText(location.directory, { exact: true }).waitFor();
   await page.waitForFunction(() => !document.querySelector(".environment-storage input")?.disabled);
   assert.equal(await retry.count(), 0);
-  await page.getByRole("button", { name: "返回工作台", exact: true }).first().click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).first().click();
   await page.getByRole("button", { name: "启动 Cage 环境", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".welcome h1")?.getAttribute("aria-label") === "新建对话");
   assert.equal(state.requests.filter(request => request.path === "/start").length, 1);

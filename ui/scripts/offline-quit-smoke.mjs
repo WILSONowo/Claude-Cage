@@ -41,7 +41,7 @@ try {
   view.connection = { state: "failed", error_code: "connection_lost" };
   await page.unroute("**/api/**", refused);
   await page.reload();
-  await page.getByRole("heading", { name: "重新连接本机工作台" }).waitFor();
+  await page.getByRole("heading", { name: "重新连接本机 Cage" }).waitFor();
   await quit();
   assert.equal(exits(), 3);
   assert.equal(stops.length, 0);

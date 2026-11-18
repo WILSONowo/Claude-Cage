@@ -52,7 +52,7 @@ try {
   await page.reload(); await open();
   await page.getByLabel("已配对手机", { exact: true }).getByText(device.model, { exact: true }).waitFor();
   await confirmRemoval();
-  await page.getByText("移除 Google Pixel 9 Pro 后，这部手机需要重新扫码才能访问工作台。", { exact: true }).waitFor();
+  await page.getByText("移除 Google Pixel 9 Pro 后，这部手机需要重新扫码才能连接 Cage。", { exact: true }).waitFor();
   await page.getByRole("button", { name: "取消", exact: true }).click();
   assert.equal(removals, 0);
 

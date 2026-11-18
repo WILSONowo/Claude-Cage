@@ -412,11 +412,11 @@ Function PrepareManualReplacement
     ${AndIf} $2 == ""
       MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "环境正在运行。请先保存工作。停止此环境、关闭 Cage 并继续安装？" /SD IDCANCEL IDOK confirm_stop
     ${ElseIf} $0 == 112
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "此安装仍有虚拟机在运行。请在工作台保存并停止环境，然后重试。" /SD IDCANCEL IDRETRY retry_close
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "此安装仍有虚拟机在运行。请保存文件并停止 Cage 环境，然后重试。" /SD IDCANCEL IDRETRY retry_close
     ${ElseIf} $0 == 113
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法确认代理进程归属。请关闭占用此安装 resources\mihomo.exe 的代理，然后重试。" /SD IDCANCEL IDRETRY retry_close
     ${Else}
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法安全关闭此安装的 Cage。请保存工作，在对应工作台停止环境，并从托盘退出 Cage 后重试。" /SD IDCANCEL IDRETRY retry_close
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法安全关闭此安装的 Cage。请保存工作，在对应的 Cage 窗口停止环境，并从托盘退出 Cage 后重试。" /SD IDCANCEL IDRETRY retry_close
     ${EndIf}
     Call WriteInstallDiagnostic
     SetErrorLevel 2

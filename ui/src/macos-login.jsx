@@ -324,7 +324,7 @@ export function MacOSLogin({ disabled, initialSetup = false, installRecovery = f
           <p>{installRecovery ? "登录安装时创建的客机普通账户，再打开 Apple Installer 完成授权。" : initialSetup ? "完成授权后会自动检查。可随时返回设置指引。" : maintenance ? "请在此窗口完成授权。切换客机应用或锁定会结束画面。" : "输入客机账户密码，按回车登录。"}</p>
         </header>
         <div className="mac-login-tools" role="toolbar" aria-label="画面工具">
-          <button ref={back} onClick={() => end()}><ArrowLeft size={16} aria-hidden="true" />{initialSetup ? installRecovery ? "返回恢复指引" : "返回设置指引" : "返回工作台"}</button>
+          <button ref={back} onClick={() => end()}><ArrowLeft size={16} aria-hidden="true" />{initialSetup ? installRecovery ? "返回恢复指引" : "返回设置指引" : "退出客机画面"}</button>
           <button aria-pressed={!zoomed} onClick={() => changeZoom(false)}><Maximize size={16} aria-hidden="true" />{initialSetup || maintenance ? "适配" : "完整画面"}</button>
           <button aria-pressed={zoomed} onClick={() => changeZoom(true)}><ZoomIn size={16} aria-hidden="true" />{initialSetup || maintenance ? "放大" : "登录区域"}</button>
           {initialSetup && setupActions}
@@ -348,11 +348,11 @@ export function MacOSLogin({ disabled, initialSetup = false, installRecovery = f
         </div>}
         {initialSetup && setupHint && <div className="mac-setup-hint">
           <p>{setupHint}</p>
-          <p role={setupError ? "alert" : "status"}>{setupStatus} {installRecovery ? "点击「返回恢复指引」可回到继续安装的指引。" : "查看完整步骤或进入工作台时，点击「返回设置指引」。"}</p>
+          <p role={setupError ? "alert" : "status"}>{setupStatus} {installRecovery ? "点击「返回恢复指引」可回到继续安装的指引。" : "点击「返回设置指引」查看后续步骤。"}</p>
         </div>}
         <input ref={keyboard} className="mac-login-keyboard" type="text" autoComplete="off" autoCapitalize="none"
           autoCorrect="off" spellCheck={false}
-          aria-label="客机登录键盘。按 F6 切换工具栏，按 Shift 加 Escape 返回工作台。"
+          aria-label="客机登录键盘。按 F6 切换工具栏，按 Shift 加 Escape 退出客机画面。"
           onKeyDown={guestKey}
           onBeforeInput={(e) => e.preventDefault()}
           onInput={(e) => { e.currentTarget.value = ""; }}

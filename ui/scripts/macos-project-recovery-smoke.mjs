@@ -124,7 +124,7 @@ try {
     await permissions.getByRole("button", { name: label, exact: true }).click();
     await image.waitFor();
     assert(calls.slice(start).some(call => call.action === "open" && call.maintenance === purpose));
-    await maintenance.getByRole("button", { name: "返回工作台", exact: true }).click();
+    await maintenance.getByRole("button", { name: "退出客机画面", exact: true }).click();
     await maintenance.waitFor({ state: "detached" });
     await until(() => calls.slice(start).some(call => call.action === "close" && call.maintenance === purpose));
   }

@@ -110,7 +110,7 @@ func (s *Server) recoverEnvironmentStorage(w http.ResponseWriter, r *http.Reques
 				return s.failStorageRecovery(err)
 			}
 			if binding == nil || binding.VMID != s.windowsGuest.VMID || binding.GUIUserSID != s.windowsGuest.GUIUserSID {
-				return s.failStorageRecovery(errors.New("Windows 客机绑定已改变，请重新打开原工作台后恢复"))
+				return s.failStorageRecovery(errors.New("Windows 客机绑定已改变，请重新打开原 Cage 窗口后恢复"))
 			}
 		}
 		if err := s.prepareEnvironment(); err != nil {

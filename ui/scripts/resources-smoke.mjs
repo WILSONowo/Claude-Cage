@@ -39,7 +39,7 @@ try {
   await page.getByRole("navigation", { name: "设置分组" }).getByRole("button", { name: "通用", exact: true }).click();
   await page.getByRole("dialog", { name: "放弃资源配置修改？" }).getByRole("button", { name: "取消", exact: true }).click();
   assert.equal(await page.getByLabel("CPU 逻辑核心数", { exact: true }).inputValue(), "2");
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   const discard = page.getByRole("dialog", { name: "放弃尚未保存的修改？", exact: true });
   await discard.waitFor();
   await discard.getByRole("button", { name: "取消", exact: true }).click();

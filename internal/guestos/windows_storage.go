@@ -52,7 +52,7 @@ func (runtime *windowsStorageRuntime) Snapshot(ctx context.Context, source strin
 		return snapshot, fmt.Errorf("请先在设置的环境页选择“同步环境组件”，完成 Windows 系统授权后再迁移：%w", err)
 	}
 	if state.Pending != "" {
-		return snapshot, errors.New("这台 Windows 客机仍有待恢复的存储迁移，请打开发起迁移的原工作台")
+		return snapshot, errors.New("这台 Windows 客机仍有待恢复的存储迁移，请打开发起迁移的原 Cage 窗口")
 	}
 	instance, err := paths.Resolve(binding.InstanceDirectory)
 	if err != nil {

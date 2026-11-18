@@ -576,7 +576,7 @@ function Environment({ context, refresh, children }) {
                   className="icon-button"
                   disabled={Boolean(busy) || verifying}
                   onClick={closeSidebar}
-                  aria-label="返回工作台侧栏"
+                  aria-label="返回主侧栏"
                 >
                   <ArrowLeft size={16} />
                 </button>
@@ -697,7 +697,7 @@ function Environment({ context, refresh, children }) {
               )}
               {!context.client_only && (!local || localLost) && (
                 <div className="ssh-local-action">
-                  {localButton("进入本机工作台")}
+                  {localButton("打开本机 Cage")}
                 </div>
               )}
               {error && !decision && !stop && !remove && (
@@ -759,17 +759,17 @@ function Environment({ context, refresh, children }) {
         {ready ? (
           <div className="client-workbench">{children}</div>
         ) : defaultLocal && !error && candidate?.connection?.state !== "failed" && !expanded ? (
-          <div className="client-loading" role="status">正在打开 Cage 工作台…</div>
+          <div className="client-loading" role="status">正在打开 Cage…</div>
         ) : (
           <main className="environment-picker">
             <div>
               <img className="environment-logo" src={logo} alt="" />
               <h1>
                 {localLost
-                  ? "重新连接本机工作台"
+                  ? "重新连接本机 Cage"
                   : remote && !active
                     ? "重新连接 SSH 主机"
-                    : defaultLocal ? "本机工作台连接未完成" : "连接 SSH 主机"}
+                    : defaultLocal ? "尚未连接本机 Cage" : "连接 SSH 主机"}
               </h1>
               <p>
                 {context.client_only
@@ -810,7 +810,7 @@ function Environment({ context, refresh, children }) {
                   ))}
                 </div>
               )}
-              {busy === "local" && <p role="status">正在连接本机工作台…</p>}
+              {busy === "local" && <p role="status">正在连接本机 Cage…</p>}
               {!showHosts && candidate?.connection?.state === "failed" && (
                 <p role="alert" className="error-message">
                   {candidate.connection.message}
@@ -918,7 +918,7 @@ function Environment({ context, refresh, children }) {
             </p>
             <p>
               <strong>{localSummary(decision.status)}。</strong>{" "}
-              停止本机环境会结束终端任务，未保存的内容可能丢失。也可先保留运行，稍后在云端工作台停止。
+              停止本机环境会结束终端任务，未保存的内容可能丢失。也可先保留运行，稍后从远程界面停止。
             </p>
             {busy === "commit" && (
               <p role="status">正在切换环境…</p>

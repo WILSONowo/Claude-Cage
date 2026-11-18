@@ -216,7 +216,7 @@ try {
   assert.ok(bounds.x + bounds.width <= 820);
   await page.getByRole("button", { name: "浅色", exact: true }).click();
   await saved();
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page
     .getByRole("button", { name: "启动 Cage 环境", exact: true })
     .click();
@@ -235,7 +235,7 @@ try {
   const connections = state.terminalConnections;
   await open();
   await edit("浅色主题终端背景", "#202830");
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.waitForFunction(() =>
     [...document.querySelectorAll(".xterm-scrollable-element")].some(
       (el) => getComputedStyle(el).backgroundColor === "rgb(32, 40, 48)",

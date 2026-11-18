@@ -37,7 +37,7 @@ type StorageRuntime interface {
 	Recover(context.Context, StorageTransition, bool) error
 }
 
-var ErrStorageRuntimeRecovery = errors.New("环境迁移需要客机管理助手完成恢复，请重新打开原工作台")
+var ErrStorageRuntimeRecovery = errors.New("环境迁移需要客机管理助手完成恢复，请重新打开原 Cage 窗口")
 
 // RecoverStorage resolves the durable journal using its owning runtime. Plain
 // filesystem callers leave a native VM transaction intact until this succeeds.

@@ -106,7 +106,7 @@ for (const platform of platforms) {
     const proxyError = settings.getByRole("alert").filter({ hasText: "关键检测证据不完整" });
     await showChecklist(link(proxyError));
     await closeChecklist();
-    await settings.getByRole("button", { name: "返回工作台", exact: true }).first().click();
+    await settings.getByRole("button", { name: "关闭设置", exact: true }).first().click();
 
     await page.route("**/api/projects/open", route => route.fulfill({ status: 409, contentType: "text/plain; charset=utf-8", body: failure }));
     await page.getByRole("button", { name: "打开项目", exact: true }).click();

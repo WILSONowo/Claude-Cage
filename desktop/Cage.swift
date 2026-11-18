@@ -103,7 +103,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         nativeInput.configure(web: webView)
         content.addSubview(nativeInput)
         NSLayoutConstraint.activate([webView.leadingAnchor.constraint(equalTo: content.leadingAnchor), webView.trailingAnchor.constraint(equalTo: content.trailingAnchor), webView.topAnchor.constraint(equalTo: content.topAnchor), webView.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
-        loading = NSTextField(wrappingLabelWithString: "正在启动 Cage 工作台…")
+        loading = NSTextField(wrappingLabelWithString: "正在启动 Cage…")
         loading.font = NSFont.systemFont(ofSize: 15, weight: .medium)
         loading.textColor = .labelColor
         loading.alignment = .center
@@ -251,7 +251,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
                 let data = output.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
                 let result = try JSONSerialization.jsonObject(with: data) as? [String:Any]
-                let message = result?["message"] as? String ?? "工作台未能启动，请重试连接。"
+                let message = result?["message"] as? String ?? "Cage 服务未能启动，请重试连接。"
                 guard process.terminationStatus == 0, let status = result?["status"] as? String else { throw NSError(domain:"Cage", code:1, userInfo:[NSLocalizedDescriptionKey:message]) }
                 if status == "upgrade_pending" {
                     DispatchQueue.main.async { completion(.success(DesktopEntry(status:status, url:nil, message:message))) }
@@ -263,7 +263,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         }
     }
     private func bootstrap(options: [String] = []) {
-        loading.stringValue = options.contains("--complete-update") ? "正在停止环境并切换到新版后台…" : "正在启动 Cage 工作台…"
+        loading.stringValue = options.contains("--complete-update") ? "正在停止环境并切换到新版后台…" : "正在启动 Cage…"
         loading.toolTip = nil
         loading.isHidden = false; retry.isHidden = true; webView.isHidden = true
         completeUpdateButton.isHidden = true; existingEnvironmentButton.isHidden = true
@@ -280,7 +280,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
                 CageDiagnostics.record("Workbench startup failed: \(error)")
                 let message = error.localizedDescription
                 if message.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { self.showError(message) }
-                else { self.showError("启动工作台失败：本机后台未返回可识别的原因（错误码 \((error as NSError).code)）。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。") }
+                else { self.showError("Cage 启动失败：本机后台未返回可识别的原因（错误码 \((error as NSError).code)）。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。") }
             }
         }
     }
@@ -399,10 +399,10 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         switch failure.code {
         case NSURLErrorTimedOut: reason = "等待本机后台响应超时"
         case NSURLErrorCannotConnectToHost: reason = "本机后台没有接受连接，可能尚未启动或已经退出"
-        case NSURLErrorNetworkConnectionLost: reason = "本机工作台连接在加载完成前中断"
-        default: reason = "内置网页组件未能加载本机工作台（错误码 \(failure.code)）"
+        case NSURLErrorNetworkConnectionLost: reason = "连接本机服务时中断"
+        default: reason = "内置网页组件未能加载本机界面（错误码 \(failure.code)）"
         }
-        showError("打开工作台失败：\(reason)。请点击“重试连接”；仍失败时请保留此错误提示并反馈给维护者。后台任务不会因此自动结束。")
+        showError("无法打开 Cage 界面：\(reason)。请点击“重试连接”；仍失败时请保留此错误提示并反馈给维护者。后台任务不会因此自动结束。")
     }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         CageDiagnostics.record("WebKit content process terminated"); bootstrap()
@@ -638,7 +638,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         case "shareLocalProject":
             guard !nativeFilePanelOpen, let connection = body["connection_id"] as? String,
                   !connection.isEmpty, let mode = body["mode"] as? String, ["read","write"].contains(mode)
-            else { replyHandler(nil,"请在云端工作台重新选择项目"); return }
+            else { replyHandler(nil,"请在远程 Cage重新选择项目"); return }
             let panel = NSOpenPanel()
             panel.canChooseDirectories = true; panel.canChooseFiles = false
             panel.canCreateDirectories = false; panel.allowsMultipleSelection = false
@@ -663,7 +663,7 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
                 case .success(let entry):
                     if let url = entry.url { replyHandler(["url":url.absoluteString],nil) }
                     else { replyHandler(nil,entry.message) }
-                case .failure: replyHandler(nil,"工作台会话恢复失败，请重新连接后重试。")
+                case .failure: replyHandler(nil,"登录会话恢复失败，请重新连接后重试。")
                 }
             }
         case "reconnect": replyHandler(true,nil); bootstrap()

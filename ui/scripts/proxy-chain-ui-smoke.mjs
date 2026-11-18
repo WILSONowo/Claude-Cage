@@ -60,7 +60,7 @@ try {
  assert.ok(Math.abs((await relativeExit())-before)<2,'collapsed dropdown did not restore layout');
  assert.equal(submissions.length,0,'editing a chain applied it early');
  await page.getByText('代理修改待应用，请点击「应用代理」',{exact:true}).waitFor();
- await page.getByRole('button',{name:'返回工作台',exact:true}).last().click();
+ await page.getByRole('button',{name:'关闭设置',exact:true}).last().click();
  await page.getByRole('dialog',{name:'放弃尚未保存的修改？',exact:true}).waitFor();
  await page.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();
  assert.equal(await page.locator('.proxy-route-hop').count(),2);

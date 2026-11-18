@@ -57,7 +57,7 @@ try {
   await globalSettings.waitFor();
   assert.equal(await globalSettings.getByRole('button', { name: '浏览器', exact: true }).count(), 0);
   assert.equal(await globalSettings.getByText('浏览器默认网站', { exact: true }).count(), 0);
-  await globalSettings.getByRole('button', { name: '返回工作台', exact: true }).first().click();
+  await globalSettings.getByRole('button', { name: '关闭设置', exact: true }).first().click();
   await nav.getByRole('button', { name: '扩展', exact: true }).click();
   await settings.getByText('尚无扩展', { exact: true }).waitFor();
   await settings.getByRole('button', { name: '从本机导入', exact: true }).click();

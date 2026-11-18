@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-const previousLocalWorkbench = "请用 cage desktop --existing 打开已有本机工作台，保存并停止任务后重试"
+const previousLocalWorkbench = "请用 cage desktop --existing 打开现有的本机会话，保存并停止任务后重试"
 
 // Only explicit local selection calls this path. An older full controller
 // can release an idle profile via its own authenticated update handoff. Its
@@ -59,10 +59,10 @@ func (d *desktopLocal) handoffOldLocal(ctx context.Context) (bool, error) {
 	var selection ClientContext
 	status, err = c.callContext(ctx, "GET", "/api/client/context", nil, &selection)
 	if err != nil || (status != http.StatusOK && status != http.StatusNotFound && status != http.StatusLocked) {
-		return false, errors.New("无法确认旧工作台的连接状态。" + previousLocalWorkbench)
+		return false, errors.New("无法确认旧版 Cage 服务的连接状态。" + previousLocalWorkbench)
 	}
 	if status == http.StatusOK && (selection.ClientOnly || selection.Mode != "local") {
-		return false, errors.New("已有工作台正在管理其他连接。" + previousLocalWorkbench)
+		return false, errors.New("已有 Cage 实例正在管理其他连接。" + previousLocalWorkbench)
 	}
 	var ack struct {
 		Stopping bool `json:"stopping"`

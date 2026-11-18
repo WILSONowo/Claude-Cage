@@ -84,7 +84,7 @@ internal static class Backend
     private static (int Exit, JsonElement Data) ParseJson((int Exit, string Output) result)
     {
         try { using var document = JsonDocument.Parse(result.Output); return (result.Exit, document.RootElement.Clone()); }
-        catch (JsonException) { throw new IOException("Cage 后台未返回有效状态，请查看工作台日志"); }
+        catch (JsonException) { throw new IOException("Cage 后台未返回有效状态，请查看后台日志"); }
     }
 
     internal static async Task<(int Exit, string Output)> RunHelper(NativeHelperLifetime owner, ProcessStartInfo start,

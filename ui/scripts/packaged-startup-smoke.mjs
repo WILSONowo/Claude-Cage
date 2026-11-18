@@ -49,7 +49,7 @@ try {
   await page.getByRole("button",{name:"只连接 SSH 主机",exact:true}).click();
   await page.getByRole("complementary",{name:"SSH 主机"}).waitFor();
   if (evidence) await page.screenshot({ path:path.join(evidence,"local-ssh-sidebar.png") });
-  await page.getByRole("button",{name:"返回工作台侧栏"}).click();
+  await page.getByRole("button",{name:"返回主侧栏"}).click();
   assert.equal(new URL(page.url()).hash, "", "launch ticket was not removed");
   await page.getByRole("button", { name: "下一步", exact: true }).click();
   await page.getByRole("heading",{name:"连接网络代理",exact:true}).waitFor();

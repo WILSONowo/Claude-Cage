@@ -25,7 +25,7 @@ export function EnvironmentVersions({ status, onConfirm }) {
       title: tools ? "更新环境工具？" : "更新环境组件？",
       body: data?.maintenance?.native
         ? "请先保存内容并结束正在运行的终端和 Claude Code 轮次。更新会重启浏览器、编辑器和文件共享连接，聊天历史、项目文件与登录资料会保留。" + (data.maintenance.guest_system === "windows-11" ? "请在系统提示中确认主机管理授权，并验证已绑定客机的管理员账户。" : "")
-        : "请先保存浏览器和编辑器中的内容。浏览器、编辑器会短暂重启，编辑器内的终端可能结束；工作台终端、项目文件和登录状态会保留。",
+        : "请先保存浏览器和编辑器中的内容。浏览器、编辑器会短暂重启，编辑器内的终端可能结束；Cage 终端、项目文件和登录状态会保留。",
       confirm: tools ? "更新工具" : "更新组件",
     }))) return;
     setStarting(true); setError("");

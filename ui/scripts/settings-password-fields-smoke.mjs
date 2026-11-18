@@ -91,7 +91,7 @@ for (const [width, height, size, mode] of [[1280, 850, 14, "light"], [375, 640, 
     await openSidebar();
     await sidebar.getByRole("button", { name: "SSH 主机", exact: true }).click();
     await inspect(page.getByLabel("密钥口令（如果已设置）", { exact: true }), "ssh");
-    await page.getByRole("button", { name: "返回工作台侧栏" }).click();
+    await page.getByRole("button", { name: "返回主侧栏" }).click();
     await openSidebar();
     await openWorkbenchSettings(page);
     await section("网络与代理");

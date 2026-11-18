@@ -103,7 +103,7 @@ func (s *Server) claudeDesktopAction(w http.ResponseWriter, r *http.Request) {
 			allowed := s.toolsNetworkAllowedLocked()
 			s.mu.Unlock()
 			if !allowed {
-				return errors.New("工作台正在退出，请稍后重试安装")
+				return errors.New("Cage 正在退出，请稍后重试安装")
 			}
 			monitorContext, stopMonitor := context.WithCancel(s.operationContext())
 			done := make(chan struct{})

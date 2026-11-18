@@ -104,7 +104,7 @@ try {
   const actions = page.getByRole("group", { name: "终端 1 的操作", exact: true });
   await terminalTab.hover();
   await actions.waitFor();
-  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).hover();
+  await page.getByRole("button", { name: /^(首页|新建对话)$/ }).hover();
   await actions.waitFor({ state: "hidden" });
   await terminalTab.focus();
   // WebKit's default keyboard mode skips buttons when tabbing. The tab's
@@ -213,7 +213,7 @@ try {
   await shot("settings");
   await page.getByRole("radio", { name: /^客机原生快捷键/ }).check();
   await page
-    .getByRole("button", { name: "返回工作台", exact: true })
+    .getByRole("button", { name: "关闭设置", exact: true })
     .first()
     .click();
   await page.getByRole("dialog", { name: "放弃尚未保存的修改？" }).waitFor();
@@ -349,7 +349,7 @@ try {
   await deleteTab.waitFor({ state: "detached" });
   assert.equal(state.terminals.length, 2);
   checks.push("终端行悬停展开、键盘置顶、重命名、取消和确认关闭指定普通终端");
-  await page.getByRole("button", { name: /^(工作台|新建对话)$/ }).click();
+  await page.getByRole("button", { name: /^(首页|新建对话)$/ }).click();
   await shot("main-minimum");
   await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
   await page.reload();

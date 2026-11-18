@@ -26,11 +26,11 @@ var (
 	errScreenSharingNotMacOS    = errors.New("仅 macOS 客机支持打开系统屏幕共享")
 	errScreenSharingNotReady    = errors.New("macOS 客机尚未就绪")
 	errScreenSharingNeedMacHost = errors.New("打开客机屏幕共享需要在这台 Mac 上的 Cage 应用中操作")
-	errScreenSharingNotIsolated = errors.New("客机外网当前已放行或正在检查，已拒绝重新配置屏幕共享。请先在工作台暂停外网，确认网络门槛为关闭后再试。")
+	errScreenSharingNotIsolated = errors.New("客机外网当前已放行或正在检查，已拒绝重新配置屏幕共享。请先暂停客机外网，确认网络门槛为关闭后再试。")
 	errScreenSharingGateUnknown = errors.New("无法确认客机网络隔离状态，已拒绝重新配置屏幕共享。请确认环境已启动，再在外网关闭时重试。")
 	errScreenSharingUnreachable = errors.New("无法连接到客机屏幕共享。请在客机「系统设置 → 通用 → 共享」中打开「屏幕共享」，并允许当前普通客机用户访问。macOS 26 仅用命令行启用时，连接可能提示「屏幕共享在 localhost 上不被允许」，需要在系统设置里再手动打开一次。")
 	errScreenSharingBadAction   = errors.New("无效的屏幕共享操作")
-	errScreenSharingEnable      = errors.New("无法重新启用客机屏幕共享服务。请先在工作台暂停外网，再确认客机已安装启用脚本后重试。")
+	errScreenSharingEnable      = errors.New("无法重新启用客机屏幕共享服务。请先暂停客机外网，再确认客机已安装启用脚本后重试。")
 )
 
 // macOSScreenSharing is the cage-serve-owned SSH local forward to guest 5900.
@@ -234,7 +234,7 @@ func assembleScreenSharingStatus(serviceLoaded, portOpen bool, serviceErr error,
 	service := screenSharingCheck{ID: "service", Title: "屏幕共享服务", State: cage.CheckUnknown, Evidence: "尚未取得服务状态"}
 	if serviceErr != nil {
 		service.Evidence = "无法确认 com.apple.screensharing 是否已加载：" + serviceErr.Error()
-		service.Remedy = "请先在工作台暂停外网，再重新启用屏幕共享服务。"
+		service.Remedy = "请先暂停客机外网，再重新启用屏幕共享服务。"
 		if portOpen {
 			service.State = cage.CheckPassed
 			service.Evidence = "未能直接读取服务状态，但客机 5900 端口已在监听，视为服务已启动。"
@@ -246,10 +246,10 @@ func assembleScreenSharingStatus(serviceLoaded, portOpen bool, serviceErr error,
 	} else {
 		service.State = cage.CheckFailed
 		service.Evidence = "未加载 com.apple.screensharing 服务。"
-		service.Remedy = "请先在工作台暂停外网，再点击「重新启用屏幕共享服务」。首次安装会在置备阶段自动启用。"
+		service.Remedy = "请先暂停客机外网，再点击「重新启用屏幕共享服务」。首次安装会在置备阶段自动启用。"
 	}
 
-	port := screenSharingCheck{ID: "port", Title: "5900 端口监听", State: cage.CheckFailed, Evidence: "客机 127.0.0.1:5900 尚未监听。", Remedy: "请先在工作台暂停外网，再重新启用屏幕共享服务。"}
+	port := screenSharingCheck{ID: "port", Title: "5900 端口监听", State: cage.CheckFailed, Evidence: "客机 127.0.0.1:5900 尚未监听。", Remedy: "请先暂停客机外网，再重新启用屏幕共享服务。"}
 	if portOpen {
 		port.State = cage.CheckPassed
 		port.Evidence = "客机 127.0.0.1:5900 正在监听。"

@@ -64,7 +64,7 @@ func (t *desktopTarget) state() remotehost.ConnectionState {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	state := remotehost.ConnectionState{State: "connecting", ConnectionID: t.id, Phase: "local_connect", Message: "正在连接本机工作台"}
+	state := remotehost.ConnectionState{State: "connecting", ConnectionID: t.id, Phase: "local_connect", Message: "正在连接本机 Cage 服务"}
 	switch {
 	case t.localErr != nil:
 		state.State, state.Phase, state.ErrorCode, state.Message = "failed", "", "local_unavailable", t.localErr.Error()
@@ -73,7 +73,7 @@ func (t *desktopTarget) state() remotehost.ConnectionState {
 		state.State, state.Phase, state.Message = "connected", "", "已连接本机环境"
 		state.InstanceID, state.Manifest = manifest.InstanceID, &manifest
 	case t.session != nil || t.ctx.Err() != nil:
-		state.State, state.Phase, state.ErrorCode, state.Message = "failed", "", "connection_lost", "本机工作台连接已断开，请重新连接"
+		state.State, state.Phase, state.ErrorCode, state.Message = "failed", "", "connection_lost", "本机 Cage 服务连接已断开，请重新连接"
 	}
 	return state
 }
@@ -85,7 +85,7 @@ func (t *desktopTarget) acquire() (*remotehost.Session, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.session == nil || t.ctx.Err() != nil || t.session.Context.Err() != nil {
-		return nil, errors.New("本机工作台尚未连接")
+		return nil, errors.New("本机 Cage 服务尚未连接")
 	}
 	return t.session, nil
 }
@@ -206,7 +206,7 @@ func (d *desktopGateway) prepare(in switchRequest) (*desktopCandidate, error) {
 	case "local":
 		if d.active != nil && d.active.mode == "local" && d.active.state().State == "connected" {
 			t.close()
-			return nil, errors.New("已连接当前本机工作台")
+			return nil, errors.New("已连接当前本机 Cage 服务")
 		}
 		t.id = randomToken()
 		if d.local == nil {
@@ -320,11 +320,11 @@ func suspendLocalView(ctx context.Context, t *desktopTarget) error {
 	req.Header.Set("Content-Type", "application/json")
 	response, err := session.Client.Do(req)
 	if err != nil {
-		return errors.New("未能锁定本机会话，请重新连接本机工作台")
+		return errors.New("未能锁定本机会话，请重新连接本机 Cage 服务")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent && response.StatusCode != http.StatusLocked {
-		return errors.New("本机工作台未确认账户锁定")
+		return errors.New("本机 Cage 服务未确认账户锁定")
 	}
 	return nil
 }
@@ -370,7 +370,7 @@ func (d *desktopGateway) commit(ctx context.Context, in switchRequest) error {
 		return err
 	}
 	if _, err = t.acquire(); err != nil {
-		return errors.New("候选工作台尚未连接，当前工作台已保留")
+		return errors.New("新环境尚未连接，当前连接已保留")
 	}
 	old := d.active
 	if old != nil && old.mode == "local" {
@@ -383,7 +383,7 @@ func (d *desktopGateway) commit(ctx context.Context, in switchRequest) error {
 		}
 	}
 	if _, err = t.acquire(); err != nil {
-		return errors.New("候选工作台连接已中断，请重新连接")
+		return errors.New("新环境连接已中断，请重新连接")
 	}
 	d.mu.Lock()
 	d.generation, d.active, d.pending = t.id, t, nil

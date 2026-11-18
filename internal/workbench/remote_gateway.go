@@ -260,7 +260,7 @@ func (s *Server) routeRemote(w http.ResponseWriter, r *http.Request) bool {
 			return true
 		}
 		if id := requestConnection(r); id != "" && id != "local" {
-			http.Error(w, "连接已经切换，请重新打开当前工作台", 409)
+			http.Error(w, "连接已经切换，请重新打开当前连接", 409)
 			return true
 		}
 		return false

@@ -86,7 +86,7 @@ func (s *Server) enableHostGit(w http.ResponseWriter, r *http.Request) {
 func requireHostGit(ctx context.Context) error {
 	state := inspectHostGit(ctx)
 	if !state.Ready {
-		return errors.New(state.Message + " 请从工作台点击启动，按提示完成检查。")
+		return errors.New(state.Message + " 请在 Cage 首页启动环境，按提示完成检查。")
 	}
 	return nil
 }

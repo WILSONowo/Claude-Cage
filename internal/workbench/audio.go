@@ -68,7 +68,7 @@ func (s *Server) audio(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	if s.audioClients >= 4 {
 		s.mu.Unlock()
-		http.Error(w, "声音连接过多，请关闭重复的工作台窗口", http.StatusConflict)
+		http.Error(w, "声音连接过多，请关闭重复的 Cage 窗口", http.StatusConflict)
 		return
 	}
 	s.audioClients++

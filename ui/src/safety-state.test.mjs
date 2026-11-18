@@ -12,7 +12,7 @@ test("check failures and incomplete evidence link to the checklist without taggi
   for (const message of [
     "关键检查尚未通过，外网保持关闭",
     "关键检测证据不完整，外网保持关闭",
-    "Cage 外网未放行，请在工作台完成关键检查",
+    "Cage 外网未放行，请完成环境的网络与隔离检查",
     "代理节点尚未应用或配置不一致，请重新应用节点；外网保持关闭",
     "浏览器配置检查未通过：语言不一致",
   ]) assert.equal(isSafetyCheckMessage(message), true, message);

@@ -69,7 +69,7 @@ try {
   await page.getByRole("button", { name: "验证并查看" }).click();
   await page.getByLabel("已保存的网站密码").waitFor();
   assert.equal(await page.getByLabel("已保存的网站密码").textContent(), "isolated-website-secret");
-  await page.getByRole("button", { name: "返回工作台", exact: true }).click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.getByRole("button", { name: /^账户菜单，/ }).click();
   await page.getByRole("menuitem", { name: /锁定 Cage/ }).click();
   await page.getByRole("region", { name: "解锁 Cage", exact: true }).waitFor();
