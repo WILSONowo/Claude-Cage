@@ -9,7 +9,9 @@ internal static class NativeHelperTests
     {
         if (args is ["prepare-update", "--json"])
         {
-            Console.WriteLine("{\"status\":\"prepared\"}"); return true;
+            Console.WriteLine(File.Exists(Path.Combine(AppContext.BaseDirectory, "consent-needed"))
+                ? "{\"status\":\"stop_required\"}" : "{\"status\":\"prepared\"}");
+            return true;
         }
         if (args is ["diagnostic-event"])
         {

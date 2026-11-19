@@ -597,7 +597,10 @@ func (l *Lima) Stop(ctx context.Context, name string) error {
 	switch {
 	case inst.Status == limatype.StatusRunning:
 		return withLog(io.Discard, func() error {
-			return errors.Join(stopInstance(ctx, inst), reconcile.Reconcile(ctx, ""))
+			if err := stopInstance(ctx, inst); err != nil {
+				return err
+			}
+			return reconcile.Reconcile(ctx, "")
 		})
 	case fromLima(inst).Orphaned:
 		return withLog(io.Discard, func() error {

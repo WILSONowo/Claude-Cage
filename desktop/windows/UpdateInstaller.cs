@@ -67,6 +67,8 @@ internal static class UpdateInstaller
             CopyTree(plan.Target, backup);
             Authenticode.SamePublisher(UpdateRecovery.BackendPath(backup), ownPublisher);
             Console.WriteLine("READY"); await Console.Out.FlushAsync();
+            // Allow time for the user's decision, guest poweroff and controller handoff.
+            inputTimeout.CancelAfter(TimeSpan.FromMinutes(12));
             if (await Console.In.ReadLineAsync(inputTimeout.Token) != "COMMIT") return 1;
             committed = true;
             await parent.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(45));

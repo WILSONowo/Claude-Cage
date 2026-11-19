@@ -59,7 +59,9 @@ internal sealed class MainWindow : Form
         trayMenu.Opening += (_, _) => (chrome ?? new WindowChrome(BackColor, ForeColor, false)).ApplyMenu(trayMenu);
         tray = new NotifyIcon { Icon = Icon, Text = "Cage", Visible = true, ContextMenuStrip = trayMenu };
         tray.DoubleClick += (_, _) => RestoreWindow();
-        updater = new AppUpdater(PublishUpdate, () => { allowQuit = true; Close(); }, () => _ = Bootstrap());
+        updater = new AppUpdater(PublishUpdate, () => { allowQuit = true; Close(); }, () => _ = Bootstrap(),
+            () => MessageBox.Show(this, "停止本地环境并继续更新？运行中的终端任务会结束，请先保存工作。", "Cage 更新",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes);
         Shown += async (_, _) => {
             if (Program.SmokeOutput != null) _ = SmokeDeadline();
             await Initialize();

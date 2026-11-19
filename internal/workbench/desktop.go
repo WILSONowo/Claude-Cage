@@ -269,7 +269,11 @@ func PrepareUpdate(configPath string, stop bool) (DesktopResult, error) {
 		} else if !os.IsNotExist(lockErr) {
 			return DesktopResult{}, lockErr
 		}
-		if controllerHasVM(filepath.Dir(configPath)) {
+		qemuDirs, err := updateQEMUInstances(filepath.Dir(configPath))
+		if err != nil {
+			return DesktopResult{}, err
+		}
+		if len(qemuDirs) != 0 || controllerHasVM(filepath.Dir(configPath)) {
 			return DesktopResult{}, errors.New("后台无法连接，但仍有环境进程。请重新连接 Cage，保存文件并停止环境后再更新。")
 		}
 		return DesktopResult{Status: "prepared"}, nil
@@ -279,12 +283,23 @@ func PrepareUpdate(configPath string, stop bool) (DesktopResult, error) {
 	}
 	defer c.close()
 	if stop {
+		completed, err := c.handoffStaleWindowsOwner()
+		if err != nil {
+			return DesktopResult{}, err
+		}
+		if completed {
+			return DesktopResult{Status: "prepared"}, nil
+		}
 		if err = c.stopAndHandoff(); err != nil {
 			return DesktopResult{}, err
 		}
 		return DesktopResult{Status: "prepared"}, nil
 	}
-	if c.launch.Controller.Protocol == controlProtocol {
+	qemuDirs, err := updateQEMUInstances(c.profile)
+	if err != nil {
+		return DesktopResult{}, err
+	}
+	if len(qemuDirs) == 0 && c.launch.Controller.Protocol == controlProtocol {
 		// Routine status probes also hold the operation lock. Retry briefly.
 		// every request still checks running jobs, terminals and VM ownership.
 		handoffCtx, cancelHandoff := context.WithTimeout(ctx, 3*time.Second)
@@ -364,6 +379,9 @@ func (c *controllerClient) stopAndHandoff() error {
 		// stop request to a remote workload.
 		c.connectionID = clientContext.ConnectionID
 		c.setTrustedViewCookie(u)
+	}
+	if err := c.stopUpdateGuests(); err != nil {
+		return err
 	}
 	var requested Job
 	status, err = c.call("POST", "/api/stop", map[string]any{}, &requested)

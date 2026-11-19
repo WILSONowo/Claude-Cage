@@ -430,7 +430,7 @@ func stoppedStorage(source string) error {
 			if err != nil || pid < 1 {
 				return fmt.Errorf("无法核验虚拟机进程记录 %s", name)
 			}
-			if profileProcessAlive(pid) && ProcessStartMatches(pid, started) {
+			if ProcessMayBeRunning(pid) && ProcessStartMatches(pid, started) {
 				return fmt.Errorf("请先停止虚拟机 %s，再迁移环境", inst.Name())
 			}
 		}

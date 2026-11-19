@@ -44,7 +44,7 @@ try {
   await publish({ phase: "available", currentVersion: "0.1.3-alpha.1", latestVersion: "0.1.3-alpha.2" });
   const button = page.getByRole("button", { name: "下载更新", exact: true });
   await button.waitFor();
-  assert.match(await button.getAttribute("title"), /0.1.3-alpha.2.*保存工作.*自动停止环境/);
+  assert.match(await button.getAttribute("title"), /0.1.3-alpha.2.*保存工作.*重新打开/);
   await page.screenshot({ path: `${output}/available.png` });
   await button.click();
   await page.getByRole("button", { name: "正在下载更新 50%", exact: true }).waitFor();

@@ -4,6 +4,7 @@ Var UpdateMode
 Var DesktopShortcut
 Var StartMenuShortcuts
 Var DiagnosticFile
+Var CloseWizardPid
 
 ; NSIS consumes /D= and everything after it before setting $CMDLINE.
 ; Parse the original command line before touching the destination.
@@ -12,6 +13,7 @@ Function ParseCageInstallOptions
   StrCpy $CageOptionError ""
   StrCpy $UpdateMode "0"
   StrCpy $DiagnosticFile ""
+  StrCpy $CloseWizardPid ""
   System::Call 'kernel32::GetCommandLineW() p .r0'
   System::Call 'kernel32::lstrlenW(p r0) i .r1'
   ${If} $1 >= ${NSIS_MAX_STRLEN}
@@ -88,6 +90,19 @@ Function ParseCageInstallOptions
     ${ElseIf} $5 == "/S"
       SetSilent silent
     ${ElseIf} $5 != "/NCRC"
+      StrCpy $6 $5 11
+      ${If} $6 == "/CAGECLOSE="
+        StrCpy $7 $5 "" 11
+        IntFmt $8 "%u" $7
+        ${If} $8 != $7
+        ${OrIf} $7 == "0"
+        ${OrIf} $CloseWizardPid != ""
+          StrCpy $CageOptionError "Invalid shutdown request."
+          Return
+        ${EndIf}
+        StrCpy $CloseWizardPid $7
+        ${Continue}
+      ${EndIf}
       StrCpy $6 $5 17
       StrCpy $7 $5 19
       StrCpy $8 $5 13

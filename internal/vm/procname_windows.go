@@ -47,7 +47,14 @@ func windowsQEMUCommandMatches(command, dir, name string) bool {
 			gotName = args[i+1] == "lima-"+name
 			i++
 		case "-pidfile":
-			gotPID = strings.EqualFold(filepath.Clean(args[i+1]), filepath.Join(dir, "qemu.pid"))
+			path := filepath.Clean(args[i+1])
+			gotPID = strings.EqualFold(path, filepath.Join(dir, "qemu.pid"))
+			if !gotPID && filepath.IsAbs(path) && strings.EqualFold(filepath.Base(path), "qemu.pid") {
+				// Storage may be reached through the profile's directory junction.
+				want, err := os.Stat(dir)
+				actual, pathErr := os.Stat(filepath.Dir(path))
+				gotPID = err == nil && pathErr == nil && os.SameFile(want, actual)
+			}
 			i++
 		}
 	}

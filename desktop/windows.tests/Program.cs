@@ -2,6 +2,16 @@ using Cage.Windows;
 
 if (await NativeHelperTests.RunFixture(args)) return;
 
+if (args is ["update-commit", var shutdown])
+{
+    using var pipe = new StreamWriter(Console.OpenStandardOutput());
+    try { await AppUpdater.CommitInstallation(pipe, TimeSpan.FromMilliseconds(300), new CancellationToken(shutdown == "cancelled")); }
+    catch (OperationCanceledException) { Console.WriteLine("CANCELLED"); }
+    if (shutdown == "normal") Environment.ExitCode = 17;
+    else Console.ReadLine(); // A stuck desktop's foreground thread remains alive.
+    return;
+}
+
 if (args is ["smoke-wait", var smokeRelease])
 {
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -253,12 +263,55 @@ try
             }
         }
         Console.WriteLine("Windows smoke shutdown: actual controller handle pinned, foreign executable rejected, process exit observed.");
+        System.Diagnostics.Process StartDesktop(string mode)
+        {
+            var info = Backend.StartInfo(executable, "update-commit", mode);
+            info.RedirectStandardInput = true;
+            return System.Diagnostics.Process.Start(info)!;
+        }
+        using (var cancelled = StartDesktop("cancelled"))
+        using (var stuck = StartDesktop("stuck"))
+        using (var normal = StartDesktop("normal"))
+        {
+            try
+            {
+                Check(await cancelled.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5)) == "CANCELLED", "cancelled handoff sent COMMIT");
+                foreach (var desktop in new[] { normal, stuck })
+                {
+                    Check(await desktop.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5)) == "COMMIT", "installation handoff omitted COMMIT");
+                    await desktop.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                Check(normal.ExitCode == 17 && stuck.ExitCode == 0, "update must allow normal exit and finish a stuck desktop");
+                Check(!cancelled.HasExited, "uncommitted same-image desktop exited during the update");
+            }
+            finally
+            {
+                foreach (var desktop in new[] { cancelled, stuck, normal })
+                {
+                    desktop.StandardInput.Close();
+                    if (!desktop.WaitForExit(2000)) { desktop.Kill(); desktop.WaitForExit(); }
+                }
+            }
+        }
+        Console.WriteLine("Windows update handoff: normal and stuck desktops exited; uncommitted peer survived.");
         var retryAt = DateTimeOffset.UtcNow.AddHours(1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
         Directory.CreateDirectory(Backend.Root);
         Environment.SetEnvironmentVariable("CAGE_UPDATE_RETRY_AT", retryAt);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var failures = 0;
-        using var updater = new AppUpdater(state => { if (state.GetValueOrDefault("phase") as string == "failed" && Interlocked.Increment(ref failures) == 2) completion.TrySetResult(); }, () => throw new Exception("unexpected installation"), () => {});
+        bool approve = false;
+        int prompts = 0;
+        using var updater = new AppUpdater(state => { if (state.GetValueOrDefault("phase") as string == "failed" && Interlocked.Increment(ref failures) == 2) completion.TrySetResult(); }, () => throw new Exception("unexpected installation"), () => {}, () => { prompts++; return approve; });
+        var stopCalled = Path.Combine(nativeResources, "controller-invoked");
+        File.Delete(stopCalled);
+        Check(await updater.PrepareEnvironment(default, () => true) && prompts == 0 && !File.Exists(stopCalled), "idle update prompted or issued a stop");
+        File.WriteAllText(Path.Combine(nativeResources, "consent-needed"), "");
+        Check(!await updater.PrepareEnvironment(default, () => true) && prompts == 1 && !File.Exists(stopCalled), "cancel stopped the environment");
+        approve = true;
+        try { await updater.PrepareEnvironment(default, () => false); throw new Exception("stop accepted after installer exited"); }
+        catch (IOException) { Check(!File.Exists(stopCalled), "installer exit did not preserve environment"); }
+        Check(await updater.PrepareEnvironment(default, () => true) && prompts == 3 && File.Exists(stopCalled), "accepted stop did not complete");
+        File.Delete(Path.Combine(nativeResources, "consent-needed"));
         updater.Handle("check");
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Check(updater.Handle("status").GetValueOrDefault("retryAt") as string == retryAt, "process-exit path lost retry deadline");

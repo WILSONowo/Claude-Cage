@@ -20,7 +20,7 @@ const checks = [];
 try {
   await page.getByRole("button", { name: "下载更新", exact: true }).waitFor();
   const button = page.getByRole("button", { name: "下载更新", exact: true });
-  assert.match(await button.getAttribute("title"), /点击后将自动停止环境、安装并重启/);
+  assert.match(await button.getAttribute("title"), /保存工作.*重新打开/);
   const bounds = await button.boundingBox();
   assert.ok(bounds.x < 248 && bounds.y > 700, "update action is not in the bottom-left sidebar");
   await page.screenshot({ path: join(output, "update-available.png") });

@@ -78,6 +78,10 @@ func (s *Server) handoffLocked(w http.ResponseWriter) {
 func (s *Server) handoffWithVMOwnerLocked(w http.ResponseWriter, permittedOwner string) {
 	owners, probeError := controllerVMOwners(s.profile)
 	vmBusy := probeError != nil || len(owners) != 0 && (permittedOwner == "" || len(owners) != 1 || owners[0] != permittedOwner)
+	if !vmBusy && permittedOwner == "" {
+		guests, err := updateQEMUInstances(s.profile)
+		vmBusy = err != nil || len(guests) != 0
+	}
 	s.mu.Lock()
 	if s.closing {
 		s.mu.Unlock()

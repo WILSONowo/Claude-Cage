@@ -72,6 +72,8 @@ LangString CageDesktopShortcut ${LANG_ENGLISH} "Add a desktop shortcut"
 LangString CageDesktopShortcut ${LANG_SIMPCHINESE} "添加桌面快捷方式"
 LangString CageStartMenuShortcuts ${LANG_ENGLISH} "Add to the Start menu"
 LangString CageStartMenuShortcuts ${LANG_SIMPCHINESE} "添加到开始菜单"
+LangString CageConfirmStop ${LANG_ENGLISH} "Stop the local Cage environment and continue installing? Running terminal tasks will end. Save your work before continuing."
+LangString CageConfirmStop ${LANG_SIMPCHINESE} "停止本地 Cage 环境并继续安装？运行中的终端任务会结束，请先保存工作。"
 
 !include "CageInstallerOptions.nsh"
 Var StageDir
@@ -85,6 +87,12 @@ Var InstallPhase
 Var InstallOutcome
 Var HelperExit
 Var DiagnosticArguments
+Var CloseBackend
+Var CloseHelperDir
+Var CloseProof
+Var CloseInteractive
+Var ClosePipe
+Var BrokerPid
 
 Function WriteInstallDiagnostic
   ${If} $DiagnosticFile != ""
@@ -160,11 +168,13 @@ Function un.onUninstSuccess
 FunctionEnd
 
 Function .onInstFailed
+  Call CloseBroker
   StrCpy $InstallOutcome "failed"
   Call WriteInstallDiagnostic
 FunctionEnd
 
 Function .onInstSuccess
+  Call CloseBroker
   StrCpy $InstallOutcome "success"
   Call WriteInstallDiagnostic
 FunctionEnd
@@ -191,6 +201,7 @@ FunctionEnd
 !macroend
 
 Function .onGUIEnd
+  Call CloseBroker
   !insertmacro ReleaseInstallationMutex
 FunctionEnd
 
@@ -311,6 +322,19 @@ Function .onInit
   SetRegView 64
   Call LoadShortcutOptions
   Call ParseCageInstallOptions
+  ${If} $CloseWizardPid != ""
+    ; Only close Cage in this instance. The original installer retains the
+    ; transaction, registration, destination and shortcut choices.
+    SetErrorLevel 2
+    ${If} $CageOptionError == ""
+    ${AndIf} $CageInstallDirectory == ""
+    ${AndIf} $DiagnosticFile == ""
+    ${AndIf} $UpdateMode == "0"
+      Call RunElevatedClose
+      SetErrorLevel $0
+    ${EndIf}
+    Quit
+  ${EndIf}
   ${If} $CageOptionError != ""
     StrCpy $InstallPhase "parsing_arguments"
     StrCpy $InstallOutcome "failed"
@@ -337,6 +361,16 @@ Function .onInit
     Quit
   ${EndIf}
   Call SetDefaultInstallDirectory
+  ${IfNot} ${Silent}
+    Call StartCloseBroker
+    ${If} $0 != 0
+      ${If} $0 != 1223
+        MessageBox MB_ICONSTOP "无法初始化 Windows 安装授权（$0）。"
+      ${EndIf}
+      SetErrorLevel $0
+      Quit
+    ${EndIf}
+  ${EndIf}
 FunctionEnd
 
 Function CheckDestination
@@ -395,36 +429,267 @@ Function RestorePreservedFiles
   ${EndIf}
 FunctionEnd
 
-Function PrepareManualReplacement
-  !insertmacro InstallPhase "closing_target_application"
-  DetailPrint "正在检查并等待当前安装的 Cage 退出…"
-  StrCpy $2 ""
-  retry_close:
-    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\close-installation.ps1" -Target "$INSTDIR" -Backend "$StageDir\resources\cage.exe" $2'
+Function RunCloseWithConsent
+  probe:
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$CloseHelperDir\close-installation.ps1" -Target "$INSTDIR" -Backend "$CloseBackend" $CloseProof $2'
     Pop $0
     Pop $1
+    DetailPrint "$1"
+    ${If} $0 == 109
+    ${AndIf} $CloseInteractive == 1
+    ${AndIf} $2 != "-StopEnvironment"
+      ; The elevated close-only process has no wizard, but this decision must
+      ; still be interactive there. Do not supply a silent default.
+      MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2|MB_SETFOREGROUND "$(CageConfirmStop)" IDYES confirmed
+      StrCpy $0 1223
+      Return
+      confirmed:
+        StrCpy $2 "-StopEnvironment"
+        Goto probe
+    ${EndIf}
+FunctionEnd
+
+Function CloseBroker
+  ${If} $ClosePipe != ""
+    System::Call 'kernel32::CloseHandle(p $ClosePipe)'
+    StrCpy $ClosePipe ""
+  ${EndIf}
+FunctionEnd
+
+Function LaunchCloseBroker
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR\launch"
+  File /oname=close-installation.ps1 "close-installation.ps1"
+  File /oname=installer-process.cs "installer-process.cs"
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$OUTDIR\close-installation.ps1" -RequestElevation -WizardProcessId $3 -Installer "$EXEPATH"'
+  Pop $0
+  Pop $1
+  SetOutPath "$TEMP"
+FunctionEnd
+
+Function StartCloseBroker
+  System::Call 'shell32::IsUserAnAdmin() i.r0'
+  ${If} $0 != 0
+    StrCpy $0 0
+    Return
+  ${EndIf}
+  System::Call 'kernel32::GetCurrentProcessId() i.r3'
+  ; Local message pipe, first instance only. Poll only until the specific
+  ; elevated installer connects, then use blocking messages on that connection.
+  System::Call 'kernel32::CreateNamedPipeW(w "\\.\pipe\Cage.Setup.$3", i 0x80003, i 15, i 1, i 4096, i 4096, i 0, p 0) p.r0'
+  ${If} $0 == -1
+    StrCpy $0 111
+    Return
+  ${EndIf}
+  StrCpy $ClosePipe $0
+  Call LaunchCloseBroker
+  ${If} $0 != 0
+    Return
+  ${EndIf}
+  StrCpy $BrokerPid $1
+  System::Call 'kernel32::OpenProcess(i 0x101000, i 0, i $BrokerPid) p.r4'
+  ${If} $4 == 0
+    StrCpy $0 111
+    Return
+  ${EndIf}
+  StrCpy $5 0
+  connect:
+    System::Call 'kernel32::ConnectNamedPipe(p $ClosePipe, p 0) i.r0'
+    System::Call 'kernel32::GetNamedPipeClientProcessId(p $ClosePipe, *i .r1) i.r0'
+    ${If} $0 != 0
+      ${If} $1 == $BrokerPid
+        System::Call 'kernel32::SetNamedPipeHandleState(p $ClosePipe, *i 2, p 0, p 0) i.r0'
+        ${If} $0 != 0
+          System::Call 'kernel32::CloseHandle(p r4)'
+          StrCpy $0 0
+          Return
+        ${EndIf}
+      ${EndIf}
+      System::Call 'kernel32::DisconnectNamedPipe(p $ClosePipe)'
+    ${EndIf}
+    System::Call 'kernel32::WaitForSingleObject(p r4, i 50) i.r0'
+    IntOp $5 $5 + 1
+    ${If} $0 == 258
+    ${AndIf} $5 < 1200
+      Goto connect
+    ${EndIf}
+  System::Call 'kernel32::GetExitCodeProcess(p r4, *i .r1) i.r0'
+  System::Call 'kernel32::CloseHandle(p r4)'
+  StrCpy $0 111
+  ${If} $1 == 116
+    StrCpy $0 116
+  ${EndIf}
+FunctionEnd
+
+Function RequestBrokerClose
+  ; The only request is an installation directory. The privileged side owns
+  ; the stop confirmation, backend and script; replies are fixed-size codes.
+  StrLen $2 $INSTDIR
+  IntOp $2 $2 + 1
+  IntOp $2 $2 * 2
+  System::Call 'kernel32::WriteFile(p $ClosePipe, w "$INSTDIR", i r2, *i .r3, p 0) i.r0'
+  ${If} $0 != 0
+  ${AndIf} $3 == $2
+    System::Call 'kernel32::ReadFile(p $ClosePipe, *i .r1, i 4, *i .r2, p 0) i.r0'
+    ${If} $0 != 0
+    ${AndIf} $2 == 4
+      StrCpy $0 $1
+      Return
+    ${EndIf}
+  ${EndIf}
+  StrCpy $0 111
+FunctionEnd
+
+Function RunElevatedClose
+  ; Extract trusted code afresh into this instance's restricted plugin
+  ; directory. No executable or script is loaded from the parent's stage.
+  InitPluginsDir
+  ; Windows PowerShell's C# compiler resolves System.dll from its working
+  ; directory. NSIS puts an unrelated native System.dll in the plugin root.
+  StrCpy $CloseHelperDir "$PLUGINSDIR\shutdown"
+  ClearErrors
+  SetOutPath "$CloseHelperDir"
+  File /oname=close-installation.ps1 "close-installation.ps1"
+  File /oname=installer-process.cs "installer-process.cs"
+!ifdef NSIS_WIN32_MAKENSIS
+  File /oname=cage.exe "${APP_DIR}\resources\cage.exe"
+!if /FileExists "${APP_DIR}\resources\client-only"
+  File /oname=client-only "${APP_DIR}\resources\client-only"
+!endif
+!else
+  File /oname=cage.exe "${APP_DIR}/resources/cage.exe"
+!if /FileExists "${APP_DIR}/resources/client-only"
+  File /oname=client-only "${APP_DIR}/resources/client-only"
+!endif
+!endif
+  ${If} ${Errors}
+    StrCpy $0 116
+    Return
+  ${EndIf}
+  System::Call 'kernel32::SetEnvironmentVariableW(w "TMP", w "$CloseHelperDir")'
+  System::Call 'kernel32::SetEnvironmentVariableW(w "TEMP", w "$CloseHelperDir")'
+  System::Call 'kernel32::SetEnvironmentVariableW(w "PSModulePath", w "$SYSDIR\WindowsPowerShell\v1.0\Modules")'
+  StrCpy $CloseBackend "$CloseHelperDir\cage.exe"
+  StrCpy $CloseProof '-WizardProcessId $CloseWizardPid -Installer "$EXEPATH"'
+  StrCpy $CloseInteractive 1
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$CloseHelperDir\close-installation.ps1" -CheckWizard $CloseProof'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    ${If} $0 != 116
+      StrCpy $0 111
+    ${EndIf}
+    Return
+  ${EndIf}
+  ; Anonymous security QoS prevents the lower-privilege server from
+  ; impersonating this client. Neither side ever reconnects to another peer.
+  System::Call 'kernel32::WaitNamedPipeW(w "\\.\pipe\Cage.Setup.$CloseWizardPid", i 60000) i.r0'
+  System::Call 'kernel32::CreateFileW(w "\\.\pipe\Cage.Setup.$CloseWizardPid", i 0xc0000000, i 0, p 0, i 3, i 0x100000, p 0) p.r0'
+  ${If} $0 == -1
+    StrCpy $0 111
+    Return
+  ${EndIf}
+  StrCpy $ClosePipe $0
+  System::Call 'kernel32::GetNamedPipeServerProcessId(p $ClosePipe, *i .r1) i.r0'
+  ${If} $0 == 0
+  ${OrIf} $1 != $CloseWizardPid
+    Call CloseBroker
+    StrCpy $0 111
+    Return
+  ${EndIf}
+  IntOp $R8 ${NSIS_MAX_STRLEN} * 2
+  StrCpy $R7 ""
+  receive:
+    System::Call 'kernel32::ReadFile(p $ClosePipe, w .r1, i R8, *i .r2, p 0) i.r0'
+    ${If} $0 == 0
+      Goto finished
+    ${EndIf}
+    StrLen $3 $1
+    IntOp $3 $3 + 1
+    IntOp $3 $3 * 2
+    ${If} $3 != $2
+    ${OrIf} $1 == ""
+      Goto finished
+    ${EndIf}
+    ; Retrying a failed close may only target the original directory.
+    ${If} $R7 == ""
+      StrCpy $R7 $1
+    ${EndIf}
+    StrCpy $INSTDIR $1
+    StrCpy $0 111
+    ${If} $INSTDIR == $R7
+    ${AndIf} ${FileExists} "$INSTDIR\Cage.install-id"
+      StrCpy $2 "-CloseIdleClient"
+      Call RunCloseWithConsent
+    ${EndIf}
+    ; nsExec launch errors are words; never serialize them as success.
+    ${If} $0 == "error"
+    ${OrIf} $0 == "timeout"
+      StrCpy $0 110
+    ${EndIf}
+    System::Call 'kernel32::WriteFile(p $ClosePipe, *i r0, i 4, *i .r1, p 0) i.r2'
+    ${If} $2 != 0
+    ${AndIf} $1 == 4
+      Goto receive
+    ${EndIf}
+  finished:
+  Call CloseBroker
+  SetOutPath "$SYSDIR"
+  StrCpy $0 0
+FunctionEnd
+
+Function PrepareReplacement
+  !insertmacro InstallPhase "closing_target_application"
+  DetailPrint "正在准备关闭本地环境和 Cage…"
+  retry_close:
+    StrCpy $CloseHelperDir "$PLUGINSDIR"
+    StrCpy $CloseBackend "$StageDir\resources\cage.exe"
+    StrCpy $CloseProof ""
+    StrCpy $CloseInteractive 0
+    StrCpy $2 ""
+    ${If} $UpdateMode == "1"
+      StrCpy $2 "-StopEnvironment"
+    ${ElseIfNot} ${Silent}
+      StrCpy $2 "-CloseIdleClient"
+      StrCpy $CloseInteractive 1
+    ${EndIf}
+    ${If} $ClosePipe != ""
+      Call RequestBrokerClose
+    ${Else}
+      Call RunCloseWithConsent
+    ${EndIf}
     StrCpy $HelperExit $0
+    ${If} $0 == 1223
+      SetErrorLevel 1223
+      RMDir /r "$StageDir"
+      !insertmacro AbortTransaction "已取消升级，原安装已保留。"
+    ${EndIf}
     ${If} $0 == 0
       Return
     ${EndIf}
-    DetailPrint "$1"
     ${If} $0 == 109
-    ${AndIf} $2 == ""
-      MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "环境正在运行。请先保存工作。停止此环境、关闭 Cage 并继续安装？" /SD IDCANCEL IDOK confirm_stop
+      DetailPrint "本地环境仍在运行。请打开安装向导，或在静默升级时使用 /UPDATE。"
+    ${ElseIf} $0 == 111
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "检测到其他配置或安装的 Cage 后台进程。请确认对应环境已退出后重试。" /SD IDCANCEL IDRETRY retry_close
     ${ElseIf} $0 == 112
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "此安装仍有虚拟机在运行。请保存文件并停止 Cage 环境，然后重试。" /SD IDCANCEL IDRETRY retry_close
     ${ElseIf} $0 == 113
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法确认代理进程归属。请关闭占用此安装 resources\mihomo.exe 的代理，然后重试。" /SD IDCANCEL IDRETRY retry_close
+    ${ElseIf} $0 == 115
+      DetailPrint "正在运行的 Cage 需要管理员权限。请使用交互式安装向导，或在同一账户的管理员会话中静默升级。"
+    ${ElseIf} $0 == 114
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Windows 拒绝了关闭请求。请使用运行 Cage 的同一账户和权限重新打开安装程序。" /SD IDCANCEL IDRETRY retry_close
+    ${ElseIf} $0 == 116
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "安装程序无法加载进程检测组件（116）。请重新打开安装包。" /SD IDCANCEL IDRETRY retry_close
+    ${ElseIf} $0 == 117
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "尚未确认环境已正常停止，安装已暂停。请在 Cage 的操作详情中查看停止结果，再重试。" /SD IDCANCEL IDRETRY retry_close
     ${Else}
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法安全关闭此安装的 Cage。请保存工作，在对应的 Cage 窗口停止环境，并从托盘退出 Cage 后重试。" /SD IDCANCEL IDRETRY retry_close
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Cage 尚未完成关闭。请重试；如仍失败，请查看安装详情（$0）。" /SD IDCANCEL IDRETRY retry_close
     ${EndIf}
     Call WriteInstallDiagnostic
     SetErrorLevel 2
     RMDir /r "$StageDir"
     !insertmacro AbortTransaction "Cage 未关闭，原安装已保留。"
-  confirm_stop:
-    StrCpy $2 "-StopEnvironment"
-    Goto retry_close
 FunctionEnd
 
 Section "Cage" Main
@@ -511,9 +776,7 @@ Section "Cage" Main
   StrCpy $BackupDir ""
   ${If} $ExistingInstall == "1"
     retry_replacement:
-    ${If} $UpdateMode != "1"
-      Call PrepareManualReplacement
-    ${EndIf}
+    Call PrepareReplacement
     !insertmacro InstallPhase "checking_stopped_processes"
     !insertmacro CheckStopped "Cage.exe" desktop 1
     !insertmacro CheckStopped "resources\cage.exe" backend 1

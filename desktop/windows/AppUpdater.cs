@@ -12,14 +12,15 @@ internal sealed class AppUpdater : IDisposable
     public static string Root => Path.Combine(Backend.Root, "updates");
     private readonly Action<Dictionary<string, object?>> changed;
     private readonly Action quit, reconnect;
+    private readonly Func<bool> confirmStop;
     private readonly Dictionary<string, object?> state = new() { ["phase"] = "idle", ["currentVersion"] = Version, ["message"] = "" };
     private CancellationTokenSource? cancellation;
     private InstallPlan? prepared;
     private bool committed;
 
-    public AppUpdater(Action<Dictionary<string, object?>> changed, Action quit, Action reconnect)
+    public AppUpdater(Action<Dictionary<string, object?>> changed, Action quit, Action reconnect, Func<bool> confirmStop)
     {
-        this.changed = changed; this.quit = quit; this.reconnect = reconnect;
+        this.changed = changed; this.quit = quit; this.reconnect = reconnect; this.confirmStop = confirmStop;
         try
         {
             var result = Path.Combine(Root, "last-result.json");
@@ -35,6 +36,7 @@ internal sealed class AppUpdater : IDisposable
 
     public Dictionary<string, object?> Handle(string operation)
     {
+        if (committed) return new(state);
         if (Backend.ClientOnly)
         {
             if (state["phase"] as string != "manual" || operation != "status")
@@ -134,7 +136,7 @@ internal sealed class AppUpdater : IDisposable
     private async Task Install()
     {
         if (prepared == null) return;
-        cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(12));
         var token = cancellation.Token;
         Process? helper = null;
         var helperPath = Path.Combine(Root, "helper-" + Guid.NewGuid() + ".exe");
@@ -158,30 +160,70 @@ internal sealed class AppUpdater : IDisposable
             await helper.StandardInput.FlushAsync(token);
             var ready = await helper.StandardOutput.ReadLineAsync(token);
             if (ready != "READY") throw new IOException("安装程序准备失败，原应用已保留");
-            var (exit, data) = await Backend.Json(["prepare-update", "--json"], token);
-            if (data.Text("status") == "stop_required")
+            if (!await PrepareEnvironment(token, () => !helper.HasExited))
             {
-                (exit, data) = await Backend.Json(["prepare-update", "--json", "--stop"], token);
+                Change("ready", "更新已就绪，可稍后安装", true);
+                return;
             }
-            if (exit != 0 || data.Text("status") != "prepared") throw new IOException(data.Text("message") is { Length: > 0 } detail ? detail : "环境未能安全停止");
             if (helper.HasExited) throw new IOException("安装程序已退出，原应用已保留");
-            await helper.StandardInput.WriteLineAsync("COMMIT"); await helper.StandardInput.FlushAsync(token);
-            helper.StandardInput.Close(); committed = true;
-            Change("installing", "正在安装并重启 Cage"); quit();
+            await CommitInstallation(helper.StandardInput, TimeSpan.FromSeconds(10), token);
+            committed = true;
         }
         catch (Exception error) { Change("failed", error is OperationCanceledException ? "安装准备超时，原应用已保留" : error.Message, true); reconnect(); }
         finally
         {
-            if (!committed && helper != null)
+            if (helper != null)
             {
                 helper.StandardInput.Close();
-                try { await helper.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
-                catch (TimeoutException) { if (!helper.HasExited) helper.Kill(); }
+                if (!committed)
+                {
+                    try { await helper.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
+                    catch (TimeoutException) { if (!helper.HasExited) helper.Kill(); }
+                }
             }
             helper?.Dispose();
             if (!committed) { try { File.Delete(helperPath); } catch (IOException) { } }
             cancellation?.Dispose(); cancellation = null;
         }
+        if (committed)
+        {
+            try { Change("installing", "正在安装并重启 Cage"); }
+            finally { quit(); }
+        }
+    }
+
+    internal async Task<bool> PrepareEnvironment(CancellationToken token, Func<bool> installerReady)
+    {
+        var (exit, data) = await Backend.Json(["prepare-update", "--json"], token);
+        if (exit == 0 && data.Text("status") == "stop_required")
+        {
+            if (!confirmStop()) return false;
+            token.ThrowIfCancellationRequested();
+            if (!installerReady()) throw new IOException("安装程序已退出，环境仍在运行");
+            Change("installing", "正在停止环境");
+            (exit, data) = await Backend.Json(["prepare-update", "--json", "--stop"], token, TimeSpan.FromMinutes(6));
+        }
+        if (exit != 0 || data.Text("status") != "prepared")
+            throw new IOException(data.Text("message") is { Length: > 0 } detail ? detail : "环境未能安全停止");
+        return true;
+    }
+
+    internal static async Task CommitInstallation(StreamWriter input, TimeSpan exitGrace, CancellationToken token)
+    {
+        // READY means the helper consumed the plan and is waiting for this
+        // one line. Once written, cancellation cannot revoke the handoff.
+        token.ThrowIfCancellationRequested();
+        await input.WriteLineAsync("COMMIT").ConfigureAwait(false);
+        await input.FlushAsync().ConfigureAwait(false);
+        // WebView disposal or a foreground thread can outlive Form.Close().
+        // Arm the old desktop's own exit before returning to its UI thread.
+        _ = ExitAfterGrace(exitGrace);
+    }
+
+    private static async Task ExitAfterGrace(TimeSpan grace)
+    {
+        await Task.Delay(grace).ConfigureAwait(false);
+        Environment.Exit(0);
     }
 
     public void Dispose() { if (!committed) cancellation?.Cancel(); }

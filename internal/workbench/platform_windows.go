@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 	"golang.org/x/sys/windows"
 )
@@ -42,16 +43,7 @@ func unlockController(f *os.File) error {
 }
 func controllerLockContended(err error) bool { return errors.Is(err, windows.ERROR_LOCK_VIOLATION) }
 func processExists(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
-	if err != nil {
-		return !errors.Is(err, windows.ERROR_INVALID_PARAMETER)
-	}
-	defer windows.CloseHandle(h)
-	var code uint32
-	return windows.GetExitCodeProcess(h, &code) != nil || code == 259
+	return cage.ProcessMayBeRunning(pid)
 }
 func terminateLegacy(pid int) error {
 	return errors.New("Windows 不支持接管未验证的旧版后台")

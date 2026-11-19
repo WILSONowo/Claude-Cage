@@ -38,3 +38,7 @@ func defaultKeyboard() string {
 	}
 	return "native"
 }
+
+func updateQEMUInstances(string) (map[string]int, error)          { return nil, nil }
+func (*controllerClient) handoffStaleWindowsOwner() (bool, error) { return false, nil }
+func (c *controllerClient) stopUpdateGuests() error               { return nil }

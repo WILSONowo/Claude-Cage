@@ -88,7 +88,10 @@ func (e *app) stopVM(ctx context.Context, name string) bool {
 	if err != nil {
 		return false
 	}
-	_ = b.Stop(ctx, name)
+	if err := b.Stop(ctx, name); err != nil {
+		fmt.Fprintln(e.io.Stderr, err)
+		return false
+	}
 	inst, err := b.Get(ctx, name)
 	return err == nil && inst.Status == vm.Stopped
 }

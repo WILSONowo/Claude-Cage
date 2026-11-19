@@ -31,7 +31,7 @@ func ProcessStartMatches(pid int, started string) bool {
 }
 
 func (r runningProfile) alive() bool {
-	return r.PID > 0 && profileProcessAlive(r.PID) && ProcessStartMatches(r.PID, r.Started)
+	return ProcessMayBeRunning(r.PID) && ProcessStartMatches(r.PID, r.Started)
 }
 
 func (c Config) Fingerprint() string {

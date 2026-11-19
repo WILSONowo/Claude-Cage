@@ -120,7 +120,7 @@ export function AppUpdateButton({ updates }) {
     : failed ? `${state.message || "更新未完成"}，点击重试`
     : busy ? label
     : manual ? `新版本 ${state.latestVersion} 已发布。${state.message || ""}点击打开发布页面。`
-    : `更新至 ${state.latestVersion}。请先保存工作，点击后将自动停止环境、安装并重启。`;
+    : `更新至 ${state.latestVersion}。请先保存工作，安装完成后 Cage 会重新打开。`;
   const circumference = 2 * Math.PI * 15;
   return (
     <>

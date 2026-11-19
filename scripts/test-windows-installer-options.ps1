@@ -50,5 +50,8 @@ SectionEnd
     Check-InstallerOptions '/S "/D=D:\Cage Builds\Cage"' 2 '/D= must be the last option'
     Check-InstallerOptions '/S /D=Cage' 2 '/D= must be the last option'
     Check-InstallerOptions '/S /DESKTOPSHORTCUT=00 /D=D:\Cage' 2 'DESKTOPSHORTCUT must be 0 or 1'
+    Check-InstallerOptions '/S /CAGECLOSE=0 /D=D:\Cage' 2 'Invalid shutdown request'
+    Check-InstallerOptions '/S /CAGECLOSE=123a /D=D:\Cage' 2 'Invalid shutdown request'
+    Check-InstallerOptions '/S /CAGECLOSE=123 /CAGECLOSE=124 /D=D:\Cage' 2 'Invalid shutdown request'
     Write-Host 'Windows installer argument tests passed.'
 } finally { Remove-Item -LiteralPath $root -Recurse -Force }

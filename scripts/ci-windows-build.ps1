@@ -96,6 +96,7 @@ try {
     Invoke-BuildTool (Get-BuildCommand @('pwsh.exe', 'pwsh')) @('-NoProfile', '-NonInteractive', '-File', 'scripts/windows-workbench-smoke.test.ps1')
     Invoke-BuildTool (Get-BuildCommand @('pwsh.exe', 'pwsh')) @('-NoProfile', '-NonInteractive', '-File', 'scripts/windows-build-move.test.ps1')
     & (Join-Path $PSScriptRoot 'test-windows-installer-options.ps1')
+    & (Join-Path $PSScriptRoot 'test-windows-installer-confirmation.ps1')
     # NSIS is x86 and resolves $SYSDIR to SysWOW64. Match its real helper host.
     $installationPowerShell = Join-Path $env:SystemRoot 'SysWOW64/WindowsPowerShell/v1.0/powershell.exe'
     & (Join-Path $PSScriptRoot 'test-windows-installation-files.ps1') -HelperShell $installationPowerShell -InstallerSmoke

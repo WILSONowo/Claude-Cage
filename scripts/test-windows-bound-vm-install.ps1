@@ -2,7 +2,7 @@
 # Real NSIS on the current Windows user; all mutable host integration is redirected.
 param([Parameter(Mandatory)][string]$OutputDirectory, [string]$AppDirectory,
     [string]$MakeNSIS = 'makensis.exe', [string]$PackagingDirectory = (Join-Path $PSScriptRoot '../packaging/windows'),
-    [switch]$Baseline, [string]$PreviousAppDirectory)
+    [switch]$Baseline, [string]$PreviousAppDirectory, [switch]$UpdateRunningDesktop)
 $ErrorActionPreference = 'Stop'
 if ($PreviousAppDirectory -and (!$AppDirectory -or !(Test-Path -LiteralPath (Join-Path $AppDirectory 'resources/cage.exe')))) {
     throw 'Live upgrade requires a complete new application payload.'
@@ -20,9 +20,12 @@ $env:CLAUDE_CAGE_CONFIG = Join-Path $profileDir 'config.json'
 $setup = Join-Path $root 'fixture.exe'
 $script:reports = [ordered]@{}
 function Assert([bool]$condition, [string]$message) { if (!$condition) { throw $message } }
-function Run-Setup([string]$installDir, [string]$phase, [int]$expected, [scriptblock]$afterStart) {
+function Run-Setup([string]$installDir, [string]$phase, [int]$expected, [scriptblock]$afterStart, [switch]$Update) {
     $report = Join-Path $root ($phase + '.json')
-    $process = Start-Process -FilePath $setup -ArgumentList @('/S','/DESKTOPSHORTCUT=1','/STARTMENUSHORTCUT=1',('/DIAGNOSTICS="' + $report + '"'),('/D=' + $installDir)) -WindowStyle Hidden -PassThru
+    $options = @('/S','/DESKTOPSHORTCUT=1','/STARTMENUSHORTCUT=1')
+    if ($Update) { $options += '/UPDATE' }
+    $options += @(('/DIAGNOSTICS="' + $report + '"'), ('/D=' + $installDir))
+    $process = Start-Process -FilePath $setup -ArgumentList $options -WindowStyle Hidden -PassThru
     try {
         if ($afterStart) { & $afterStart }
         if (!$process.WaitForExit(600000)) { throw "NSIS timed out in $phase" }
@@ -56,13 +59,29 @@ try {
         Set-Content -LiteralPath $src 'class Fixture { static int Main() { return 0; } }'
         & "$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe" /nologo "/out:$AppDirectory/Cage.exe" $src
         Assert ($LASTEXITCODE -eq 0) 'Could not build fixture launcher'
-        $files = @(Get-ChildItem -LiteralPath $AppDirectory -File | ForEach-Object { @{path=$_.Name; sha256=(Get-FileHash -LiteralPath $_.FullName).Hash.ToLowerInvariant()} })
+        $fixtureResources = [IO.Directory]::CreateDirectory((Join-Path $AppDirectory 'resources')).FullName
+        Copy-Item -LiteralPath (Join-Path $AppDirectory 'Cage.exe') -Destination (Join-Path $fixtureResources 'cage.exe')
+        $files = @(Get-ChildItem -LiteralPath $AppDirectory -File -Recurse | ForEach-Object { @{path=[IO.Path]::GetRelativePath($AppDirectory, $_.FullName).Replace('\','/'); sha256=(Get-FileHash -LiteralPath $_.FullName).Hash.ToLowerInvariant()} })
         @{version=1; files=$files} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $AppDirectory 'Cage.install-files.json')
     }
     $AppDirectory = (Get-Item -LiteralPath $AppDirectory).FullName
     $version = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '../VERSION')).Trim()
     & $MakeNSIS /V2 /INPUTCHARSET UTF8 "/DAPP_DIR=$AppDirectory" "/DVERSION=$version" "/DVERSION_NUMERIC=$(($version -split '-')[0]).0" "/DFILE_MANIFEST=$AppDirectory\Cage.install-files.json" "/DOUTPUT_FILE=$setup" (Join-Path $build 'Cage.nsi')
     Assert ($LASTEXITCODE -eq 0) 'Could not compile NSIS'
+    if (!$Baseline) {
+        # Exercise the real close-only extraction, nsExec, and PowerShell compiler.
+        # A test runner is never a valid wizard. Reaching the identity rejection
+        # proves the component loaded without performing any shutdown.
+        $probe = Start-Process -FilePath $setup -ArgumentList "/S /CAGECLOSE=$PID" -WindowStyle Hidden -PassThru
+        try {
+            Assert ($probe.WaitForExit(60000)) 'Close-only bootstrap timed out'
+            Assert ($probe.ExitCode -eq 111) "Close-only bootstrap failed before wizard verification: $($probe.ExitCode)"
+            $reports.closeHelperLoaded = $true
+        } finally {
+            if (!$probe.HasExited) { $probe.Kill($true); $probe.WaitForExit() }
+            $probe.Dispose()
+        }
+    }
     if ($PreviousAppDirectory) {
         $previous = (Get-Item -LiteralPath $PreviousAppDirectory).FullName
         Copy-Item -LiteralPath $previous -Destination $target -Recurse
@@ -94,7 +113,7 @@ try {
             # after the app exits. Keep that file open across the process handoff.
             $fileLock = [IO.File]::Open((Join-Path $target 'resources/mihomo.exe'), 'Open', 'Read', 'Read')
             $expectedExit = if ($Baseline) { 2 } else { 0 }
-            Run-Setup $target 'upgrade-running-desktop' $expectedExit {
+            Run-Setup $target 'upgrade-running-desktop' $expectedExit -Update:$UpdateRunningDesktop -afterStart {
                 if (!$old.WaitForExit(120000)) { throw 'The installer did not stop the old tray application.' }
                 Start-Sleep -Seconds 2
                 $fileLock.Dispose()
