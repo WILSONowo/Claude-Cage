@@ -42,6 +42,11 @@ if (args is ["prepare-update", "--json", "--stop"])
 }
 
 #if WINDOWS
+if (args is ["native-focus-handoff"])
+{
+    NativeInputTests.Run(focusHandoff: true);
+    return;
+}
 NativeInputTests.Run();
 #endif
 

@@ -6,6 +6,7 @@ test("automatic exit waits for its own successful stop and confirmed VM shutdown
     vm_running: true,
     job: { id: "old-stop", kind: "stop", running: false, error: "" },
   };
+  assert.equal(stopExitState({ job: status.job }, "old-stop"), "waiting");
   assert.equal(stopExitState(status, null), "waiting");
   assert.equal(stopExitState(status, "new-stop"), "waiting");
   status.job.id = "new-stop";
@@ -83,4 +84,33 @@ test("cancelling automatic exit during a status request prevents app termination
     onStatus: () => assert.fail("cancelled update"),
   });
   assert.equal(result, false);
+});
+
+test("an orphan still reported running has a deadline and keeps the application open", async () => {
+  await assert.rejects(stopAndExit({
+    stop: async () => ({ id: "ours" }),
+    readStatus: async () => ({ vm_running: true, job: { id: "ours", kind: "stop", running: false } }),
+    exit: () => assert.fail("unconfirmed exit"),
+    isCancelled: () => false, onStatus: () => {},
+    timeoutMs: 20, delay: () => new Promise(resolve => setTimeout(resolve, 1)),
+  }), /运行中/);
+});
+test("a stalled status request is aborted and cannot trigger exit", async () => {
+  await assert.rejects(stopAndExit({
+    stop: async () => ({ id: "ours" }),
+    readStatus: (signal) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true })),
+    exit: () => assert.fail("unconfirmed exit"),
+    isCancelled: () => false, onStatus: () => {}, timeoutMs: 20,
+  }), /尚未确认/);
+});
+test("a newer idle job can hide our finished stop; only its own history permits exit", async () => {
+  let count = 0;
+  const records = [[], [{ id: "ours", kind: "stop", running: false }]];
+  assert.equal(await stopAndExit({
+    stop: async () => ({ id: "ours" }),
+    readStatus: async () => ({ vm_running: false, job: { id: "newer", running: false } }),
+    readHistory: async () => records.shift(),
+    exit: () => count++, isCancelled: () => false, onStatus: () => {}, delay: async () => {},
+  }), true);
+  assert.equal(count, 1);
 });

@@ -560,7 +560,7 @@ func cageInstallEnv() string {
 		if os.Getenv("CAGE_SETUP_PROGRESS") == "1" {
 			progress = "export CAGE_SETUP_PROGRESS=1\n"
 		}
-		return "set -e\nexport CLAUDE_CAGE=1\n" + progress + cage.DebianPrepareScriptFor(os.Getenv(cage.DebianMirrorEnv)) + "\n" + cage.ToolInstallPrelude()
+		return "set -e\nexport CLAUDE_CAGE=1\n" + progress + cage.DebianPrepareScriptFor(cage.DebianMirrorOrder()) + "\n" + cage.ToolInstallPrelude()
 	}
 	return ""
 }

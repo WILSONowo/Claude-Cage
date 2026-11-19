@@ -1,7 +1,7 @@
 #!/bin/sh
 # Only stock and Cage-owned lists are managed. Custom lists and direct URIs
 # remain under the user's control. The preference survives guest cloning.
-sudo env APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" CAGE_DEBIAN_MIRROR="${CAGE_DEBIAN_MIRROR:-}" sh -se <<'CAGE_DEBIAN_MIRRORS'
+sudo env APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" CAGE_DEBIAN_MIRROR_ORDER="${CAGE_DEBIAN_MIRROR_ORDER:-}" sh -se <<'CAGE_DEBIAN_MIRRORS'
 set -eu
 preference=auto
 if [ -f /etc/claude-cage/debian-mirror ]; then
@@ -9,12 +9,12 @@ if [ -f /etc/claude-cage/debian-mirror ]; then
 fi
 # A choice made on the host after measuring the sources through the proxy
 # wins over the saved file and is kept for later maintenance runs.
-if [ -n "${CAGE_DEBIAN_MIRROR:-}" ]; then
-  case "$CAGE_DEBIAN_MIRROR" in
+if [ -n "${CAGE_DEBIAN_MIRROR_ORDER:-}" ]; then
+  case "$CAGE_DEBIAN_MIRROR_ORDER" in
     auto|official|domestic) ;;
-    *) echo 'Invalid CAGE_DEBIAN_MIRROR: use auto, official or domestic.' >&2; exit 1;;
+    *) echo 'Invalid CAGE_DEBIAN_MIRROR_ORDER: use auto, official or domestic.' >&2; exit 1;;
   esac
-  preference=$CAGE_DEBIAN_MIRROR
+  preference=$CAGE_DEBIAN_MIRROR_ORDER
   mkdir -p "$(dirname /etc/claude-cage/debian-mirror)"
   printf '%s\n' "$preference" > /etc/claude-cage/debian-mirror
 fi

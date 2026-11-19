@@ -76,8 +76,10 @@ internal static class Backend
     // late ordinary Json/Report request could use after admission is closed.
     public static async Task<(int Exit, JsonElement Data)> PrepareSmokeShutdown(CancellationToken cancellation)
     {
+        // The workload and the desktop gateway can retire serially. Allow
+        // their lock-release and readiness deadlines before timing out the CLI.
         var result = await RunHelper(helpers, StartInfo(Executable, "prepare-update", "--json"),
-            cancellation, TimeSpan.FromSeconds(20), 65536, shutdown: true).ConfigureAwait(false);
+            cancellation, TimeSpan.FromSeconds(100), 65536, shutdown: true).ConfigureAwait(false);
         return ParseJson(result);
     }
 

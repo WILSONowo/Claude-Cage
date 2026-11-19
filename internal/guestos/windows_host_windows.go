@@ -59,13 +59,24 @@ func probeWindowsHost(ctx context.Context) (bool, string) {
 	return true, "Hyper-V 平台已就绪；首次安装确认系统授权后，Cage 管理助手仅操作已绑定客机。"
 }
 
-func systemPowerShellQuery(ctx context.Context, script string) (*exec.Cmd, error) {
+func systemPowerShell(ctx context.Context, args ...string) (*exec.Cmd, error) {
 	systemDir, err := windows.GetSystemDirectory()
 	if err != nil {
 		return nil, err
 	}
 	shell := filepath.Join(systemDir, "WindowsPowerShell", "v1.0", "powershell.exe")
-	cmd := exec.CommandContext(ctx, shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd := exec.CommandContext(ctx, shell, args...)
+	// A native process launched from PowerShell 7 can inherit module paths
+	// for the wrong runtime. The guest scripts use Windows system modules.
+	cmd.Env = append(cmd.Environ(), "PSModulePath="+filepath.Join(filepath.Dir(shell), "Modules"))
+	return cmd, nil
+}
+
+func systemPowerShellQuery(ctx context.Context, script string) (*exec.Cmd, error) {
+	cmd, err := systemPowerShell(ctx, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script)
+	if err != nil {
+		return nil, err
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	return cmd, nil
 }

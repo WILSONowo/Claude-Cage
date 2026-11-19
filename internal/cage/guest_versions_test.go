@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/http"
@@ -18,41 +19,62 @@ import (
 	"time"
 )
 
+// These fixtures shadow Linux guest utilities (including sudo and curl) with
+// shell scripts on a POSIX PATH. Git Bash may resolve the real host tool instead.
+func requirePOSIXGuestFixture(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("requires POSIX guest-command fixtures; run this test on Linux")
+	}
+}
+
 func TestGuestManifestIsPublishedOnlyAfterSuccessfulServiceStart(t *testing.T) {
-	for _, body := range []string{"printf started; exit 0", "printf broken; exit 7"} {
-		t.Run(body, func(t *testing.T) {
-			dir := t.TempDir()
-			marker := filepath.Join(dir, "published")
-			// Observe privileged actions without touching the host's /etc or running services.
-			sudo := `#!/bin/sh
-case "$1" in
- rm) rm -f "$AUDIT_MARKER";;
- python3) cat >/dev/null; printf published > "$AUDIT_MARKER";;
- *) exit 91;;
-esac
-`
-			if err := os.WriteFile(filepath.Join(dir, "sudo"), []byte(sudo), 0755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(marker, []byte("old"), 0600); err != nil {
-				t.Fatal(err)
-			}
-			cmd := exec.Command("bash", "-c", markGuestStart(body))
-			cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "AUDIT_MARKER="+marker)
-			_, err := cmd.CombinedOutput()
-			data, readErr := os.ReadFile(marker)
-			if strings.Contains(body, "exit 0") {
-				if err != nil || readErr != nil || string(data) != "published" {
-					t.Fatal("successful startup did not publish manifest", err, readErr)
-				}
-			} else if err == nil || !os.IsNotExist(readErr) {
-				t.Fatal("failed startup retained or published a manifest", err, readErr)
-			}
-		})
+	if runtime.GOOS != "linux" {
+		t.Skip("executes the Debian guest transaction using Linux flock and fsync")
+	}
+	dir := t.TempDir()
+	store := filepath.Join(dir, "guest")
+	if err := os.Mkdir(store, 0755); err != nil {
+		t.Fatal(err)
+	}
+	receipt := filepath.Join(store, "components.json")
+	pending := filepath.Join(store, "components.pending")
+	if err := os.WriteFile(receipt, []byte("previous receipt"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run := func(body string) error {
+		// Run the actual guest transaction as the test user in an isolated directory.
+		script := "sudo() { \"$@\"; }\n" + strings.ReplaceAll(markGuestStart(body), "/etc/claude-cage", store)
+		out, err := exec.Command("bash", "-c", script).CombinedOutput()
+		if len(out) != 0 {
+			t.Log(string(out))
+		}
+		return err
+	}
+	if err := run("exit 7"); err == nil {
+		t.Fatal("failed update accepted")
+	}
+	if old, err := os.ReadFile(receipt); err != nil || string(old) != "previous receipt" {
+		t.Fatal("previous manifest lost", err)
+	}
+	if _, err := os.Stat(pending); err != nil {
+		t.Fatal("missing interrupted marker", err)
+	}
+	if err := run("true"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(receipt)
+	var m GuestManifest
+	if err != nil || json.Unmarshal(b, &m) != nil || !m.Current() {
+		t.Fatal("manifest not published", err)
+	}
+	if _, err := os.Stat(pending); !os.IsNotExist(err) {
+		t.Fatal("pending marker survived success", err)
 	}
 }
 
 func TestToolDownloadWithRealCurlAndTLS(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	if _, err := exec.LookPath("curl"); err != nil {
 		t.Skip("curl unavailable")
 	}
@@ -433,7 +455,8 @@ func TestGeneratedGuestScriptsParseAsBash(t *testing.T) {
 
 func TestChromiumPrefetchFallsBackButPropagatesCancellation(t *testing.T) {
 	for _, status := range []int{1, 143} {
-		cmd := exec.Command("bash", "-c", fmt.Sprintf("set -e\nsudo() { cat >/dev/null; return %d; }\n", status)+ToolInstallPrelude()+"cage_cache_chromium --only-upgrade chromium\necho normal-apt")
+		cmd := exec.Command("bash", "-s")
+		cmd.Stdin = strings.NewReader(fmt.Sprintf("set -e\nsudo() { cat >/dev/null; return %d; }\n", status) + ToolInstallPrelude() + "cage_cache_chromium --only-upgrade chromium\necho normal-apt")
 		out, err := cmd.CombinedOutput()
 		fellBack := err == nil && strings.Contains(string(out), "normal-apt")
 		if (status == 1 && !fellBack) || (status == 143 && (err == nil || cmd.ProcessState.ExitCode() != 143)) {
@@ -443,6 +466,7 @@ func TestChromiumPrefetchFallsBackButPropagatesCancellation(t *testing.T) {
 }
 
 func TestPinnedToolInstallerRejectsWrongHashBeforeInstalling(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	dir := t.TempDir()
 	commands := map[string]string{
 		"flock":       "#!/bin/sh\nexit 0\n",
@@ -470,6 +494,7 @@ func TestPinnedToolInstallerRejectsWrongHashBeforeInstalling(t *testing.T) {
 }
 
 func TestPinnedToolVersionIgnoresFirstRunNotices(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	for _, version := range []string{"4.144.0", "v4.144.1", "4.144.0-rc.1"} {
 		t.Run(version, func(t *testing.T) {
 			dir := t.TempDir()
@@ -494,6 +519,7 @@ func TestPinnedToolVersionIgnoresFirstRunNotices(t *testing.T) {
 }
 
 func TestToolDownloadKeepsPartialAndResumes(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	dir := t.TempDir()
 	commands := map[string]string{
 		"sleep": "#!/bin/sh\nexit 0\n",

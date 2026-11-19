@@ -14,7 +14,7 @@ func TestMoveOld(t *testing.T) {
 	l := newTestLima(t)
 	old := os.Getenv("LIMA_HOME")
 	off := false
-	proj := t.TempDir()
+	proj := filepath.ToSlash(t.TempDir())
 	mounts := []Mount{{Location: proj, MountPoint: proj, Writable: true, SSHFS: &SSHFS{SFTPDriver: "builtin", Cache: &off, ReadonlyNames: []string{".git", ".hg"}}}}
 	rev := ReverseSSHFS
 	if err := l.Create(ctx, "agent-vm-p-12345678", "template:debian-13", Settings{CPUs: 1, Mounts: &mounts, MountType: &rev}, io.Discard); err != nil {

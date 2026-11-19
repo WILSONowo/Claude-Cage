@@ -39,6 +39,7 @@ import (
 	"github.com/lima-vm/lima/v2/pkg/yqutil"
 	"github.com/sylvinus/agent-vm/internal/vmname"
 
+	"github.com/sylvinus/agent-vm/internal/cachelock"
 	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/limaembed"
 	"github.com/sylvinus/agent-vm/internal/paths"
@@ -340,7 +341,7 @@ func (l *Lima) Create(ctx context.Context, name, template string, s Settings, lo
 				e = append(e, ".images = "+string(images))
 				// cloud-init rewrites Debian's mirror list after bootcmd.
 				// Configure it immediately before Lima installs dependencies.
-				e = append(e, `.provision += [{"mode": "dependency", "script": `+strconv.Quote(cage.DebianPrepareScriptFor(os.Getenv(cage.DebianMirrorEnv)))+`}]`)
+				e = append(e, `.provision += [{"mode": "dependency", "script": `+strconv.Quote(cage.DebianPrepareScriptFor(cage.DebianMirrorOrder()))+`}]`)
 			}
 			tz, _ := json.Marshal(cfg.Timezone)
 			e = append(e, ".propagateProxyEnv = false", `.env = {"http_proxy":"","https_proxy":"","ftp_proxy":"","no_proxy":"","HTTP_PROXY":"","HTTPS_PROXY":"","FTP_PROXY":"","NO_PROXY":"","ALL_PROXY":"","all_proxy":""}`, ".timezone = "+string(tz))
@@ -404,6 +405,23 @@ func (l *Lima) Clone(ctx context.Context, from, to string) error {
 // Edit applies s as `limactl edit` does: the same checks, and nothing is
 // written when one fails.
 func (l *Lima) Edit(ctx context.Context, name string, s Settings) error {
+	dir, err := dirnames.InstanceDir(name)
+	if err != nil {
+		return err
+	}
+	// Lock a separate file: replacing lima.yaml would also replace its lock inode.
+	err = cachelock.WithFile(ctx, filepath.Join(dir, ".cage-edit.lock"), func() error {
+		return l.editLocked(ctx, name, s)
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		if _, statErr := os.Stat(dir); errors.Is(statErr, os.ErrNotExist) {
+			return fmt.Errorf("%w: %s", ErrNotFound, name)
+		}
+	}
+	return err
+}
+
+func (l *Lima) editLocked(ctx context.Context, name string, s Settings) error {
 	inst, err := l.inspect(ctx, name)
 	if err != nil {
 		return err
@@ -458,7 +476,7 @@ func (l *Lima) Edit(ctx context.Context, name string, s Settings) error {
 		return err
 	}
 	// Whole or not at all: a crash midway would leave a truncated lima.yaml.
-	// A name of its own, so that two edits do not write the same file.
+	// Stage the validated configuration in the same directory as its destination.
 	f, err := os.CreateTemp(inst.Dir, filenames.LimaYAML+".*.tmp")
 	if err != nil {
 		return err
@@ -472,7 +490,7 @@ func (l *Lima) Edit(ctx context.Context, name string, s Settings) error {
 		err = os.Chmod(tmp, 0o644)
 	}
 	if err == nil {
-		err = os.Rename(tmp, path)
+		err = replaceLimaConfig(ctx, tmp, path)
 	}
 	if err != nil {
 		os.Remove(tmp)

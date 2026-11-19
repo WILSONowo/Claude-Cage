@@ -47,6 +47,28 @@ func TestEntryDropsInheritedUnsafeSwitchesBeforeDispatch(t *testing.T) {
 	}
 }
 
+func TestSubcommandHelpBeforeProfileAccess(t *testing.T) {
+	profile := filepath.Join(t.TempDir(), "profile")
+	t.Setenv(cage.ConfigEnv, filepath.Join(profile, "config.json"))
+	original := os.Args
+	t.Cleanup(func() { os.Args = original })
+	for _, cmd := range []string{"init", "agent", "version", "up", "stop", "setup"} {
+		for _, flag := range []string{"--help", "-h"} {
+			os.Args = []string{"cage", cmd, flag}
+			if code := run(); code != 0 {
+				t.Fatalf("%s %s returned %d", cmd, flag, code)
+			}
+		}
+	}
+	os.Args = []string{"cage", "init", "unexpected"}
+	if run() == 0 {
+		t.Fatal("init accepted an unexpected argument")
+	}
+	if _, err := os.Stat(profile); !os.IsNotExist(err) {
+		t.Fatalf("help or invalid init touched the profile: %v", err)
+	}
+}
+
 func TestGuestServiceStartStreamsScriptAndPreservesInteractiveInput(t *testing.T) {
 	script := cage.DefaultConfig().StartScript()
 	t.Logf("service payload: %d bytes, %d UTF-16 code units", len(script), len(utf16.Encode([]rune(script))))

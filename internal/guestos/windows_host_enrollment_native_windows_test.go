@@ -49,9 +49,11 @@ func runWindowsOrdinaryUserPowerShell(t *testing.T, script string, arguments ...
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	shell := filepath.Join(os.Getenv("SystemRoot"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
 	flags := append([]string{"-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script}, arguments...)
-	cmd := exec.CommandContext(ctx, shell, flags...)
+	cmd, err := systemPowerShell(ctx, flags...)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if windows.GetCurrentProcessToken().IsElevated() {
 		var token windows.Token
 		if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_DUPLICATE|windows.TOKEN_QUERY|windows.TOKEN_ASSIGN_PRIMARY|windows.TOKEN_ADJUST_DEFAULT, &token); err != nil {

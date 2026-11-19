@@ -218,6 +218,7 @@ func TestToolParallelCancellationAndResume(t *testing.T) {
 }
 
 func TestGuestServiceEntrypointsIncludeToolDownloader(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	for name, script := range map[string]string{"first-install": GuestSetup, "start-and-sync": DefaultConfig().StartScript()} {
 		t.Run(name, func(t *testing.T) {
 			_, functions, ok := strings.Cut(script, "\nCAGE_WAIT_SERVICES\n")

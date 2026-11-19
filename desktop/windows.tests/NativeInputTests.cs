@@ -7,13 +7,15 @@ using Cage.Windows;
 
 internal static class NativeInputTests
 {
-    // SetKeyboardState affects only this thread's input-state table. No SendInput,
-    // input-queue attachment, visible window, or keyboard LED changes are used.
-    internal static void Run()
+    internal static void Run(bool focusHandoff = false)
     {
         Exception? failure = null;
         var thread = new Thread(() => {
-            try { RunOnInputThread(); }
+            try
+            {
+                if (focusHandoff) CheckFocusHandoff();
+                else RunOnInputThread();
+            }
             catch (Exception error) { failure = error; }
         }) { IsBackground = true, Name = "Cage native input regression" };
         thread.SetApartmentState(ApartmentState.STA);
@@ -22,6 +24,41 @@ internal static class NativeInputTests
         if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    // WinForms asks WebView2 to select its first DOM control on directed
+    // (Tab-order) entry. Exercise this only in an interactive Windows session.
+    private sealed class FocusProbe : Button
+    {
+        internal int DirectedEntries;
+        protected override void Select(bool directed, bool forward)
+        {
+            if (directed) DirectedEntries++;
+            base.Select(directed, forward);
+        }
+    }
+
+    private static void CheckFocusHandoff()
+    {
+        using var host = new Form { ShowInTaskbar = false, StartPosition = FormStartPosition.Manual,
+            Location = new Point(-32000, -32000) };
+        using var web = new FocusProbe();
+        using var input = new NativeInput(_ => { });
+        host.Controls.Add(web);
+        host.Controls.Add(input);
+        host.Show();
+        host.Activate();
+        var owner = Guid.NewGuid().ToString();
+        var activate = JsonSerializer.SerializeToElement(new { owner, operation = "activate", x = 1, y = 1, height = 24 });
+        if (!input.ProcessRequest(activate, web, 1, out _) || !input.Focused || Form.ActiveForm != host)
+            throw new InvalidOperationException("Focus handoff requires an active Windows test window");
+        web.DirectedEntries = 0;
+        var deactivate = JsonSerializer.SerializeToElement(new { owner, operation = "deactivate" });
+        if (!input.ProcessRequest(deactivate, web, 1, out var restored) || !restored || !web.Focused || web.DirectedEntries != 0)
+            throw new InvalidOperationException("Native input did not return focus directly to the WebView");
+        Console.WriteLine("Windows native focus handoff passed without entering the sidebar by Tab order.");
+    }
+
+    // SetKeyboardState affects only this thread's input-state table. This
+    // default regression needs neither a visible window nor hardware input.
     private static void RunOnInputThread()
     {
         var assertions = 0;
@@ -37,6 +74,7 @@ internal static class NativeInputTests
         using var input = new NativeInput(events.Add);
         host.Controls.Add(web);
         host.Controls.Add(input);
+        Check(input.ImeMode == ImeMode.NoControl, "remote editor must preserve the user's IME mode on focus");
         var owner = Guid.NewGuid().ToString();
         Check(input.ProcessRequest(JsonSerializer.SerializeToElement(new {
             owner, operation = "activate", x = 0, y = 0, height = 24,

@@ -12,6 +12,7 @@ import (
 )
 
 func TestDesktopCallbackFocusAfterHandoff(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	node, err := exec.LookPath("node")
 	if err != nil {
 		t.Skip("node unavailable")
@@ -105,6 +106,7 @@ func TestDesktopCallbackFocusAfterHandoff(t *testing.T) {
 }
 
 func TestClaudeDesktopInstallerRejectsUntrustedKey(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	dir := t.TempDir()
 	commands := map[string]string{
 		"sudo":      "#!/bin/sh\nif [ \"$1\" = env ]; then exec \"$@\"; fi\necho blocked-privileged-operation >&2; exit 97\n",

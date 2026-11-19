@@ -1,10 +1,13 @@
 package cage
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/windows"
 )
@@ -91,5 +94,30 @@ func TestExitedOwnerWithDeniedProcessHandle(t *testing.T) {
 	checkDenied()
 	if ProcessMayBeRunning(pid) {
 		t.Fatal("stopped owner still blocks environment startup")
+	}
+}
+
+func TestNewRunningOwnerReplacesInterruptedRecord(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cage-running.json")
+	if err := os.WriteFile(path, []byte(`{"pid":2147483647,"started":"123"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	done := make(chan error, 1)
+	go func() { done <- DefaultConfig().RecordRunningAt(dir) }()
+	time.Sleep(75 * time.Millisecond)
+	reader.Close()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	var record runningProfile
+	if err != nil || json.Unmarshal(data, &record) != nil || record.PID != os.Getpid() || !record.alive() {
+		t.Fatal("new hostagent failed to replace stale marker", err)
 	}
 }

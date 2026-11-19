@@ -155,8 +155,12 @@ func TestScanMiddleLink(t *testing.T) {
 	b := newBox(t)
 	os.MkdirAll(b.sb+"/outside", 0o755)
 	os.MkdirAll(b.sb+"/other/b", 0o755)
-	os.Symlink(b.proj+"/lnk", b.sb+"/outside/a")
-	os.Symlink(b.sb+"/other", b.proj+"/lnk")
+	if err := os.Symlink(b.proj+"/lnk", b.sb+"/outside/a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(b.sb+"/other", b.proj+"/lnk"); err != nil {
+		t.Fatal(err)
+	}
 	b.git(b.proj, "config", "core.hooksPath", b.sb+"/outside/a/b")
 	b.git(b.proj, "config", "core.fsmonitor", b.sb+"/outside/a/mon.sh")
 	r := Scan(context.Background(), Shares(b.proj, nil), b.home)

@@ -140,7 +140,7 @@ function Save-WindowsWorkbenchPublicReport {
             $public.reportState = 'parsed'
             $public.success = $raw['success'] -eq $true
             $public.nativeBridgeReady = $raw['nativeBridgeReady'] -eq $true
-            $phases = @('starting', 'initializing_webview', 'webview_initialized', 'starting_backend', 'backend_returned', 'loading_workbench', 'stopping_backend', 'stopping_browser', 'completed')
+            $phases = @('starting', 'initializing_webview', 'webview_initialized', 'starting_backend', 'backend_returned', 'loading_workbench', 'stopping_backend', 'waiting_backend_process', 'stopping_browser', 'completed')
             $public.phase = if ($raw['phase'] -in $phases) { $raw['phase'] } else { 'unknown' }
             if ($raw['prepareExit'] -is [int] -or $raw['prepareExit'] -is [long]) { $public.prepareExit = $raw['prepareExit'] }
             if ($raw['prepareStatus'] -in @('prepared', 'stop_required', 'error', 'unexpected')) { $public.prepareStatus = $raw['prepareStatus'] }
@@ -179,7 +179,8 @@ function Assert-WindowsWorkbench {
     try {
         $window = [Diagnostics.Process]::Start($start)
         $processIdentity = @{ pid = $window.Id; parentPid = $PID; startUtc = $window.StartTime.ToUniversalTime().ToString('o'); imagePath = $start.FileName; exited = $false }
-        if (-not $window.WaitForExit(180000)) { throw "Cage workbench acceptance timed out. Diagnostics retained at $testRoot" }
+        # The UI's 120s start deadline and its bounded shutdown phases are separate.
+        if (-not $window.WaitForExit(300000)) { throw "Cage workbench acceptance timed out. Diagnostics retained at $testRoot" }
         $exitCode = $window.ExitCode
         Assert-WindowsWorkbenchReport -ExitCode $window.ExitCode -Report $report
         Wait-WindowsWorkbenchFiles -AppDirectory $AppDirectory

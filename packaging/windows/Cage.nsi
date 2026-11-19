@@ -83,6 +83,7 @@ Var DesktopShortcutControl
 Var StartMenuShortcutsControl
 Var InstallationMutex
 Var TransactionRecord
+Var PublishError
 Var InstallPhase
 Var InstallOutcome
 Var HelperExit
@@ -104,7 +105,11 @@ Function WriteInstallDiagnostic
     ClearErrors
     FileOpen $2 "$DiagnosticFile" w
     ${IfNot} ${Errors}
-      FileWrite $2 '{"phase":"$InstallPhase","status":"$InstallOutcome","helperExit":"$HelperExit"}$\r$\n'
+      ${If} $PublishError != ""
+        FileWrite $2 '{"phase":"$InstallPhase","status":"$InstallOutcome","helperExit":"$HelperExit","win32Error":$PublishError}$\r$\n'
+      ${Else}
+        FileWrite $2 '{"phase":"$InstallPhase","status":"$InstallOutcome","helperExit":"$HelperExit"}$\r$\n'
+      ${EndIf}
       FileClose $2
     ${EndIf}
     ${If} $3 == 1
@@ -696,10 +701,6 @@ Section "Cage" Main
   !insertmacro InstallPhase "acquiring_installation_lock"
   !insertmacro AcquireInstallationMutex
   StrCpy $TransactionRecord "$INSTDIR.cage-installation.json"
-  ${If} ${FileExists} "$TransactionRecord"
-    SetErrorLevel 2
-    !insertmacro AbortTransaction "存在未处理的安装事务记录：$TransactionRecord。请先按记录恢复保留的目录，再重试。"
-  ${EndIf}
   !insertmacro InstallPhase "checking_destination"
   Call CheckDestination
   InitPluginsDir
@@ -709,6 +710,14 @@ Section "Cage" Main
   File /oname=installation-files.ps1 "installation-files.ps1"
   File /oname=verified-file-deletion.cs "verified-file-deletion.cs"
   SetOutPath "$TEMP"
+  ${If} ${FileExists} "$TransactionRecord"
+    !insertmacro InstallPhase "checking_previous_transaction"
+    Call DiscardEmptyFreshReceipt
+    ${If} $0 != 0
+      SetErrorLevel 2
+      !insertmacro AbortTransaction "存在未处理的安装事务记录：$TransactionRecord。请先按记录恢复保留的目录，再重试。"
+    ${EndIf}
+  ${EndIf}
   ${If} $ExistingInstall == "1"
     !insertmacro InstallPhase "checking_bound_vm_location"
     nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation check-vm-location -Target "$INSTDIR" $DiagnosticArguments'
@@ -859,11 +868,37 @@ Section "Cage" Main
       SetErrors
     ${EndIf}
   ${Else}
-    Rename "$StageDir" "$INSTDIR"
+    ; On the same volume publish atomically without replacing an entry that
+    ; appeared during preparation. A temporary scanner lock gets a short retry.
+    StrCpy $2 0
+    publish_fresh:
+    System::Call 'kernel32::MoveFileExW(w "$StageDir", w "$INSTDIR", i 0) i .r0 ?e'
+    Pop $1
+    ${If} $0 == 0
+      ${If} $1 == 5
+      ${OrIf} $1 == 32
+      ${OrIf} $1 == 33
+        IntOp $2 $2 + 1
+        ${If} $2 < 10
+          Sleep 200
+          Goto publish_fresh
+        ${EndIf}
+      ${EndIf}
+      StrCpy $PublishError $1
+      SetErrors
+    ${EndIf}
   ${EndIf}
   ${If} ${Errors}
     ${If} $BackupDir != ""
       Call RestorePreservedFiles
+    ${Else}
+      RMDir /r "$StageDir"
+      Call DiscardEmptyFreshReceipt
+      SetErrorLevel 2
+      ${If} $0 != 0
+        !insertmacro AbortTransaction "发布程序失败（Windows 错误 $PublishError）。请保留 $TransactionRecord 核对安装状态。"
+      ${EndIf}
+      !insertmacro AbortTransaction "发布程序失败（Windows 错误 $PublishError）。请检查目录占用或权限后重试。"
     ${EndIf}
     RMDir /r "$StageDir"
     SetErrorLevel 2
@@ -926,6 +961,15 @@ Section "Cage" Main
   !insertmacro ReleaseInstallationMutex
   SetErrorLevel 0
 SectionEnd
+
+Function DiscardEmptyFreshReceipt
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation discard-empty-fresh -Target "$INSTDIR" -Receipt "$TransactionRecord" $DiagnosticArguments'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    DetailPrint "$1"
+  ${EndIf}
+FunctionEnd
 
 Function un.onInit
   StrCpy $InstallOutcome "running"

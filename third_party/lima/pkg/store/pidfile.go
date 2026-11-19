@@ -106,7 +106,30 @@ func staleBootSession(dir, current string) (bool, error) {
 }
 
 func writeBootSessionMarker(dir, id string) error {
-	return os.WriteFile(filepath.Join(dir, filenames.BootSession), []byte(id+"\n"), 0o644)
+	path := filepath.Join(dir, filenames.BootSession)
+	// Publish the complete boot ID; concurrent inspectors must never see
+	// an empty marker and treat all the running processes as stale.
+	if b, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(b)) == id {
+		return nil
+	}
+	f, err := os.CreateTemp(dir, ".boot-session-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err = f.WriteString(id + "\n"); err == nil {
+		err = f.Chmod(0644)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }
 
 func removePIDFiles(dir string) error {

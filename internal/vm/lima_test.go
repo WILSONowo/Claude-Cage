@@ -145,9 +145,9 @@ func TestLimaLifecycle(t *testing.T) {
 		t.Errorf("MaxName = %d: the test's Lima home is long, it should be less than 76", m)
 	}
 
-	proj := t.TempDir()
+	proj := filepath.ToSlash(t.TempDir())
 	off := false
-	mounts := []Mount{{Location: proj, MountPoint: proj, Writable: true,
+	mounts := []Mount{{Location: proj, MountPoint: paths.Guest(proj), Writable: true,
 		SSHFS: &SSHFS{SFTPDriver: "builtin", Cache: &off, ReadonlyNames: []string{".git", ".hg"}}}}
 	rev := ReverseSSHFS
 	port := 23456
@@ -164,9 +164,15 @@ func TestLimaLifecycle(t *testing.T) {
 
 	// A path Lima reads as written; those it would read as another (a Go
 	// template, what JSON escapes) refused, nothing written.
-	amp := filepath.Join(t.TempDir(), "R&D <x>")
-	os.MkdirAll(amp, 0o755)
-	withAmp := []Mount{{Location: amp, MountPoint: amp, Writable: true, SSHFS: &SSHFS{SFTPDriver: "builtin", ReadonlyNames: []string{".git", "a&b"}}}}
+	name := "R&D <x>"
+	if runtime.GOOS == "windows" {
+		name = "R&D" // Windows file names cannot contain angle brackets.
+	}
+	amp := filepath.ToSlash(filepath.Join(t.TempDir(), name))
+	if err := os.MkdirAll(amp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withAmp := []Mount{{Location: amp, MountPoint: paths.Guest(amp), Writable: true, SSHFS: &SSHFS{SFTPDriver: "builtin", ReadonlyNames: []string{".git", "a&b"}}}}
 	if err := l.Edit(ctx, "p-12345678", Settings{Mounts: &withAmp}); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +196,7 @@ func TestLimaLifecycle(t *testing.T) {
 	// Lima refuses a name with a slash: nothing is written.
 	yaml := filepath.Join(p.Dir, "lima.yaml")
 	before, _ := os.ReadFile(yaml)
-	bad := []Mount{{Location: proj, Writable: true, SSHFS: &SSHFS{SFTPDriver: "builtin", ReadonlyNames: []string{"a/b"}}}}
+	bad := []Mount{{Location: proj, MountPoint: paths.Guest(proj), Writable: true, SSHFS: &SSHFS{SFTPDriver: "builtin", ReadonlyNames: []string{"a/b"}}}}
 	if err := l.Edit(ctx, "p-12345678", Settings{Mounts: &bad}); err == nil {
 		t.Error("a name with a slash was accepted")
 	}
@@ -225,8 +231,8 @@ func TestLimaLifecycle(t *testing.T) {
 	}
 
 	// Never started with a share not confined to its folder.
-	plain := []Mount{{Location: proj, Writable: true}}
-	builtin := []Mount{{Location: proj, Writable: true, SSHFS: &SSHFS{SFTPDriver: "builtin"}}}
+	plain := []Mount{{Location: proj, MountPoint: paths.Guest(proj), Writable: true}}
+	builtin := []Mount{{Location: proj, MountPoint: paths.Guest(proj), Writable: true, SSHFS: &SSHFS{SFTPDriver: "builtin"}}}
 	for _, set := range []Settings{{Mounts: &plain, MountType: &rev}, {Mounts: &builtin, MountType: &def}} {
 		if err := l.Edit(ctx, "p-12345678", set); err != nil {
 			t.Fatal(err)
@@ -538,22 +544,30 @@ func TestLimaEditConcurrent(t *testing.T) {
 	ctx := context.Background()
 	l := newTestLima(t)
 	none := []Mount{}
-	if err := l.Create(ctx, "p-12345678", "template:debian-13", Settings{Mounts: &none}, io.Discard); err != nil {
+	if err := l.Create(ctx, "p-12345678", "template:debian-13", Settings{Mounts: &none, CPUs: 1}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
+	port := 23456
+	start := make(chan struct{})
 	for i := 1; i <= 8; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := l.Edit(ctx, "p-12345678", Settings{CPUs: i}); err != nil {
+			<-start
+			update := Settings{CPUs: i + 1}
+			if i == 8 {
+				update = Settings{SSHLocalPort: &port}
+			}
+			if err := l.Edit(ctx, "p-12345678", update); err != nil {
 				t.Error(err)
 			}
 		}()
 	}
+	close(start)
 	wg.Wait()
 	p, err := l.Get(ctx, "p-12345678")
-	if err != nil || p.Status == Broken {
+	if err != nil || p.Status == Broken || p.SSHPortConfig != port || p.CPUs < 2 || p.CPUs > 8 {
 		t.Fatalf("after: %v %+v", err, p)
 	}
 	ents, _ := os.ReadDir(p.Dir)

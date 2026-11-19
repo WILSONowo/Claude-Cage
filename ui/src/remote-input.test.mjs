@@ -679,6 +679,89 @@ test("ASCII punctuation is committed after a wait when the release is also lost"
     assert.deepEqual(f.texts, ["!"]);
   } finally { f.controller.dispose(); }
 });
+test("an IME answer after release replaces nothing once the literal was sent", async () => {
+  const f = fixture();
+  try {
+    f.rfb.focus();
+    f.key("keydown", "?", "Slash", { shiftKey: true });
+    f.key("keyup", "?", "Slash", { shiftKey: true });
+    assert.deepEqual(f.texts, ["?"]);
+    f.target.value = "？";
+    inputEvent(f, "input", { data: "？", inputType: "insertText" });
+    assert.deepEqual(f.texts, ["?"], "a late IME answer must not repeat the key");
+    assert.equal(f.target.value, "");
+    await new Promise(resolve => setTimeout(resolve, 200));
+    assert.deepEqual(f.texts, ["?"]);
+    // The late answer only consumes its own key; later typing is unaffected.
+    f.key("keydown", "!", "Digit1", { shiftKey: true });
+    f.target.value = "！";
+    inputEvent(f, "input", { data: "！", inputType: "insertText" });
+    f.key("keyup", "!", "Digit1", { shiftKey: true });
+    assert.deepEqual(f.texts, ["?", "！"]);
+  } finally { f.controller.dispose(); }
+});
+test("a late IME composition does not repeat a punctuation key sent on release", () => {
+  const f = fixture();
+  try {
+    f.rfb.focus();
+    f.key("keydown", "?", "Slash", { shiftKey: true });
+    f.key("keyup", "?", "Slash", { shiftKey: true });
+    inputEvent(f, "compositionstart");
+    inputEvent(f, "compositionend", { data: "？" });
+    assert.deepEqual(f.texts, ["?"]);
+    inputEvent(f, "compositionstart");
+    inputEvent(f, "compositionend", { data: "你好" });
+    assert.deepEqual(f.texts, ["?", "你好"]);
+  } finally { f.controller.dispose(); }
+});
+test("a silent IME does not swallow an emoji chosen after a punctuation key", () => {
+  const f = fixture();
+  try {
+    f.rfb.focus();
+    f.key("keydown", "?", "Slash", { shiftKey: true });
+    f.key("keyup", "?", "Slash", { shiftKey: true });
+    f.target.value = "🙂";
+    inputEvent(f, "input", { data: "🙂", inputType: "insertText" });
+    assert.deepEqual(f.texts, ["?", "🙂"]);
+  } finally { f.controller.dispose(); }
+});
+test("a pending punctuation key is dropped when the remote tab changes before release", async () => {
+  const f = fixture();
+  try {
+    f.rfb.focus();
+    f.key("keydown", "?", "Slash", { shiftKey: true });
+    f.setTabId("tab-2");
+    f.key("keyup", "?", "Slash", { shiftKey: true });
+    assert.deepEqual(f.texts, []);
+    f.key("keydown", "!", "Digit1", { shiftKey: true });
+    f.setTabId("tab-1");
+    await new Promise(resolve => setTimeout(resolve, 200));
+    assert.deepEqual(f.texts, [], "the timer must not send to another tab either");
+    f.key("keydown", "?", "Slash", { shiftKey: true });
+    f.setTabId("tab-2");
+    f.target.value = "？";
+    inputEvent(f, "input", { data: "？", inputType: "insertText" });
+    assert.deepEqual(f.texts, [], "an answer for the old tab must not reach the new one");
+    f.key("keyup", "?", "Slash", { shiftKey: true });
+    f.key("keydown", "?", "Slash", { shiftKey: true });
+    f.key("keyup", "?", "Slash", { shiftKey: true });
+    assert.deepEqual(f.texts, ["?"], "the new tab accepts keys pressed in it");
+  } finally { f.controller.dispose(); }
+});
+test("a pending punctuation key is dropped when the input loses focus", async () => {
+  const f = fixture();
+  try {
+    f.rfb.focus();
+    f.key("keydown", "?", "Slash", { shiftKey: true });
+    inputEvent(f, "blur");
+    f.key("keyup", "?", "Slash", { shiftKey: true });
+    f.rfb.focus();
+    f.key("keydown", "!", "Digit1", { shiftKey: true });
+    f.win.dispatchEvent(new Event("blur"));
+    await new Promise(resolve => setTimeout(resolve, 200));
+    assert.deepEqual(f.texts, []);
+  } finally { f.controller.dispose(); }
+});
 test("local fields and native keyboard mode do not acquire mapped shortcuts", () => {
   const f = fixture();
   try {

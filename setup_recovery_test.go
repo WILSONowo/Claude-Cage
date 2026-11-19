@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -23,6 +24,9 @@ func setupFunction(t *testing.T, name string, end string) string {
 }
 
 func TestRepositoryKeyFailurePreservesTrustedFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires a POSIX PATH to isolate sudo and guest commands; run this test on Linux")
+	}
 	for _, mode := range []string{"eof", "empty", "invalid", "success"} {
 		t.Run(mode, func(t *testing.T) {
 			dir := t.TempDir()
@@ -82,6 +86,9 @@ fi
 }
 
 func TestAPTFailureRecordsOOMWithoutChangingExitCode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires a POSIX PATH to isolate sudo and guest commands; run this test on Linux")
+	}
 	dir := t.TempDir()
 	commands := map[string]string{
 		"sudo": `#!/bin/sh

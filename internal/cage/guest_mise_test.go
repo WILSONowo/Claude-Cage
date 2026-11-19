@@ -35,6 +35,7 @@ func miseArchive(t *testing.T, member, content string) ([]byte, string) {
 }
 
 func TestMiseArchivesHaveIndependentPinsResumeAndFallback(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	for _, tc := range []struct{ arch, mode, sources string }{
 		{"amd64", "fresh", "release:0"}, {"arm64", "fresh", "release:0"},
 		{"amd64", "official-failure", "release:0 npm:0"},

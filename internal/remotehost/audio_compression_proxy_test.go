@@ -15,8 +15,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-
-	"github.com/sylvinus/agent-vm/internal/host"
 )
 
 // This exercises the real fixture SSH tunnel and Session.Transport through a
@@ -86,14 +84,6 @@ func TestAudioCompressionThroughSSHReverseProxy(t *testing.T) {
 				// client input/disconnect should end this output-only fixture.
 				_, _, _ = ws.NextReader()
 			})))
-			// newFixture creates a temporary key with POSIX mode 0600. Windows
-			// also needs the production private-file ACL before authentication.
-			if err := host.ProtectFile(f.profile.Auth.IdentityFile); err != nil {
-				t.Fatalf("protect temporary SSH fixture key: %v", err)
-			}
-			if err := host.CheckPrivateFile(f.profile.Auth.IdentityFile); err != nil {
-				t.Fatalf("temporary SSH fixture key is not private: %v", err)
-			}
 			s := connectFixture(t, f)
 			forwardsBefore := f.forwardCount.Load()
 			target, err := url.Parse(s.Origin)

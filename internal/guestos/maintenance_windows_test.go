@@ -16,6 +16,7 @@ import (
 )
 
 func TestWindowsHostRepairPreservesProcessOutput(t *testing.T) {
+	t.Setenv("PSModulePath", t.TempDir()) // Simulate a launcher using a different PowerShell runtime.
 	profile := t.TempDir()
 	if err := BindWindowsProfile(profile, windowsBindingFixture(profile)); err != nil {
 		t.Fatal(err)

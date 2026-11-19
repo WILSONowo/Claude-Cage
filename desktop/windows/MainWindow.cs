@@ -286,7 +286,6 @@ internal sealed class MainWindow : Form
             // control.json: a late refresh can publish a new controller record.
             if (!await Backend.DrainSmokeHelpers(TimeSpan.FromSeconds(5)))
                 errors.Add("自检辅助请求超时，已取消并确认退出");
-            shutdown.CancelAfter(TimeSpan.FromSeconds(20));
             var controllers = Backend.CaptureSmokeControllers();
             try
             {
@@ -297,6 +296,8 @@ internal sealed class MainWindow : Form
                 prepareMessage = System.Text.RegularExpressions.Regex.Replace(data.Text("message"), @"[?#][^\s""'<>)]*", "[redacted]");
                 if (prepareMessage.Length > 768) prepareMessage = prepareMessage[..768];
                 if (exit != 0 || data.Text("status") != "prepared") throw new IOException("自检结束时无法确认后台已停止");
+                if (nativeBridgeReady) smokePhase = "waiting_backend_process";
+                shutdown.CancelAfter(TimeSpan.FromSeconds(20));
                 await Task.WhenAll(controllers.Select(process => NativeHelperLifetime.WaitForProcessExitAsync(process, shutdown.Token)));
             }
             finally { foreach (var process in controllers) process.Dispose(); }

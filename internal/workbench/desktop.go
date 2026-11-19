@@ -463,14 +463,28 @@ func (c *controllerClient) waitForExit() error {
 		return errors.New("无法确认后台已退出，未继续更新。")
 	}
 	defer f.Close()
-	for i := 0; i < 100; i++ {
-		if lockController(f) == nil {
+	// HTTP handoff acknowledges before handlers, monitors and resources finish
+	// draining. Only acquisition of the same profile lock proves retirement.
+	timeout := time.NewTimer(30 * time.Second)
+	defer timeout.Stop()
+	poll := time.NewTicker(100 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		if err := lockController(f); err == nil {
 			_ = unlockController(f)
 			return nil
+		} else if !controllerLockContended(err) {
+			return fmt.Errorf("无法核对后台配置锁：%w", err)
 		}
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-timeout.C:
+			if c.launch.DesktopGateway {
+				return errors.New("已请求桌面连接服务退出，等待释放配置锁超时。请稍后重试。")
+			}
+			return errors.New("已请求环境后台退出，等待释放配置锁超时。请稍后重试。")
+		case <-poll.C:
+		}
 	}
-	return errors.New("后台尚未退出，未强制结束进程。请稍后重试更新。")
 }
 func startController(configPath string) error {
 	exe, err := os.Executable()

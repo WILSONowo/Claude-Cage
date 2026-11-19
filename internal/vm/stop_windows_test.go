@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/lima-vm/lima/v2/pkg/limatype/filenames"
+	"github.com/lima-vm/lima/v2/pkg/store"
+	"golang.org/x/sys/windows"
 )
 
 func TestGuestPowerdownRequiresMatchingQMPNameAndAcknowledgement(t *testing.T) {
@@ -94,5 +98,72 @@ func TestStoppedUpdateRefusesUnverifiedPID(t *testing.T) {
 	}
 	if pid, err := UpdateQEMUPID(dir); err != nil || pid != 0 {
 		t.Fatalf("stale record for a different executable: pid=%d err=%v", pid, err)
+	}
+}
+
+func TestLimaIgnoresExitedWindowsHostagentWithRetainedProcessHandle(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, filenames.HostAgentPID)
+	cmd := exec.Command("cmd.exe", "/d", "/q")
+	input, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		input.Close()
+		if cmd.ProcessState == nil {
+			cmd.Wait()
+		}
+	}()
+	pid := cmd.Process.Pid
+	h, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(pid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer windows.CloseHandle(h)
+	// Legacy installations have PID files without a boot marker.
+	if err := os.WriteFile(path, []byte(strconv.Itoa(pid)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.ReadPIDFile(path); got != pid || err != nil {
+		t.Fatalf("running: %d %v", got, err)
+	}
+	input.Close()
+	if err := cmd.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.ReadPIDFile(path); got != 0 || err != nil {
+		t.Fatalf("exited: %d %v", got, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("stale hostagent pidfile: %v", err)
+	}
+}
+
+func TestWindowsBootMarkerIgnoresReusedLivePIDFromPreviousBoot(t *testing.T) {
+	dir := t.TempDir()
+	pidfile := filepath.Join(dir, filenames.HostAgentPID)
+	if err := store.WritePIDFile(pidfile, os.Getpid()); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(dir, filenames.BootSession)
+	actual, err := os.ReadFile(marker)
+	if err != nil || strings.TrimSpace(string(actual)) == "" {
+		t.Fatal("no Windows boot marker", err)
+	}
+	if err := os.WriteFile(marker, []byte("prior-boot"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.ReadPIDFile(pidfile); got != 0 || err != nil {
+		t.Fatalf("trusted a prior boot PID: %d %v", got, err)
+	}
+	if err := store.WritePIDFile(pidfile, os.Getpid()); err != nil {
+		t.Fatal(err)
+	}
+	if updated, err := os.ReadFile(marker); err != nil || string(actual) != string(updated) {
+		t.Fatal("boot ID not stable", err)
 	}
 }

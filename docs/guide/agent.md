@@ -19,8 +19,15 @@ keywords: Agent CLI JSON 自动化 配置 接口 安装 诊断 修复 capabiliti
 | 平台 | 默认 CLI 位置 | 调用示例 |
 | --- | --- | --- |
 | macOS | `/Applications/Cage.app/Contents/Resources/cage` | `"/Applications/Cage.app/Contents/Resources/cage" agent capabilities` |
-| Windows | `%LOCALAPPDATA%\Programs\Cage\resources\cage.exe`，自定义安装目录以实际位置为准 | `& "$env:LOCALAPPDATA\Programs\Cage\resources\cage.exe" agent capabilities` |
+| Windows | 安装目录下的 `resources\cage.exe` | 见下方 PowerShell 示例 |
 | Linux | `/usr/bin/claude-cage` | `claude-cage agent capabilities` |
+
+Windows 安装器会记录当前用户的安装目录。首次安装默认使用固定盘上的 `D:\Cage`，没有固定 D 盘时使用 `%LOCALAPPDATA%\Programs\Cage`。自定义目录或升级后，可在 64 位 PowerShell 中按安装记录调用 CLI。
+
+```powershell
+$installDir = Get-ItemPropertyValue -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage' -Name InstallLocation -ErrorAction Stop
+& (Join-Path $installDir 'resources\cage.exe') agent capabilities
+```
 
 `agent capabilities` 输出本构建的协议版本、操作清单、输入字段和退出码，不启动后台或创建配置。首次配置与每次升级后都先读取一次。机器阅读入口为 `/agent.md`、`/llms.txt`、`/llms-full.txt`，使用 Cage 的外部 Agent 从本页开始。
 
@@ -49,7 +56,7 @@ Windows 可用 PowerShell 下载脚本后执行 `node .\agent-bootstrap.mjs plan
 | 平台 | 安装与验证 |
 | --- | --- |
 | macOS | 只读挂载 DMG，检查应用签名与 Gatekeeper 结果，按[安装指南](installation.md)放入应用程序目录。更新前保存任务并停止旧环境；保留可恢复的旧应用，安装失败时回滚应用文件。不要移除隔离属性或关闭系统校验来继续安装。 |
-| Windows | 检查下载包的签名状态；在用户授权的安装上下文运行安装器。`/S` 支持静默安装；已有自定义安装目录以安装记录为准。系统安全提示、Hyper-V 启用与重启可能需要用户操作。 |
+| Windows | 安装目录下的 `resources\cage.exe` | 见下方 PowerShell 示例 |
 | Linux | 在用户授权的权限上下文执行 `sudo apt-get install -- /absolute/path/Cage-版本-linux-amd64.deb`，由包管理器检查依赖。公共命令名是 `claude-cage`。 |
 
 安装、更新与卸载只处理应用文件。保留 `.claude-cage`、用户指定的数据目录、共享项目与持久虚拟机磁盘。已有账户重新出现创建界面时，首先核对 `config_path` 与原数据位置；不要创建替代账户或初始化旧数据目录。下载成功与应用已安装是两个状态；安装后验证真实 CLI 文件和 `agent capabilities`，再开始配置。

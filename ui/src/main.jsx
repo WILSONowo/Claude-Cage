@@ -796,8 +796,9 @@ function App() {
     setQuitting({ error: "" });
     try {
       await stopAndExit({
-        stop: () => api("/stop", {}),
-        readStatus: () => api("/status"),
+        stop: (signal) => api("/stop", {}, "POST", {}, { signal }),
+        readStatus: (signal) => api("/status", undefined, "GET", {}, { signal }),
+        readHistory: (signal) => api("/jobs/history", undefined, "GET", {}, { signal }),
         exit: () => native("quitNow"),
         isCancelled: () => quitAfterStop.current !== request,
         onStatus: setStatus,

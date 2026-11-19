@@ -21,7 +21,9 @@ internal sealed class NativeInput : TextBox
     {
         this.publish = publish;
         BorderStyle = BorderStyle.None; Multiline = true; TabStop = false;
-        ImeMode = ImeMode.On; Visible = false; Size = new Size(1, 24);
+        // WinForms maps On to full-shape input. Keep the user's IME mode on focus.
+        ImeMode = ImeMode.NoControl;
+        Visible = false; Size = new Size(1, 24);
         LostFocus += (_, _) => {
             Cancel(); Emit("deactivated"); owner = ""; Visible = false;
         };
@@ -63,12 +65,16 @@ internal sealed class NativeInput : TextBox
         else if (operation == "deactivate")
         {
             bool hadFocus = Focused && FindForm() == Form.ActiveForm;
-            Cancel(); owner = ""; Visible = false;
+            Cancel(); owner = "";
             if (hadFocus && FindForm() == Form.ActiveForm)
             {
+                // Hiding the focused edit first makes WinForms enter WebView2
+                // by tab order and select its first button. Restore DOM focus
+                // programmatically while the edit still owns the keyboard.
                 web.Focus();
                 returnedFocus = web.ContainsFocus;
             }
+            Visible = false;
         }
         else return false;
         return true;

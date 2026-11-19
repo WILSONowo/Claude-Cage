@@ -1,6 +1,7 @@
 package cage
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -8,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/sylvinus/agent-vm/internal/host"
 )
 
 type runningProfile struct {
@@ -66,7 +69,10 @@ func (c Config) RecordRunningAt(dir string) error {
 	if err = f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), filepath.Join(dir, "cage-running.json"))
+	if err := host.ReplaceFile(context.Background(), f.Name(), filepath.Join(dir, "cage-running.json")); err != nil {
+		return fmt.Errorf("无法更新环境运行记录，请等待占用文件的程序释放后重试: %w", err)
+	}
+	return nil
 }
 
 // CheckRunning prevents a profile edit from silently leaving a running VM on

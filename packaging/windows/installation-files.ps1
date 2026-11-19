@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('check-vm-location', 'prepare', 'move', 'restore', 'cleanup', 'complete', 'uninstall', 'detach', 'attach')][string]$Operation,
+    [Parameter(Mandatory)][ValidateSet('check-vm-location', 'prepare', 'move', 'restore', 'cleanup', 'complete', 'discard-empty-fresh', 'uninstall', 'detach', 'attach')][string]$Operation,
     [Parameter(Mandatory)][string]$Target,
     [string]$Source,
     [string]$Receipt,
@@ -214,6 +214,38 @@ function Complete-Transfer {
     if (Test-Path -LiteralPath $Receipt) { throw '安装回执在完成期间发生变化，已保留待核对。' }
 }
 
+# A failed first publication may leave the receipt as the only surviving
+# file. Never infer that an upgrade, a pending move or retained staging is safe.
+function Discard-EmptyFreshTransfer {
+    if ($Receipt -ne ($Target + '.cage-installation.json')) { throw '安装回执路径不匹配。' }
+    $stream = Open-ReadLocked $Receipt
+    try {
+        # A first-install receipt with no entries contains only three paths and metadata.
+        if ($stream.Length -gt 1MB) { throw '安装事务记录仍需核对。' }
+        $hash = Stream-Hash $stream
+        $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8, $true, 4096, $true)
+        try { $record = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+    } finally { $stream.Dispose() }
+    if ($record.kind -ne 'cage-installation' -or $record.version -ne 1 -or
+        $record.installPath -ne $Target -or $record.backupPath -ne '' -or
+        !$record.stagePath -or (Split-Path $record.stagePath -Parent) -ne (Split-Path $Target -Parent) -or
+        $record.stagePath -eq $Target) { throw '安装事务仍需核对。' }
+    foreach ($name in 'moves','files','directories') {
+        if ($record.$name -isnot [Array] -or $record.$name.Count -ne 0) { throw '安装事务包含待核对的文件。' }
+    }
+    try {
+        $null = Get-Item -LiteralPath $record.stagePath -Force -ErrorAction Stop
+        throw '临时安装目录仍存在。'
+    } catch [System.Management.Automation.ItemNotFoundException] {}
+    try {
+        $entry = Get-Item -LiteralPath $Target -Force -ErrorAction Stop
+        if (!$entry.PSIsContainer -or ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            @(Get-ChildItem -LiteralPath $Target -Force -ErrorAction Stop).Count) { throw '安装目标仍包含文件。' }
+    } catch [System.Management.Automation.ItemNotFoundException] {}
+    Remove-MatchingFile (Split-Path $Receipt -Parent) (Split-Path $Receipt -Leaf) $hash
+    if (Test-Path -LiteralPath $Receipt) { throw '安装回执发生变化，已保留待核对。' }
+}
+
 $Target = [IO.Path]::GetFullPath($Target).TrimEnd([IO.Path]::DirectorySeparatorChar)
 foreach ($rootPath in @($Target, $Source)) {
     if (!$rootPath) { continue }
@@ -419,6 +451,8 @@ if ($Operation -eq 'check-vm-location') {
     if (!$Source) { throw '缺少待发布的程序目录。' }
     $Source = [IO.Path]::GetFullPath($Source).TrimEnd([IO.Path]::DirectorySeparatorChar)
     Move-TopLevel $Source $Target @()
+} elseif ($Operation -eq 'discard-empty-fresh') {
+    Discard-EmptyFreshTransfer
 } elseif ($Operation -eq 'complete') {
     $diagnosticStep = 'completing_transaction_receipt'
     Complete-Transfer

@@ -36,7 +36,7 @@ import (
 const help = `Claude Cage — local isolated Claude development
 
 cage desktop       Open the unified Cage workbench (desktop launcher)
-cage agent         Discover and use the versioned, JSON-only external Agent interface
+cage agent capabilities   List the operations supported by the JSON Agent interface
 cage serve         Run its private localhost control service
 cage server-entry --json  Issue a private SSH remote connection entry
 cage container-configure --json  Configure a Linux container from JSON stdin
@@ -94,6 +94,16 @@ func run() int {
 	cli.Command = "claude-cage"
 	cli.UpdateHint = "update Cage from the app, or with the installer or package that installed it"
 	args := os.Args[1:]
+	// Resolve a command's own help before opening a profile or starting services.
+	// Later arguments may belong to a guest command, e.g. cage run git --help.
+	if len(args) >= 2 && (args[1] == "--help" || args[1] == "-h") {
+		for line := range strings.SplitSeq(help, "\n") {
+			if strings.HasPrefix(line, "cage "+args[0]+" ") {
+				fmt.Println(line)
+				return 0
+			}
+		}
+	}
 	if len(args) > 0 && args[0] == "host-download" {
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
@@ -105,6 +115,10 @@ func run() int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		fmt.Print(help)
 		return 0
+	}
+	if args[0] == "init" && len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "init takes no arguments; see cage init --help")
+		return 2
 	}
 	// These read only this build's own metadata. Answering them before the
 	// profile is opened keeps `cage version --min` usable on a fresh install.

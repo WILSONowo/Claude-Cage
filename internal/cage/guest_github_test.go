@@ -34,7 +34,8 @@ sudo() {
 }
 cage_install_tool gh
 `
-				cmd := exec.Command("bash", "-c", script)
+				cmd := exec.Command("bash", "-s")
+				cmd.Stdin = strings.NewReader(script)
 				cmd.Env = append(os.Environ(), "HOME="+dir, "TEST_ARCH="+arch, "TEST_INSTALLED="+map[bool]string{true: "true", false: "false"}[installed])
 				if out, err := cmd.CombinedOutput(); err != nil {
 					t.Fatalf("%v: %s", err, out)
@@ -68,7 +69,7 @@ func TestGeneratedVMPromptMigrationPreservesUserSettings(t *testing.T) {
 		}
 		for range 2 {
 			cmd := exec.Command("python3", "-c", script)
-			cmd.Env = append(os.Environ(), "HOME="+dir)
+			cmd.Env = append(os.Environ(), "HOME="+dir, "USERPROFILE="+dir)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("%v: %s", err, out)
 			}

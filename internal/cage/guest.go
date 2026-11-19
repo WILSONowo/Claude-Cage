@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -244,7 +245,19 @@ var DebianPrepareScript = DebianPrepareScriptFor("")
 
 // DebianMirrorEnv carries the host's Debian source choice into the cage CLI
 // and from there into the guest scripts.
-const DebianMirrorEnv = "CAGE_DEBIAN_MIRROR"
+const DebianMirrorEnv = "CAGE_DEBIAN_MIRROR_ORDER"
+
+// DebianMirrorOrder also accepts the policy names used by older launchers.
+// Cloud image builders use the legacy variable for a URL instead.
+func DebianMirrorOrder() string {
+	if order, set := os.LookupEnv(DebianMirrorEnv); set {
+		return order
+	}
+	if legacy := os.Getenv("CAGE_DEBIAN_MIRROR"); ValidDebianMirror(legacy) {
+		return legacy
+	}
+	return ""
+}
 
 // ValidDebianMirror reports whether preference names a Debian source policy:
 // "auto" (official first), "domestic" (mirrors first) or "official" (pinned).
@@ -339,7 +352,46 @@ func componentStartScript() string {
 
 func markGuestStart(body string) string {
 	manifest, _ := json.Marshal(RequiredGuestManifest())
-	return "set -euo pipefail\nsudo rm -f /etc/claude-cage/components.json\n(\n" + body + "\n)\nsudo python3 - <<'CAGE_COMPONENT_MANIFEST'\nfrom pathlib import Path\nimport os,tempfile\np=Path('/etc/claude-cage/components.json')\nfd,name=tempfile.mkstemp(prefix='.components-',dir=p.parent)\nwith os.fdopen(fd,'w') as f:\n f.write(" + fmt.Sprintf("%q", string(manifest)) + ")\n f.flush();os.fsync(f.fileno())\nos.chmod(name,0o644)\nos.replace(name,p)\nCAGE_COMPONENT_MANIFEST\n"
+	// Keep the last completed receipt. The durable pending marker prevents a
+	// partially updated environment from being accepted on the next start.
+	return `set -euo pipefail
+sudo install -d -m 0755 /etc/claude-cage
+exec 9</etc/claude-cage
+flock -x 9
+sudo python3 - <<'CAGE_COMPONENT_BEGIN'
+import os
+from pathlib import Path
+pending = Path('/etc/claude-cage/components.pending')
+pending.touch()
+directory = os.open(pending.parent, os.O_DIRECTORY)
+os.fsync(directory)
+os.close(directory)
+CAGE_COMPONENT_BEGIN
+(
+exec 9<&-
+` + body + `
+)
+sudo python3 - <<'CAGE_COMPONENT_MANIFEST'
+from pathlib import Path
+import os, tempfile
+p = Path('/etc/claude-cage/components.json')
+directory = os.open(p.parent, os.O_DIRECTORY)
+fd, name = tempfile.mkstemp(prefix='.components-', dir=p.parent)
+try:
+    with os.fdopen(fd, 'w') as f:
+        f.write(` + fmt.Sprintf("%q", string(manifest)) + `)
+        f.flush()
+        os.fchmod(f.fileno(), 0o644)
+        os.fsync(f.fileno())
+    os.replace(name, p)
+    os.fsync(directory)
+    p.with_name('components.pending').unlink()
+    os.fsync(directory)
+finally:
+    Path(name).unlink(missing_ok=True)
+    os.close(directory)
+CAGE_COMPONENT_MANIFEST
+`
 }
 
 type GuestManifest struct {

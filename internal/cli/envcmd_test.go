@@ -140,7 +140,9 @@ func TestProjectEnvSymlink(t *testing.T) {
 	proj := t.TempDir()
 	secret := filepath.Join(t.TempDir(), "secret")
 	os.WriteFile(secret, []byte("TOPSECRET=1\n"), 0o600)
-	os.Symlink(secret, filepath.Join(proj, ".agent-vm.env"))
+	if err := os.Symlink(secret, filepath.Join(proj, ".agent-vm.env")); err != nil {
+		t.Fatal(err)
+	}
 	t.Chdir(proj)
 	t.Setenv("PWD", proj)
 	for _, args := range [][]string{{"project-env", "get", "TOPSECRET"}, {"project-env", "list"}, {"project-env", "set", "K", "v"}, {"project-env", "unset", "TOPSECRET"}} {

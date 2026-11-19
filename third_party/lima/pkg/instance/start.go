@@ -362,16 +362,23 @@ func Start(ctx context.Context, inst *limatype.Instance, launchHostAgentForegrou
 	return StartWithPaths(ctx, inst, launchHostAgentForeground, showProgress, "", "")
 }
 
-func waitHostAgentStart(_ context.Context, haPIDPath, haStderrPath string) error {
-	begin := time.Now()
-	deadlineDuration := 5 * time.Second
-	deadline := begin.Add(deadlineDuration)
+func waitHostAgentStart(ctx context.Context, haPIDPath, haStderrPath string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
 	for {
-		if _, err := os.Stat(haPIDPath); !errors.Is(err, os.ErrNotExist) {
+		pid, err := store.ReadPIDFile(haPIDPath)
+		if err != nil {
+			return err
+		}
+		if pid != 0 {
 			return nil
 		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("hostagent (%#q) did not start up in %v (hint: see %#q)", haPIDPath, deadlineDuration, haStderrPath)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("hostagent (%#q) did not start up (hint: see %#q): %w", haPIDPath, haStderrPath, ctx.Err())
+		case <-ticker.C:
 		}
 	}
 }

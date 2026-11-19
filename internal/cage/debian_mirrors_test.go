@@ -9,6 +9,7 @@ import (
 )
 
 func TestDebianMirrorFailureFallbackAndPreference(t *testing.T) {
+	requirePOSIXGuestFixture(t)
 	old := "https://mirrors.nju.edu.cn/debian\tpriority:1\nhttps://mirrors.ustc.edu.cn/debian\tpriority:2\nhttps://deb.debian.org/debian\tpriority:3\n"
 	for _, mode := range []string{"reachable", "bookworm", "tls-failure", "official-failure", "nju-failure", "official", "custom", "old", "reboot", "invalid", "domestic", "env-domestic", "env-invalid"} {
 		t.Run(mode, func(t *testing.T) {
@@ -134,5 +135,24 @@ exit 0
 				t.Fatal("preference changed on repeated setup")
 			}
 		})
+	}
+}
+
+func TestDebianMirrorOrderSeparatesCloudURL(t *testing.T) {
+	t.Setenv(DebianMirrorEnv, "")
+	if err := os.Unsetenv(DebianMirrorEnv); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CAGE_DEBIAN_MIRROR", "https://mirror.example.org")
+	if got := DebianMirrorOrder(); got != "" {
+		t.Fatalf("cloud origin used as a guest preference: %q", got)
+	}
+	t.Setenv("CAGE_DEBIAN_MIRROR", "domestic")
+	if got := DebianMirrorOrder(); got != "domestic" {
+		t.Fatalf("legacy host preference lost: %q", got)
+	}
+	t.Setenv(DebianMirrorEnv, "official")
+	if got := DebianMirrorOrder(); got != "official" {
+		t.Fatalf("explicit host preference lost: %q", got)
 	}
 }

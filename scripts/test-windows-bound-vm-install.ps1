@@ -45,6 +45,21 @@ try {
     $source = Get-Content -Raw -LiteralPath (Join-Path $PackagingDirectory 'Cage.nsi')
     $source = $source.Replace('Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage',$keyName).Replace('Global\Cage.Installation',('Local\CageInstallerTests.' + $id))
     $source = $source.Replace('SetCompressorDictSize 32', 'SetCompress off')
+    # Emulate a scanner holding the staging directory without delete sharing
+    # exactly at publication. Only this isolated installer owns the handle.
+    $holdStage = @'
+  !insertmacro InstallPhase "publishing_application"
+  IfFileExists "$INSTDIR.hold-stage" 0 +2
+    System::Call 'kernel32::CreateFileW(w "$StageDir", i 1, i 1, p 0, i 3, i 0x02000000, p 0) p .r8'
+'@
+    $source = $source.Replace('  !insertmacro InstallPhase "publishing_application"', $holdStage.TrimEnd())
+    $failedPublish = @'
+  ${If} ${Errors}
+    IfFileExists "$INSTDIR.hold-stage" 0 +2
+      System::Call 'kernel32::CloseHandle(p r8)'
+    ${If} $BackupDir != ""
+'@
+    $source = [regex]::Replace($source, '(?m)^  \$\{If\} \$\{Errors\}\r?\n    \$\{If\} \$BackupDir != ""', [Text.RegularExpressions.MatchEvaluator]{ param($m) $failedPublish.TrimEnd() })
     foreach ($item in @(@('$DESKTOP','Desktop'),@('$SMPROGRAMS','Programs'))) {
         $directory = [IO.Directory]::CreateDirectory((Join-Path $root $item[1])).FullName
         $source = $source.Replace($item[0], $directory.Replace('$','$$'))
@@ -146,6 +161,26 @@ try {
                 $controller.Dispose()
             }
         }
+    }
+    if (!$Baseline) {
+        $publishTarget = Join-Path $root 'fresh-locked-stage'
+        $holdMarker = "$publishTarget.hold-stage"
+        [IO.File]::WriteAllText($holdMarker, '')
+        Run-Setup $publishTarget 'held-stage' 2
+        Remove-Item -LiteralPath $holdMarker
+        $receipt = "$publishTarget.cage-installation.json"
+        Assert ($reports['held-stage'].phase -eq 'publishing_application' -and $reports['held-stage'].win32Error -in @(5,32,33)) "Fresh publish hid the sharing error; receipt remains: $(Test-Path -LiteralPath $receipt)"
+        Assert (!(Test-Path -LiteralPath $receipt)) 'Failed fresh publication blocked its retry with an empty receipt'
+        # An older failed wizard left this exact receipt on disk. Pending
+        # transfer entries must still block a retry, even if their paths vanished.
+        $stale = @{kind='cage-installation'; version=1; installPath=$publishTarget; stagePath=(Join-Path $root 'absent-stage'); backupPath=''; files=@(); directories=@(); moves=@(@{path='project.txt'; state='prepared'})}
+        $stale | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $receipt
+        $before = (Get-FileHash -LiteralPath $receipt).Hash
+        Run-Setup $publishTarget 'unresolved-fresh-receipt' 2
+        Assert ((Get-FileHash -LiteralPath $receipt).Hash -eq $before) 'An unresolved receipt was changed'
+        $stale.moves = @()
+        $stale | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $receipt
+        Run-Setup $publishTarget 'held-stage-retry' 0
     }
     Run-Setup $target 'fresh' 0
     $instance = [IO.Directory]::CreateDirectory((Join-Path $target 'CageData/state/windows-00000000000000000000000000000001')).FullName

@@ -11,7 +11,12 @@ import (
 
 func WithDirectory(ctx context.Context, dir string, fn func() error) error {
 	// Keep the existing lock filename and byte range for old app instances.
-	file, err := os.OpenFile(dir+".lock", os.O_CREATE|os.O_RDWR, 0600)
+	return WithFile(ctx, dir+".lock", fn)
+}
+
+// WithFile holds an exclusive lock on a stable file for the duration of fn.
+func WithFile(ctx context.Context, path string, fn func() error) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
 	}

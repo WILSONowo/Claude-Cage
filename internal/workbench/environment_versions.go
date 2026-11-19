@@ -14,9 +14,9 @@ import (
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 )
 
-var errGuestUpdateRequired = errors.New("环境组件需要更新，请先保存浏览器和编辑器中的修改。Cage 终端与磁盘保留，编辑器内终端可能结束。")
+var errGuestUpdateRequired = errors.New("环境组件需要更新。请先保存工作，再到设置的「版本与组件」点击「更新环境组件」。")
 
-const guestConnectionSnapshot = `sudo cat /etc/claude-cage/browser-control.json; printf '\n'; cat "$HOME/.config/claude-cage/browser-password"; printf '\n'; if sudo test -f /etc/claude-cage/components.json; then sudo cat /etc/claude-cage/components.json; else printf 'null'; fi`
+const guestConnectionSnapshot = `sudo cat /etc/claude-cage/browser-control.json; printf '\n'; cat "$HOME/.config/claude-cage/browser-password"; printf '\n'; if sudo test -f /etc/claude-cage/components.json && ! sudo test -e /etc/claude-cage/components.pending; then sudo cat /etc/claude-cage/components.json; else printf 'null'; fi`
 
 func parseGuestConnection(data []byte) (guestCredentials, *cage.GuestManifest, error) {
 	lines := strings.SplitN(strings.TrimSpace(string(data)), "\n", 3)
@@ -74,10 +74,11 @@ for name,args in {'chromium':[browser,'--version'],'code_server':['code-server',
   result=subprocess.run(args,env=env,capture_output=True,text=True,timeout=4)
   versions[name]=result.stdout.strip().splitlines()[0][:200] if result.returncode==0 and result.stdout.strip() else ''
  except (OSError,subprocess.TimeoutExpired): versions[name]=''
-print(json.dumps({'manifest':manifest,'tools':versions}))
+print(json.dumps({'manifest':manifest,'pending':p.with_name('components.pending').exists(),'tools':versions}))
 CAGE_VERSIONS`)
 		var snapshot struct {
 			Manifest *cage.GuestManifest `json:"manifest"`
+			Pending  bool                `json:"pending"`
 			Tools    map[string]string   `json:"tools"`
 		}
 		if err != nil || json.Unmarshal(data, &snapshot) != nil {
@@ -85,7 +86,7 @@ CAGE_VERSIONS`)
 			detail = "环境版本暂时无法读取，请恢复连接后重试。"
 		} else {
 			components.Current = snapshot.Manifest
-			components.UpdateRequired = snapshot.Manifest == nil || !snapshot.Manifest.Current()
+			components.UpdateRequired = snapshot.Pending || snapshot.Manifest == nil || !snapshot.Manifest.Current()
 			components.Status = "current"
 			if components.UpdateRequired {
 				components.Status = "update_required"

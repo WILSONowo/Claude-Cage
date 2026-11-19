@@ -41,7 +41,9 @@ func TestStageSymlink(t *testing.T) {
 	os.MkdirAll(filepath.Dir(real), 0o755)
 	os.WriteFile(real, []byte("v1"), 0o644)
 	link := filepath.Join(dir, ".gitconfig")
-	os.Symlink(real, link)
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
 	dst := filepath.Join(dir, "stage", "f")
 	if !Stage(link, dst, io.Discard) {
 		t.Fatal("not staged")
@@ -93,7 +95,9 @@ func TestCredentialLocation(t *testing.T) {
 	t.Setenv("APPDATA", filepath.Join(s.root, "appdata"))
 	t.Setenv("LOCALAPPDATA", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
-	os.Symlink(s.home+"/.ssh", s.proj+"/lnk")
+	if err := os.Symlink(s.home+"/.ssh", s.proj+"/lnk"); err != nil {
+		t.Fatal(err)
+	}
 	refs := s.refs()
 	for _, c := range []struct {
 		dir string
@@ -131,7 +135,9 @@ func TestCredentialLocation(t *testing.T) {
 	// A credentials folder that is a link to another: that one counts too.
 	os.RemoveAll(s.home + "/.aws")
 	os.MkdirAll(s.root+"/dotfiles/aws", 0o755)
-	os.Symlink(s.root+"/dotfiles/aws", s.home+"/.aws")
+	if err := os.Symlink(s.root+"/dotfiles/aws", s.home+"/.aws"); err != nil {
+		t.Fatal(err)
+	}
 	if _, bad := CredentialLocation(s.root+"/dotfiles/aws", refs); !bad {
 		t.Error("the target of ~/.aws was let through")
 	}

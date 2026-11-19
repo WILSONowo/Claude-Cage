@@ -12,8 +12,39 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
+
+func TestHandoffWaitsForProfileLockRelease(t *testing.T) {
+	for _, slowExit := range []bool{true, false} {
+		t.Run(strconv.FormatBool(slowExit), func(t *testing.T) {
+			profile := t.TempDir()
+			holder, err := openControllerLock(profile, os.O_CREATE|os.O_RDWR)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer holder.Close()
+			if err = lockController(holder); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Test(t, func(t *testing.T) {
+				if slowExit {
+					go func() {
+						time.Sleep(12 * time.Second)
+						if err := unlockController(holder); err != nil {
+							t.Error(err)
+						}
+					}()
+				}
+				client := controllerClient{profile: profile}
+				if err := client.waitForExit(); (err == nil) != slowExit {
+					t.Fatalf("waitForExit for slowExit=%t: %v", slowExit, err)
+				}
+			})
+		})
+	}
+}
 
 // Reusing a dead controller's port must not turn an old token into a
 // permanently unopenable profile, including when its PID has been reused.

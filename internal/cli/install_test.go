@@ -24,13 +24,27 @@ func TestInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if te.run("install") != 0 || !strings.Contains(te.out(), "Linked "+link+" -> "+exe) || !strings.Contains(te.out(), "is not on your PATH") {
+	// Probe the actual installation volume. A regular user can install a
+	// copy on Windows even when creating a symbolic link is not permitted.
+	probe := filepath.Join(filepath.Dir(bin), "link-probe")
+	probeErr := os.Symlink(exe, probe)
+	if probeErr != nil && !symlinkUnsupported(probeErr) {
+		t.Fatal(probeErr)
+	}
+	if te.run("install") != 0 || !strings.Contains(te.out(), "is not on your PATH") {
 		t.Fatalf("install: %s", te.out())
+	}
+	if probeErr == nil {
+		if !strings.Contains(te.out(), "Linked "+link+" -> "+exe) {
+			t.Fatalf("expected link installation: %s", te.out())
+		}
+	} else if !strings.Contains(te.out(), "a copy of") || !sameContent(link, exe) {
+		t.Fatalf("expected a copy of the executable: %s", te.out())
 	}
 	if !strings.Contains(te.out(), "agent-vm setup     # build the base VM, once") {
 		t.Errorf("next step: %s", te.out())
 	}
-	if t2, _ := os.Readlink(link); t2 != exe {
+	if t2, _ := os.Readlink(link); probeErr == nil && t2 != exe {
 		t.Errorf("link: %q", t2)
 	}
 	if te.run("install") != 0 || !strings.Contains(te.out(), "already linked") {
@@ -69,20 +83,22 @@ func TestInstall(t *testing.T) {
 	if b, _ := os.ReadFile(link); string(b) != "#!/bin/sh\n" {
 		t.Error("the foreign file changed")
 	}
-	// A dangling link of someone else's: refused, left.
-	os.Remove(link)
-	os.Symlink(filepath.Join(home, "gone"), link)
-	if te.run("install") != 1 || !strings.Contains(te.out(), "already exists and is not a link to") {
-		t.Errorf("dangling link: %s", te.out())
-	}
-	// 0.2's link to its agent-vm.sh: replaced.
-	os.Remove(link)
-	os.Symlink(filepath.Join(home, "agent-vm", "agent-vm.sh"), link)
-	if te.run("install") != 0 || !strings.Contains(te.out(), "Replacing "+link) {
-		t.Errorf("0.2's link: %s", te.out())
-	}
-	if t2, _ := os.Readlink(link); t2 != exe {
-		t.Errorf("link after 0.2's: %q", t2)
+	if probeErr == nil {
+		// A dangling link of someone else's: refused, left.
+		os.Remove(link)
+		os.Symlink(filepath.Join(home, "gone"), link)
+		if te.run("install") != 1 || !strings.Contains(te.out(), "already exists and is not a link to") {
+			t.Errorf("dangling link: %s", te.out())
+		}
+		// 0.2's link to its agent-vm.sh: replaced.
+		os.Remove(link)
+		os.Symlink(filepath.Join(home, "agent-vm", "agent-vm.sh"), link)
+		if te.run("install") != 0 || !strings.Contains(te.out(), "Replacing "+link) {
+			t.Errorf("0.2's link: %s", te.out())
+		}
+		if t2, _ := os.Readlink(link); t2 != exe {
+			t.Errorf("link after 0.2's: %q", t2)
+		}
 	}
 	// A copy an earlier install recorded, since updated: replaced, and
 	// removed by uninstall.
