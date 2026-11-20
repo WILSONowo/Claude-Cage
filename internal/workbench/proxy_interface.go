@@ -2,43 +2,86 @@ package workbench
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/sylvinus/agent-vm/internal/containerenv"
+	"github.com/sylvinus/agent-vm/internal/diagnostics"
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
+	"github.com/sylvinus/agent-vm/internal/usererror"
 )
 
 var physicalProxyInterface = managedproxy.PhysicalInterface
 
-// The lifecycle lock is held by monitorNetwork. Schedule a regular job so a
-// user stop can cancel recovery and pause can still revoke the gate immediately.
-func (s *Server) monitorProxyInterface() {
-	s.monitorProxyInterfaceWithProbe(physicalProxyInterface)
+type proxyInterfaceObservation struct {
+	name, configuration, jobID string
+	bound                      string
+	bindingErr                 error
+	err                        error
 }
 
-// The probe may be sampled outside the lifecycle lock; all decisions and
-// mutations still run inside the existing serialized monitor operation.
-func (s *Server) monitorProxyInterfaceWithProbe(probe func(context.Context) (string, error)) {
-	if s.busy() {
+// Reading the host route can block inside the operating system and does not
+// need to serialize with projects, terminals or environment operations.
+func (s *Server) observeProxyInterface(ctx context.Context) proxyInterfaceObservation {
+	job := s.jobs.snapshot()
+	if job.Running {
+		return proxyInterfaceObservation{}
+	}
+	// A stopped Lima guest is known to have no traffic. Native guest
+	// supervision also runs during reconnect, before the guest has reported
+	// its state. A container state check itself runs an engine command.
+	if s.macosGuest == nil && s.windowsGuest == nil && !containerenv.Configured(s.profile) && !s.vmRunning() {
+		return proxyInterfaceObservation{}
+	}
+	cfg, err := loadConfig(s.configPath)
+	if err != nil {
+		return proxyInterfaceObservation{}
+	}
+	observed := proxyInterfaceObservation{configuration: cfg.Fingerprint(), jobID: job.ID}
+	observed.bound, observed.bindingErr = managedproxy.BoundInterface(filepath.Join(managedproxy.Dir(s.profile), "config.yaml"))
+	if s.proxyStore.Applied(s.profile, cfg.ProxyURL, cfg.ProxyRevision) != nil {
+		return proxyInterfaceObservation{}
+	}
+	observed.name, observed.err = physicalProxyInterface(ctx)
+	return observed
+}
+
+// The lifecycle lock covers effects such as revocation and recovery admission.
+// Discard observations made before a configuration change or a lifecycle job.
+func (s *Server) applyProxyInterfaceObservation(observed proxyInterfaceObservation) {
+	job := s.jobs.snapshot()
+	if observed.configuration == "" || job.Running || job.ID != observed.jobID {
 		return
 	}
 	cfg, err := loadConfig(s.configPath)
-	if err != nil || cfg.RequireManagedProxy(s.profile) != nil {
+	if err != nil || cfg.Fingerprint() != observed.configuration {
 		return
 	}
-	name, err := probe(s.lifetimeContext())
-	if err != nil {
-		_ = s.closeProxyGate(err.Error())
+	if s.proxyStore.Applied(s.profile, cfg.ProxyURL, cfg.ProxyRevision) != nil {
+		return
+	}
+	if observed.err != nil {
+		reason := observed.err.Error()
+		_ = s.closeProxyGate(reason)
 		s.mu.Lock()
-		s.safety.monitorError = err.Error()
+		s.safety.monitorError = reason
 		s.proxyNetworkLost = true
 		s.mu.Unlock()
 		return
 	}
 	s.mu.Lock()
 	lost := s.proxyNetworkLost
+	retry := s.proxyNetworkRetry
 	s.mu.Unlock()
-	bound, err := managedproxy.BoundInterface(filepath.Join(managedproxy.Dir(s.profile), "config.yaml"))
-	if err != nil || (bound == name && !lost) {
+	if observed.bindingErr != nil && !(lost && os.IsNotExist(observed.bindingErr)) || (observed.bound == observed.name && !lost) {
+		return
+	}
+	if lost && time.Now().Before(retry) {
+		return
+	}
+	if !s.vmRunning() {
 		return
 	}
 	// Revoke the previous report before the asynchronous recovery can start.
@@ -46,12 +89,34 @@ func (s *Server) monitorProxyInterfaceWithProbe(probe func(context.Context) (str
 		return
 	}
 	s.mu.Lock()
-	s.proxyNetworkLost = false
+	s.proxyNetworkLost = true
+	s.proxyNetworkRetry = time.Now().Add(15 * time.Second)
 	s.mu.Unlock()
 	_, _ = s.submitJob("proxy-network", s.rebindProxyInterface)
 }
 
-func (s *Server) rebindProxyInterface() error {
+func (s *Server) monitorProxyInterface() {
+	s.applyProxyInterfaceObservation(s.observeProxyInterface(s.lifetimeContext()))
+}
+
+func (s *Server) rebindProxyInterface() (returned error) {
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if returned == nil {
+			s.proxyNetworkLost = false
+			s.proxyNetworkRetry = time.Time{}
+			s.safety.monitorError = ""
+			return
+		}
+		// Keep the outage pending even if the restored uplink has the same
+		// interface name. Only a complete rebind/check resolves the outage.
+		s.proxyNetworkLost = true
+		s.proxyNetworkRetry = time.Now().Add(15 * time.Second)
+		if !errors.Is(returned, context.Canceled) {
+			s.safety.monitorError = diagnostics.Redact(usererror.Display("恢复代理连接", returned, "连接恢复后会自动重试，也可手动重新检测。").Error())
+		}
+	}()
 	s.setMessage("正在识别物理网卡并重新绑定代理…")
 	cfg, err := loadConfig(s.configPath)
 	if err != nil {

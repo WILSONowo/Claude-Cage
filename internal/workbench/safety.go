@@ -591,7 +591,7 @@ func (s *Server) locationForIP(ctx context.Context, cfg cage.Config, ip string) 
 	if ok && time.Since(loc.CheckedAt) < time.Hour && loc.CountryCode != "" {
 		return loc, nil
 	}
-	loc, err := probeLocationForIP(ctx, cfg, ip)
+	loc, err := probeLocationForIP(ctx, cfg, ip, s.locationLookupOptions())
 	if err != nil {
 		return Location{}, err
 	}
@@ -712,7 +712,7 @@ func (s *Server) runSafetyCheck() (returned error) {
 	}()
 	if cfg.ExitPolicy.NeedsBinding() {
 		s.setMessage("正在首次绑定此出口节点的 IP 或地区…")
-		loc, err := probeLocation(ctx, cfg)
+		loc, err := probeLocation(ctx, cfg, s.locationLookupOptions())
 		if err != nil {
 			return err
 		}

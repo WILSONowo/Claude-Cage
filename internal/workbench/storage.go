@@ -89,7 +89,7 @@ func (s *Server) recoverEnvironmentStorage(w http.ResponseWriter, r *http.Reques
 	if !readJSON(w, r, &input) {
 		return
 	}
-	s.launch(w, "storage-recovery", func() error {
+	s.launchRequest(w, r, "storage-recovery", func() error {
 		if input.Repair {
 			s.setMessage("正在修复 Windows 系统助手，请完成系统授权…")
 			kit, _ := s.nativeComponentKit()
@@ -170,7 +170,7 @@ func (s *Server) environmentStorage(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &input) {
 		return
 	}
-	s.launch(w, "storage", func() error {
+	s.launchRequest(w, r, "storage", func() error {
 		if err := guestos.RecoverWindowsStorage(s.operationContext(), s.profile); err != nil {
 			return s.failStorageRecovery(err)
 		}

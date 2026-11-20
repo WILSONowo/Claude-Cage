@@ -48,4 +48,5 @@ deb="$output/Cage-$version-linux-amd64.deb"
 dpkg-deb --root-owner-group --build "$stage" "$deb"
 cp _output/linux-deps/mihomo-v1.19.33-source.tar.gz "$output/"
 (cd "$output" && sha256sum "$(basename "$deb")" mihomo-v1.19.33-source.tar.gz > SHA256SUMS)
+node scripts/prune-local-builds.mjs "$output"
 printf 'Packaged: %s\n' "$deb"

@@ -124,5 +124,6 @@ if ($Release) {
 }
 $sums = foreach ($file in $releaseFiles) { (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + [IO.Path]::GetFileName($file) }
 [IO.File]::WriteAllLines((Join-Path $OutputDirectory 'SHA256SUMS'), $sums)
+Invoke-BuildTool (Get-BuildCommand @('node.exe', 'node')) @((Join-Path $PSScriptRoot 'prune-local-builds.mjs'), $OutputDirectory)
 Write-Host "Windows installer: $artifact"
 if (-not $signed) { Write-Warning 'Unsigned development installer. Do not publish it as an automatic update; Windows VM and installation acceptance are still required.' }

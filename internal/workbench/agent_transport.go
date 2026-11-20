@@ -120,6 +120,7 @@ func AgentRequest(ctx context.Context, configPath string, target AgentTarget, me
 		connection = target.Connection
 	}
 	req.Header.Set(connectionHeader, connection)
+	req.Header.Set(jobInitiatorHeader, jobInitiatorAgent)
 	response, err := c.client.Do(req)
 	if err != nil {
 		return result, &AgentError{Code: "outcome_unknown", Message: "The request was interrupted. Inspect the original target before repeating a mutation.", NextAction: "status"}

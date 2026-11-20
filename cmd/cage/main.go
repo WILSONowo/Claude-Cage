@@ -42,7 +42,7 @@ cage server-entry --json  Issue a private SSH remote connection entry
 cage container-configure --json  Configure a Linux container from JSON stdin
 cage init          Create a private profile; add and select nodes in Cage settings
 cage check         Verify proxy transport (no VM required)
-cage guest-os --json  Check host prerequisites for a same-system guest
+cage guest-os --json  Inspect requirements for an existing native guest
                      On Windows, add --vm-id GUID to inspect one Hyper-V VM
 cage proxy-start   Start Cage's bundled proxy core with the applied node
 cage proxy-stop    Stop Cage's core and close external networking
@@ -51,7 +51,12 @@ cage up            Start the shared Cage environment, editor and browser
 cage login         Start cage services, then Claude's login flow inside the VM
 cage access        Inspect legacy viewer credentials (diagnostics only)
 cage shell         Open a shell in the shared environment
-cage run COMMAND   Execute a command in the shared environment
+cage run COMMAND   Execute a command in the shared environment: from the current
+                   directory's place when it is in a shared project, otherwise
+                   from the environment directory (with a notice on stderr).
+                   --here requires the current directory (asks before sharing
+                   it on a terminal, fails otherwise); --workdir DIR runs from
+                   DIR in the environment
 cage claude        Run Claude Code in the shared environment
 cage stop          Stop the shared Cage environment
 cage list          List this cage profile's VMs
@@ -569,6 +574,29 @@ func run() int {
 			return fail(err)
 		}
 		return 0
+	}
+	if args[0] == "setup" && !containerenv.Configured(profile) {
+		mac, err := guestos.LoadMacOSProfile(profile)
+		if err != nil {
+			return fail(err)
+		}
+		win, err := guestos.LoadWindowsProfile(profile)
+		if err != nil {
+			return fail(err)
+		}
+		pending, err := guestos.LoadInstallation(profile)
+		if err != nil {
+			return fail(err)
+		}
+		if mac != nil || win != nil || pending != nil && (pending.System == guestos.Windows11 || pending.System == guestos.MacOS) {
+			return fail(errors.New("当前配置已绑定原生客机，请从原环境继续。新建 Debian 13 请使用独立的空配置目录。"))
+		}
+	}
+	if args[0] == "run" {
+		here, hereErr := os.Getwd()
+		if args, err = followRunDirectory(path, args, here, hereErr, os.Stderr, terminalConfirm(os.Stdin, os.Stderr)); err != nil {
+			return fail(err)
+		}
 	}
 	if handled, err := containerOperation(path, args, cfg); handled {
 		if err != nil {

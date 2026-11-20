@@ -30,6 +30,7 @@ import { EnvironmentShield } from "./environment-shield";
 import { TailscalePanel } from "./tailscale";
 import { WorkspaceSidebar } from "./workspace-sidebar";
 import { useCLISessions, sessionsChanged } from "./cli-sessions";
+import { TERMINAL_LIMIT, liveTerminalCount } from "./session-order.mjs";
 import { TerminalMenu } from "./terminal-menu";
 import { InitializationGate } from "./initialization";
 import { MacOSLogin } from "./macos-login";
@@ -60,7 +61,8 @@ import { networkState, isGuestLocalURL } from "./safety-state.mjs";
 import { needsProxySetup } from "./onboarding-state.mjs";
 import { HostGitPreparation } from "./host-git";
 import { NetworkLatency } from "./network-latency";
-import { useWindowVisibility } from "./window-visibility";
+import { createNotificationDeduplicator, defaultNotificationPreferences, dispatchDesktopNotification, normalizeNotificationPreferences } from "./notifications.mjs";
+import { isWindowFocused, useWindowVisibility } from "./window-visibility";
 import { AppUpdateButton, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
@@ -384,16 +386,20 @@ function App() {
     }
   };
   const clipboardConnection = getClientContext().connection_id;
+  const clipboardRef = useRef(null);
   useEffect(() => {
     if (!status?.ready || !nativeAvailable()) return;
     const clipboard = shareClipboard({
       connect: () => new WebSocket(runtimeSocketURL("/clipboard")), native,
       onStatus: setToast,
+      isVisible: () => windowVisibleRef.current,
       setActive: active => { window.cageSharedClipboardActive = active; },
     });
+    clipboardRef.current = clipboard;
     window.cageSyncClipboard = () => clipboard.sync();
-    return () => { clipboard.dispose(); delete window.cageSyncClipboard; };
+    return () => { clipboardRef.current = null; clipboard.dispose(); delete window.cageSyncClipboard; };
   }, [status?.ready, clipboardConnection]);
+  useEffect(() => { clipboardRef.current?.setVisible(windowVisible); }, [windowVisible]);
   const desktopFiles = useDesktopFiles(Boolean(status?.ready), notify);
   const downloads = [...(browser.downloads || []), ...desktopFiles.downloads];
   useDownloadNotifications(downloads, notify, Boolean(browser.uploads?.length || desktopFiles.uploads.length));
@@ -677,7 +683,7 @@ function App() {
     newTerminal(contentWorkspace, event?.currentTarget?.tagName === "BUTTON"
       ? event.currentTarget : terminalTrigger.current);
   const terminalMenuAt = (location) => terminalChoice?.anchor?.dataset.terminalLocation === location && (
-    <TerminalMenu choice={terminalChoice} busy={busy}
+    <TerminalMenu choice={terminalChoice} busy={busy} atLimit={liveTerminalCount(tabs) >= TERMINAL_LIMIT}
       onClose={() => setTerminalChoice(null)}
       onSelect={(kind) => createTerminal(terminalChoice.path, kind).catch((e) => notify(e.message))} />
   );
@@ -707,7 +713,7 @@ function App() {
   };
   const closeTab = async (tab, anchor) => {
     if (macGuest && tab.native_window) { closeBrowser(); return; }
-    if (tab.cli_session_id) return archiveSession({id:tab.cli_session_id, title:tab.title}, anchor);
+    if (tab.cli_session_id && !tab.closed) return archiveSession({id:tab.cli_session_id, title:tab.title}, anchor);
     if (tab.kind === "terminal") {
       if (
         !tab.closed &&
@@ -992,6 +998,97 @@ function App() {
     }).catch(() => {});
     return () => { live = false; };
   }, [settings, status, fatal, connectionError]);
+  const [notificationPrefs, setNotificationPrefs] = useState(defaultNotificationPreferences);
+  const notificationsEnabled = notificationPrefs.turn_completion !== "off" || notificationPrefs.approval !== "off";
+  const notificationPrefsRef = useRef(notificationPrefs);
+  notificationPrefsRef.current = notificationPrefs;
+  const notificationDedupRef = useRef(null);
+  if (!notificationDedupRef.current) notificationDedupRef.current = createNotificationDeduplicator();
+  const notificationViewRef = useRef({});
+  notificationViewRef.current = {
+    settingsOpen,
+    desktopOpen,
+    showHome,
+    safetyOpen,
+    dialog: dialog || projectDialog || rename || tailscaleOpen || details || terminalChoice || hostGitDialog || desktopNeedsChoice,
+    layout,
+    tabs,
+    select,
+  };
+  useEffect(() => {
+    const controller = new AbortController();
+    api("/client/notifications", undefined, undefined, {}, { signal: controller.signal })
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setNotificationPrefs(normalizeNotificationPreferences(value));
+        }
+      })
+      .catch(() => {});
+    const onUpdated = (event) => {
+      controller.abort();
+      setNotificationPrefs(normalizeNotificationPreferences(event.detail));
+    };
+    const onClicked = (event) => {
+      const detail = event.detail || {};
+      if (!detail.terminal_id) return;
+      if (detail.connection_id && detail.connection_id !== getClientContext().connection_id) return;
+      const state = notificationViewRef.current;
+      const tabId = "terminal:" + detail.terminal_id;
+      if (!state.tabs.some((item) => item.id === tabId)) return;
+      setSettingsOpen(false);
+      setSafetyOpen(false);
+      setDesktopOpen(false);
+      setHome(false);
+      void state.select(tabId, true);
+    };
+    window.addEventListener("cage-notification-preferences", onUpdated);
+    window.addEventListener("cage-notification-click", onClicked);
+    return () => {
+      controller.abort();
+      window.removeEventListener("cage-notification-preferences", onUpdated);
+      window.removeEventListener("cage-notification-click", onClicked);
+    };
+  }, []);
+  useEffect(() => {
+    // Notifications come only from this computer's own environment. A remote
+    // host's terminals never raise banners on the client.
+    const context = getClientContext();
+    if (!notificationsEnabled || !status?.ready || /^(windows|macos)/.test(system || "") || context.mode !== "local" || context.client_only) return;
+    const stream = new EventSource(runtimeURL("/notifications/events"));
+    stream.addEventListener("notification", (event) => {
+      let detail;
+      try {
+        detail = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      const state = notificationViewRef.current;
+      const overlayOpen = Boolean(
+        state.settingsOpen ||
+        state.desktopOpen ||
+        state.showHome ||
+        state.safetyOpen ||
+        state.dialog,
+      );
+      const viewingTerminal = !overlayOpen && Boolean(
+        detail.tab_id && (state.layout.active === detail.tab_id || state.layout.other === detail.tab_id),
+      );
+      void dispatchDesktopNotification(detail, {
+        prefs: notificationPrefsRef.current,
+        viewState: { windowFocused: isWindowFocused(), viewingTerminal },
+        nativeAvailable,
+        native,
+        connectionId: getClientContext().connection_id,
+        dedup: notificationDedupRef.current,
+        onFocus: (target) => {
+          window.dispatchEvent(new CustomEvent("cage-notification-click", { detail: target }));
+        },
+      }).catch(() => {});
+    });
+    return () => {
+      stream.close();
+    };
+  }, [notificationsEnabled, status?.ready, system, clipboardConnection]);
   useEffect(() => {
     if (!status?.ready) return;
     const stream = new EventSource(runtimeURL("/browser/events"));

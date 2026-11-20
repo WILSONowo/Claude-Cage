@@ -25,6 +25,9 @@ test("missing guest payload offers installation without spawning a host VPN", as
 test("service destinations are validated and forwarded through the same private protocol", async () => {
  const client = createTailnetClient({ executable: process.execPath, start: (_file,_args,options) => spawn(process.execPath, ["-e", `let text='';process.stdin.on('data',chunk=>{text+=chunk;let end;while((end=text.indexOf('\\n'))>=0){const input=JSON.parse(text.slice(0,end));text=text.slice(end+1);console.log(JSON.stringify(input))}});`], options) });
  try {
+  assert.deepEqual(await client.request({action:"control-server",control_url:"https://control.example.test"}),{action:"set-control-url",control_url:"https://control.example.test"});
+  assert.deepEqual(await client.request({action:"connect",control_url:""}),{action:"connect",control_url:""});
+  await assert.rejects(client.request({action:"status",control_url:"https://control.example.test"}));
   const result = await client.request({action:"open-service",host:"100.88.2.4",port:8080,command:"ignored"});
   assert.deepEqual(result,{action:"open-service",host:"100.88.2.4",port:8080});
   for (const input of [{host:"100.88.2.4",port:0},{host:"100.88.2.4",port:65536},{host:"100.88.2.4",port:"80"},{host:"100.88.2.4\ncommand",port:80}]) await assert.rejects(client.request({action:"open-service",...input}));

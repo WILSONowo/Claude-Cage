@@ -22,7 +22,7 @@ import {
 import logo from "./logo.png";
 import { projectName } from "./workspace-state.mjs";
 import { WorkspaceTabs } from "./workspace-tabs";
-import { projectSessionRows, sessionKey } from "./session-order.mjs";
+import { projectSessionRows, sessionKey, unassignedTerminalTabs } from "./session-order.mjs";
 import { AccountMenu } from "./account";
 import { useSSHNavigation } from "./remote-hosts";
 import { GuestSystemIcon } from "./guest-system-icon";
@@ -99,6 +99,8 @@ export function WorkspaceSidebar({
       setCollapsed((previous) => ({ ...previous, [activeWorkspace]: false }));
   }, [active, activeWorkspace]);
   if (ssh?.expanded) return null;
+  const otherTerminals = projectSessionRows(unassignedTerminalTabs(tabs, projects), [], saved, undefined, sessionBaseline.current)
+    .filter(row => !needle || matches(row.workspace) || matches(saved[row.id]?.title) || matches(row.title));
   const modes = (
     <div className="workspace-modes" aria-label="工作模式">
       <button aria-pressed={desktopOpen} onClick={onClaudeDesktop} aria-label="Claude Desktop" title="Claude Desktop">{compactHeader && guestSystem ? <GuestSystemIcon system={guestSystem} /> : <Monitor size={15} />}<span><span className="mode-prefix">Claude </span>Desktop</span></button>
@@ -293,8 +295,16 @@ export function WorkspaceSidebar({
             </section>
           );
         })}
+        {otherTerminals.length > 0 && (
+          <section className="sidebar-project sidebar-other-terminals" aria-label="其他终端">
+            <div className="sidebar-section-heading"><span>其他终端</span></div>
+            <WorkspaceTabs tabs={otherTerminals} saved={saved} active={home || desktopOpen ? "" : active}
+              label="其他终端" busy={busy} ready={ready} onSelect={onSelect} onClose={onClose}
+              onRename={onRename} onPin={onPin} splitDrag={splitDrag} />
+          </section>
+        )}
         {needle && <p className="sidebar-search-empty">没有匹配的项目或会话</p>}
-        {!projects.length && !needle && (
+        {!projects.length && !otherTerminals.length && !needle && (
           <p className="sidebar-empty">打开本地文件夹开始工作</p>
         )}
       </div>

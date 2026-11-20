@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, native } from "./api";
-import { InlineSelect } from "./inline-select";
 import "./guest-system-picker.css";
 
 const names = { "debian-12": "Debian 12", "debian-13": "Debian 13", "ubuntu-22.04": "Ubuntu 22.04", "ubuntu-24.04": "Ubuntu 24.04", macos: "macOS", "windows-11": "Windows 11" };
@@ -77,9 +76,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
     api("/environment/guest-systems").then((next) => {
       if (!active) return;
       setView(next);
-      if (next.fresh || next.pending) {
-        onChange(current => !next.pending && current && !current.pending ? current : guestSystemChoice(next));
-      } else onChange(null);
+      onChange(guestSystemChoice(next));
     }).catch((e) => {
       if (!active) return;
       if (e.status === 403 || e.status === 404) onChange(null);
@@ -90,70 +87,20 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
   if (!view || !system) return error ? <div className="guest-system-picker"><span role="alert">{error}</span>
     <button type="button" onClick={() => retry((n) => n + 1)}>重新检查安装选项</button></div> : null;
   const os = system.guest_system;
-  const change = (changes) => onChange((current) => current?.guest_system === os ? { ...current, ...changes } : current);
-  async function choose() {
-    try {
-      const path = await native("chooseGuestMedia");
-      if (path) change({ media: path });
-    } catch (e) { setError(e.message); }
-  }
-  async function reference(kind) {
-    try { await native("guestInstallReference", { kind }); }
-    catch (e) { setError(e.message); }
-  }
   return (
     <div className="guest-system-picker">
-      <span>客户机系统</span>
-      <InlineSelect aria-label="客户机系统" value={system.clone ? "host" : os} disabled={system.pending}
-        onValueChange={(value) => onChange({ guest_system: value === "host" ? view.system : value, clone: value === "host", clone_key: "", clone_ready: false, media: "", sha256: "", editor_terms: false })}>
-        {Boolean(view.system) && <option value="host" disabled={!view.available}>自动匹配本机系统版本{view.available ? "" : "（暂不可用）"}</option>}
-        <option value="debian-13">Debian 13</option>
-        <option value="ubuntu-22.04" disabled={!view.linux_systems?.includes("ubuntu-22.04")}>Ubuntu 22.04{view.linux_systems?.includes("ubuntu-22.04") ? "" : "（此构建暂不可用）"}</option>
-        <option value="macos" disabled={view.system !== "macos" || !view.available}>macOS{view.system === "macos" ? view.available ? "" : "（暂不可用）" : "（需要 Apple Silicon Mac）"}</option>
-        <option value="windows-11" disabled={view.system !== "windows-11" || !view.available}>Windows 11{view.system === "windows-11" ? view.available ? "" : "（暂不可用）" : "（需要 Windows 11 与 Hyper-V）"}</option>
-      </InlineSelect>
-      {system.clone && !system.activate && (deferMatch ? <small className="guest-install-fields">下一步将按本机系统版本匹配官方镜像，并显示下载量和空间要求。</small> : <HostCloneSummary pending={system.pending} onChange={onChange} />)}
-      {!system.activate && <small className="guest-install-fields">系统镜像使用主机网络，出口由主机代理规则决定。使用 Clash 等代理时，请开启系统代理或 TUN。</small>}
-      {!system.clone && os !== "debian-13" && !system.activate && <div className="guest-install-fields">
-        {os === "ubuntu-22.04" ? <>
-          <small>从 Ubuntu 官方源下载 Ubuntu 22.04 LTS 镜像，并校验 SHA-256。Cage 按主机架构选择 ARM64 或 x86_64。</small>
-          <small>开发工具、浏览器和编辑器将自动安装。账户、文件和登录状态保存在客机磁盘中。</small>
-          <small>至少需要 17 GiB 可用空间。失败后可继续原安装，不会改用其他系统或覆盖已有环境。</small>
-        </> : os === "macos" ? <>
-          <small>{system.media || "将从 Apple 下载 macOS 26.5.2（19.77 GB），并创建 64 GiB 稀疏虚拟磁盘。"}</small>
-          {!system.pending && <div>
-            <button type="button" onClick={choose}>选择本机 IPSW</button>
-            {system.media && <button type="button" onClick={() => change({ media: "" })}>改为下载</button>}
-          </div>}
-          <small>客机账户和独立密码由 Cage 自动准备并加密保管，启动时自动登录。</small>
-        </> : <>
-          <small>Windows 11 x64 需要 Hyper-V 和至少 64 GiB 可用磁盘空间。安装前在授权窗口设置客机本地管理员，Cage 会生成离线账户应答。进入客机桌面后回 Cage 继续，使用该账户确认组件安装。Cage 随后创建专用普通账户并重启客机。</small>
-          {!system.pending && <div>
-            <button type="button" onClick={() => reference("windows-media")}>从微软下载 ISO</button>
-            <button type="button" onClick={choose}>选择本机 ISO</button>
-          </div>}
-          {system.media && <small>{system.media}</small>}
-          <label>ISO 的 SHA-256<input value={system.sha256} readOnly={system.pending} spellCheck={false}
-            onChange={(e) => change({ sha256: e.target.value.trim() })} placeholder="微软公布的 64 位十六进制摘要" /></label>
-          <button type="button" onClick={() => reference("editor-license")}>阅读 Microsoft VS Code Server 许可条款</button>
-          <label><input type="checkbox" checked={system.editor_terms} disabled={system.pending}
-            onChange={(e) => change({ editor_terms: e.target.checked })} />我接受上述编辑器许可条款</label>
-        </>}
-      </div>}
-      {system.clone && os === "windows-11" && <div className="guest-install-fields">
-        <small>安装时需要你确认 Windows 管理员授权，Cage 随后自动安装系统并创建独立客机账户。</small>
-        <button type="button" onClick={() => reference("editor-license")}>阅读 Microsoft VS Code Server 许可条款</button>
-        <label><input type="checkbox" checked={system.editor_terms} disabled={system.pending}
-          onChange={(e) => change({ editor_terms: e.target.checked })} />我接受上述编辑器许可条款</label>
-      </div>}
-      {view.reason && !view.available && <small className="guest-install-fields">{view.reason}</small>}
+      <span>客机系统</span>
+      <strong>{names[os] || os}</strong>
+      {system.pending && !system.activate && <small>继续原有环境的安装。</small>}
+      {system.clone && !system.activate && !deferMatch && <HostCloneSummary pending onChange={onChange} />}
       {view.reselect && <button type="button" className="guest-install-fields" onClick={async () => {
         try {
           await api("/environment/guest-systems", { id: view.pending.id }, "DELETE");
-          setView(await api("/environment/guest-systems"));
-          onChange({ guest_system: "debian-13", media: "", sha256: "", editor_terms: false });
+          const next = await api("/environment/guest-systems");
+          setView(next);
+          onChange(guestSystemChoice(next));
         } catch (e) { setError(e.message); }
-      }}>重新选择系统或镜像</button>}
+      }}>取消未开始的安装，改用 Debian 13</button>}
       {system.activate && <small className="guest-install-fields">此环境已安装，可直接使用。</small>}
       {error && <p role="alert" className="guest-install-fields">{error}</p>}
     </div>

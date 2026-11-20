@@ -57,22 +57,22 @@ func AgentOperations() []AgentOperation {
 	post("account.create", "Create an account only on an empty profile; user chooses the password. Returns a recovery_key once; deliver it privately to the user", "/api/account/create", object(map[string]string{"username": "string", "password": "string", "confirm_password": "string", "avatar": "string"}))
 	post("account.unlock", "Unlock using a user-provided password via private input", "/api/account/unlock", object(map[string]string{"password": "string"}))
 	get("settings.get", "Read settings without proxy credentials", "/api/settings")
-	post("settings.patch", "Merge specified fields under the operation lock; dry_run validates without writing", "/api/agent/settings", object(map[string]string{"patch": "object", "dry_run": "boolean"}))
+	post("settings.patch", "Merge specified fields under the operation lock; dry_run validates without writing; save_static_draft saves a pending non-mainland static IP baseline while keeping egress closed if live exit probing fails", "/api/agent/settings", object(map[string]string{"patch": "object", "dry_run": "boolean", "save_static_draft": "boolean"}))
 	// Include the production Settings schema inside the patch field.
 	ops[len(ops)-1].InputSchema["properties"].(map[string]any)["patch"] = from(Settings{})
 	ops[len(ops)-1].InputSchema["properties"].(map[string]any)["patch"].(map[string]any)["properties"].(map[string]any)["exit_policy"] = object(map[string]string{"mode": "string", "scope": "string", "ip": "string", "country_code": "string", "region": "string", "city": "string"})
 	post("settings.restore", "Restore the saved previous settings and restart the environment; inspect status and obtain permission to interrupt work first", "/api/restore", object(nil))
 	get("proxy.status", "List source and node IDs without subscription URLs or node secrets", "/api/proxy")
 	proxy := from(proxyInput{})
-	for _, action := range []string{"import", "refresh", "edit", "delete", "select", "route", "restart", "stop"} {
-		post("proxy."+action, "Proxy operation; import creates a source, refresh updates an existing source. Read state before retrying. select/route applies the route", "/api/proxy/"+action, proxy)
+	for _, action := range []string{"import", "refresh", "edit", "edit-node", "delete", "select", "route", "restart", "stop"} {
+		post("proxy."+action, "Proxy operation; import creates a source, refresh updates an existing source (a local source needs new content and keeps node IDs by name), edit-node changes server/server_port of a local node only. Read state before retrying. select/route applies the route", "/api/proxy/"+action, proxy)
 	}
-	get("guest.options", "Available guest systems and resumable installation state", "/api/environment/guest-systems")
-	get("guest.match", "Inspect a host-matching clean image plan; pass key as clone_key and plan.host.system as guest_system to environment.start", "/api/environment/guest-systems/clone")
+	get("guest.options", "Debian 13 for new environments; original system for resumable installations", "/api/environment/guest-systems")
+	get("guest.match", "Inspect the saved image plan of a previously started host-matching installation", "/api/environment/guest-systems/clone")
 	post("guest.activate", "Activate an installed guest; controller may retire, reconnect afterwards", "/api/environment/guest-systems/activate", object(nil))
-	get("initialization.status", "Read initial setup state", "/api/environment/initialization")
+	get("initialization.status", "Read initial setup state, including whether desktop onboarding is active", "/api/environment/initialization")
 	post("initialization.set", "action: begin, install or complete; complete requires verified readiness", "/api/environment/initialization", object(map[string]string{"action": "string"}))
-	post("environment.start", "Start or resume installation. Omit guest_system for an existing environment; use guest.options for supported choices", "/api/start", from(guestInstallRequest{}))
+	post("environment.start", "Create Debian 13 or resume the existing environment. Omit guest_system to preserve its system", "/api/start", from(guestInstallRequest{}))
 	post("environment.stop", "Stop the environment and active terminals; preserves persistent data", "/api/stop", object(nil))
 	get("environment.versions", "Read installed component and tool versions", "/api/environment/versions")
 	post("environment.update", "Update guest components; may restart guest services", "/api/environment/update", object(nil))
@@ -106,7 +106,7 @@ func AgentOperations() []AgentOperation {
 	post("settings.probe", "Probe actual exit location for a complete settings draft", "/api/settings/probe", from(Settings{}))
 	get("proxy.connections", "Inspect live proxy connections", "/api/proxy/connections")
 	get("proxy.logs", "Inspect proxy logs", "/api/proxy/logs")
-	post("proxy.delay", "Measure one proxy node", "/api/proxy/delay", object(map[string]string{"node_id": "string"}))
+	post("proxy.delay", "Measure one node (node_id) or up to 300 nodes four at a time (node_ids); returns per-node results and the fastest working node as best without changing the selection", "/api/proxy/delay", object(map[string]string{"node_id": "string", "node_ids": "array"}))
 	add("guest.reselect", "Clear only the same unstarted installation the UI can reselect", "DELETE", "/api/environment/guest-systems", object(map[string]string{"id": "string"}))
 	get("claude-accounts.get", "Read account roster, quotas and scheduling", "/api/claude-accounts")
 	post("claude-accounts.change", "Apply the same join, cancel, update, scheduling, refresh and removal actions as the UI", "/api/claude-accounts", from(claudeAccountInput{}))
@@ -118,10 +118,12 @@ func AgentOperations() []AgentOperation {
 	post("mobile.pair", "Generate the same phone pairing invitation", "/api/mobile-pair", object(map[string]string{"admin": "string", "relay": "string"}))
 	add("mobile.remove", "Remove the same paired device", "DELETE", "/api/mobile-pair", object(nil))
 	get("tailscale.get", "Read guest private-network state", "/api/tailscale")
-	for _, action := range []string{"install", "connect", "login", "disconnect", "logout", "add-key", "remove-key"} {
+	for _, action := range []string{"install", "connect", "login", "disconnect", "logout", "control-server", "add-key", "remove-key"} {
 		schema := object(nil)
 		if action == "add-key" || action == "remove-key" {
 			schema = object(map[string]string{"key": "string"})
+		} else if action == "control-server" {
+			schema = object(map[string]string{"control_url": "string"})
 		}
 		post("tailscale."+action, "Run the same Tailscale action as the workbench", "/api/tailscale/"+action, schema)
 	}
@@ -294,11 +296,17 @@ func agentRequest(ctx context.Context, configPath, method, path string, input js
 func (s *Server) agentRoutes(mux routeRegistrar) {
 	mux.HandleFunc("GET /api/agent/jobs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		job := s.jobs.snapshot()
-		if job.ID == "" || job.ID != r.PathValue("id") {
-			http.Error(w, "Original job no longer available", http.StatusGone)
+		if job.ID != "" && job.ID == r.PathValue("id") {
+			jsonReply(w, job)
 			return
 		}
-		jsonReply(w, job)
+		for _, prev := range s.jobs.recent() {
+			if prev.ID == r.PathValue("id") {
+				jsonReply(w, prev)
+				return
+			}
+		}
+		http.Error(w, "Original job no longer available", http.StatusGone)
 	})
 	mux.HandleFunc("POST /api/agent/settings", s.agentSettings)
 }
@@ -332,8 +340,9 @@ func agentRedact(data string) string {
 
 func (s *Server) agentSettings(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Patch  map[string]json.RawMessage `json:"patch"`
-		DryRun bool                       `json:"dry_run"`
+		Patch           map[string]json.RawMessage `json:"patch"`
+		DryRun          bool                       `json:"dry_run"`
+		SaveStaticDraft bool                       `json:"save_static_draft"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -393,12 +402,12 @@ func (s *Server) agentSettings(w http.ResponseWriter, r *http.Request) {
 		jsonReply(w, settingsView(v.Config, v.Preferences))
 		return
 	}
-	s.launch(w, "settings", func() error {
+	s.launchRequest(w, r, "settings", func() error {
 		v, err := propose()
 		if err != nil {
 			return err
 		}
-		return s.apply(v, true)
+		return s.applyWithOptions(v, true, in.SaveStaticDraft)
 	})
 }
 

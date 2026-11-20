@@ -21,21 +21,49 @@ import (
 	"github.com/sylvinus/agent-vm/internal/paths"
 )
 
+type BrowserGraphics struct {
+	Backend         string `json:"backend"`
+	DisableWebGL    bool   `json:"disable_webgl"`
+	BlockCanvasRead bool   `json:"block_canvas_read"`
+}
+
+func (g BrowserGraphics) validate() error {
+	switch g.Backend {
+	case "", "gl", "vulkan", "swiftshader":
+		return nil
+	default:
+		return errors.New("不支持的浏览器图形后端")
+	}
+}
+
 type Preferences struct {
-	BalancedDisplay       bool   `json:"balanced_display"`
-	ProjectFileCache      bool   `json:"project_file_cache"`
-	MobileRelay           string `json:"mobile_relay,omitempty"`
-	Workspace             string `json:"workspace"`
-	BrowserHomeURL        string `json:"browser_home_url"`
-	ClaudeTerminalCommand string `json:"claude_terminal_command"`
-	Keyboard              string `json:"keyboard"`
-	Clock12Hour           bool   `json:"clock_12_hour"`
-	AutoTimezone          bool   `json:"auto_timezone"`
-	AutoLanguage          bool   `json:"auto_language"`
+	BrowserGraphics       BrowserGraphics `json:"browser_graphics"`
+	BalancedDisplay       bool            `json:"balanced_display"`
+	ProjectFileCache      bool            `json:"project_file_cache"`
+	MobileRelay           string          `json:"mobile_relay,omitempty"`
+	Workspace             string          `json:"workspace"`
+	BrowserHomeURL        string          `json:"browser_home_url"`
+	ClaudeTerminalCommand string          `json:"claude_terminal_command"`
+	Keyboard              string          `json:"keyboard"`
+	Clock12Hour           bool            `json:"clock_12_hour"`
+	AutoTimezone          bool            `json:"auto_timezone"`
+	AutoLanguage          bool            `json:"auto_language"`
 	// DebianMirror is the APT source policy for Debian guests, chosen in the
 	// install dialog after measuring the sources through the proxy. Empty
 	// keeps the guest default ("auto": official first).
 	DebianMirror string `json:"debian_mirror,omitempty"`
+	// InstallTLS12Compat caps curl at TLS 1.2 during guest installation and
+	// tool downloads for proxies that drop curl's TLS 1.3 ClientHello. Off by
+	// default; does not affect normal browsing or API connections.
+	InstallTLS12Compat bool `json:"install_tls12_compat,omitempty"`
+	// LocationIPInfoFallback lets ipinfo.io receive the measured exit IP
+	// after the five default location providers all fail. Off by default; its
+	// answer counts at country level only.
+	LocationIPInfoFallback bool `json:"location_ipinfo_fallback,omitempty"`
+}
+
+func (p Preferences) locationOptions() exitpolicy.LookupOptions {
+	return exitpolicy.LookupOptions{IPInfoFallback: p.LocationIPInfoFallback}
 }
 
 const defaultBrowserHomeURL = "https://www.bing.com/"
@@ -119,11 +147,17 @@ func (s *Server) prepareEnvironment() error {
 
 type Settings struct {
 	Preferences
-	DNSURL          string          `json:"dns_url"`
-	Timezone        string          `json:"timezone"`
-	Locale          string          `json:"locale"`
-	BrowserLanguage string          `json:"browser_language"`
-	ExitPolicy      cage.ExitPolicy `json:"exit_policy"`
+	DNSURL string `json:"dns_url"`
+	// Backup DoH endpoints tried through the selected proxy after dns_url,
+	// the opt-in second public provider, and numeric DoH endpoints that
+	// resolve proxy server names on the host network.
+	DNSFallbackURLs   []string        `json:"dns_fallback_urls"`
+	DNSPublicFallback bool            `json:"dns_public_fallback"`
+	DNSBootstrapURLs  []string        `json:"dns_bootstrap_urls"`
+	Timezone          string          `json:"timezone"`
+	Locale            string          `json:"locale"`
+	BrowserLanguage   string          `json:"browser_language"`
+	ExitPolicy        cage.ExitPolicy `json:"exit_policy"`
 }
 type Location struct {
 	IP                       string    `json:"ip"`
@@ -170,19 +204,26 @@ func writePrivate(path string, v any) error {
 	}
 	return os.Rename(f.Name(), path)
 }
+func nonNil(list []string) []string {
+	if list == nil {
+		return []string{}
+	}
+	return list
+}
+
 func settingsView(c cage.Config, p Preferences) Settings {
 	if p.MobileRelay == mobilelink.OfficialRelay {
 		p.MobileRelay = ""
 	}
 	p.BrowserHomeURL = browserHomeURL(p)
 	p.ClaudeTerminalCommand = claudeTerminalCommand(p)
-	return Settings{Preferences: p, DNSURL: c.DNSURL, Timezone: c.Timezone, Locale: c.Locale, BrowserLanguage: c.BrowserLanguage, ExitPolicy: c.ExitPolicy.Normalized()}
+	return Settings{Preferences: p, DNSURL: c.DNSURL, DNSFallbackURLs: nonNil(c.DNS.FallbackURLs()), DNSPublicFallback: c.DNS.PublicFallback, DNSBootstrapURLs: nonNil(c.DNS.BootstrapURLs()), Timezone: c.Timezone, Locale: c.Locale, BrowserLanguage: c.BrowserLanguage, ExitPolicy: c.ExitPolicy.Normalized()}
 }
 func proposedSettings(input Settings, old cage.Config, profile string) (cage.Config, Preferences, error) {
 	if input.ExitPolicy == (cage.ExitPolicy{}) {
 		input.ExitPolicy = old.ExitPolicy
 	}
-	c := cage.Config{ProxyURL: old.ProxyURL, ProxyRevision: old.ProxyRevision, DNSURL: input.DNSURL, Timezone: input.Timezone, Locale: input.Locale, BrowserLanguage: input.BrowserLanguage, ExitPolicy: input.ExitPolicy.Normalized()}
+	c := cage.Config{ProxyURL: old.ProxyURL, ProxyRevision: old.ProxyRevision, DNSURL: input.DNSURL, DNS: cage.NewDNSOptions(input.DNSFallbackURLs, input.DNSBootstrapURLs, input.DNSPublicFallback), Timezone: input.Timezone, Locale: input.Locale, BrowserLanguage: input.BrowserLanguage, ExitPolicy: input.ExitPolicy.Normalized()}
 	if err := c.Validate(); err != nil {
 		return c, input.Preferences, err
 	}
@@ -193,6 +234,9 @@ func proposedSettings(input Settings, old cage.Config, profile string) (cage.Con
 		return c, input.Preferences, errors.New("Debian 软件源只能选择官方优先、国内镜像优先或固定官方源")
 	}
 	p := input.Preferences
+	if err := p.BrowserGraphics.validate(); err != nil {
+		return c, p, err
+	}
 	p.MobileRelay = strings.TrimSuffix(strings.TrimSpace(p.MobileRelay), "/")
 	if p.MobileRelay != "" && (!strings.HasPrefix(p.MobileRelay, "https://") || !mobilelink.ValidRelayOrigin(p.MobileRelay)) {
 		return c, p, errors.New("中继地址须为 HTTPS 地址，只包含主机和可选端口")
@@ -263,7 +307,12 @@ func validateWorkspace(path, profile string) (string, error) {
 
 // probeLocation uses the same fail-closed transport as the VM. No host resolver,
 // environment proxy, or direct fallback participates, including redirects.
-func probeLocation(ctx context.Context, c cage.Config) (Location, error) {
+func (s *Server) locationLookupOptions() exitpolicy.LookupOptions {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.preferences.locationOptions()
+}
+func probeLocation(ctx context.Context, c cage.Config, options exitpolicy.LookupOptions) (Location, error) {
 	ip, err := cage.ProbeExitIP(ctx, c)
 	if err != nil {
 		return Location{}, err
@@ -271,7 +320,7 @@ func probeLocation(ctx context.Context, c cage.Config) (Location, error) {
 	if state, message := exitpolicy.CheckExitCountry(ip, nil); state == cage.CheckFailed {
 		return Location{IP: ip, CheckedAt: time.Now()}, errors.New(message)
 	}
-	loc, err := probeLocationForIP(ctx, c, ip)
+	loc, err := probeLocationForIP(ctx, c, ip, options)
 	if err != nil {
 		return Location{IP: ip, CheckedAt: time.Now()}, err
 	}
@@ -284,15 +333,15 @@ func probeLocation(ctx context.Context, c cage.Config) (Location, error) {
 
 // All exit modes need country evidence. Manual locale settings only control
 // whether the observed timezone/language is applied to the environment.
-func probeEnvironmentLocation(ctx context.Context, c cage.Config, _ Preferences) (Location, error) {
-	return probeLocation(ctx, c)
+func probeEnvironmentLocation(ctx context.Context, c cage.Config, p Preferences) (Location, error) {
+	return probeLocation(ctx, c, p.locationOptions())
 }
 
 func (l Location) exitLocation() cage.ExitLocation {
 	return cage.ExitLocation{IP: l.IP, CountryCode: l.CountryCode, Region: l.Region, City: l.City}
 }
 
-func probeLocationForIP(ctx context.Context, c cage.Config, ip string) (Location, error) {
+func probeLocationForIP(ctx context.Context, c cage.Config, ip string, options exitpolicy.LookupOptions) (Location, error) {
 	address := net.ParseIP(ip)
 	if address == nil {
 		return Location{}, errors.New("出口地址无效")
@@ -304,5 +353,5 @@ func probeLocationForIP(ctx context.Context, c cage.Config, ip string) (Location
 	transport := &http.Transport{Proxy: nil, DialContext: e.DialContext, ForceAttemptHTTP2: true}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect refused") }}
-	return lookupLocation(ctx, client, address)
+	return lookupLocation(ctx, client, address, options)
 }

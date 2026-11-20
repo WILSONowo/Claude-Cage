@@ -1,0 +1,105 @@
+Subject: [PATCH] Count cloud-init output alongside active APT downloads
+
+diff --git a/pkg/instance/provisioning_watch.go b/pkg/instance/provisioning_watch.go
+index 6fa84139..315a439d 100644
+--- a/pkg/instance/provisioning_watch.go
++++ b/pkg/instance/provisioning_watch.go
+@@ -51,7 +51,7 @@ func aptPartialBytes(ctx context.Context, inst *limatype.Instance) (int64, bool)
+ 	return n, err == nil && n >= 0
+ }
+ 
+-func hostAgentWatchContext(parent context.Context, inst *limatype.Instance) (context.Context, context.CancelFunc) {
++func hostAgentWatchContext(parent context.Context, inst *limatype.Instance, progress <-chan struct{}) (context.Context, context.CancelFunc) {
+ 	idle := watchHostAgentTimeout(parent)
+ 	policy, enabled := parent.Value(baseProvisioningKey{}).(baseProvisioningWatch)
+ 	if !enabled || inst.Config.OS == nil || *inst.Config.OS != limatype.LINUX {
+@@ -72,8 +72,10 @@ func hostAgentWatchContext(parent context.Context, inst *limatype.Instance) (con
+ 			select {
+ 			case <-ctx.Done():
+ 				return
++			case <-progress:
++				idleTimer.Reset(idle)
+ 			case <-idleTimer.C:
+-				cancel(fmt.Errorf("Linux 基础环境未就绪，连续 %s 没有观察到 APT 下载进度: %w", idle, context.DeadlineExceeded))
++				cancel(fmt.Errorf("Linux 基础环境未就绪，连续 %s 没有观察到 cloud-init 输出或 APT 下载进度: %w", idle, context.DeadlineExceeded))
+ 				return
+ 			case <-ticks.C:
+ 				probe, stop := context.WithTimeout(ctx, 5*time.Second)
+diff --git a/pkg/instance/provisioning_watch_test.go b/pkg/instance/provisioning_watch_test.go
+index da7059b0..32d30480 100644
+--- a/pkg/instance/provisioning_watch_test.go
++++ b/pkg/instance/provisioning_watch_test.go
+@@ -49,7 +49,7 @@ func TestLinuxBaseProvisioningWait(t *testing.T) {
+ 				}
+ 				linux := limatype.LINUX
+ 				start := time.Now()
+-				ctx, stop := hostAgentWatchContext(parent, &limatype.Instance{Config: &limatype.LimaYAML{OS: &linux}})
++				ctx, stop := hostAgentWatchContext(parent, &limatype.Instance{Config: &limatype.LimaYAML{OS: &linux}}, nil)
+ 				defer stop()
+ 				<-ctx.Done()
+ 				if elapsed := time.Since(start); elapsed != tc.elapsed {
+@@ -97,3 +97,27 @@ func TestLinuxBaseProvisioningBootEvents(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestCloudInitOutputExtendsIdleWithoutAPTActivity(t *testing.T) {
++	synctest.Test(t, func(t *testing.T) {
++		linux := limatype.LINUX
++		policy := baseProvisioningWatch{time.Minute, time.Hour, func(context.Context, *limatype.Instance) (int64, bool) { return 0, false }}
++		parent := context.WithValue(t.Context(), baseProvisioningKey{}, policy)
++		progress := make(chan struct{}, 1)
++		ctx, stop := hostAgentWatchContext(parent, &limatype.Instance{Config: &limatype.LimaYAML{OS: &linux}}, progress)
++		defer stop()
++		for i := 0; i < 3; i++ {
++			time.Sleep(8 * time.Minute)
++			if ctx.Err() != nil {
++				t.Fatalf("active cloud-init timed out: %v", context.Cause(ctx))
++			}
++			progress <- struct{}{}
++			synctest.Wait()
++		}
++		idleAt := time.Now()
++		<-ctx.Done()
++		if time.Since(idleAt) != 10*time.Minute || !errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
++			t.Fatalf("stalled cloud-init: %s %v", time.Since(idleAt), context.Cause(ctx))
++		}
++	})
++}
+diff --git a/pkg/instance/start.go b/pkg/instance/start.go
+index e3a4463c..582dec14 100644
+--- a/pkg/instance/start.go
++++ b/pkg/instance/start.go
+@@ -290,6 +290,9 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
+ 		if prepared.NerdctlArchiveCache != "" {
+ 			args = append(args, "--nerdctl-archive", prepared.NerdctlArchiveCache)
+ 		}
++		if _, firstBoot := ctx.Value(baseProvisioningKey{}).(baseProvisioningWatch); firstBoot && *inst.Config.OS == limatype.LINUX {
++			showProgress = true
++		}
+ 		if showProgress {
+ 			args = append(args, "--progress")
+ 		}
+@@ -384,7 +387,8 @@ func waitHostAgentStart(ctx context.Context, haPIDPath, haStderrPath string) err
+ }
+ 
+ func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdoutPath, haStderrPath string, begin time.Time, showProgress bool) error {
+-	ctx, cancel := hostAgentWatchContext(ctx, inst)
++	progress := make(chan struct{}, 1)
++	ctx, cancel := hostAgentWatchContext(ctx, inst, progress)
+ 	defer cancel()
+ 
+ 	var (
+@@ -395,6 +399,12 @@ func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdout
+ 	)
+ 
+ 	onEvent := func(ev hostagentevents.Event) bool {
++		if ev.Status.CloudInitProgress != nil && ev.Status.CloudInitProgress.LogLine != "" {
++			select {
++			case progress <- struct{}{}:
++			default:
++			}
++		}
+ 		if !printedSSHLocalPort && ev.Status.SSHLocalPort != 0 {
+ 			logrus.Infof("SSH Local Port: %d", ev.Status.SSHLocalPort)
+ 			printedSSHLocalPort = true

@@ -212,7 +212,16 @@ func StartGuestServices(ctx context.Context, configPath string, cfg cage.Config,
 	if prefs.BalancedDisplay {
 		scale = "1.5"
 	}
-	return RunMaintenanceScript(ctx, configPath, "export CAGE_DISPLAY_SCALE="+scale+"\n"+cfg.StartScript(), stdout, stderr)
+	graphics := prefs.BrowserGraphics
+	if err := graphics.validate(); err != nil {
+		return err
+	}
+	data, err = json.Marshal(graphics)
+	if err != nil {
+		return err
+	}
+	displayEnv := fmt.Sprintf("export CAGE_DISPLAY_SCALE=%s CAGE_BROWSER_GRAPHICS=%s\n", scale, shellescape.Quote(string(data)))
+	return RunMaintenanceScript(ctx, configPath, displayEnv+cfg.StartScript(), stdout, stderr)
 }
 
 func RunMaintenanceScript(ctx context.Context, configPath, script string, stdout, stderr io.Writer) error {

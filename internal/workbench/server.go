@@ -14,6 +14,7 @@ import (
 	"github.com/sylvinus/agent-vm/internal/guestos"
 	"github.com/sylvinus/agent-vm/internal/host"
 	"github.com/sylvinus/agent-vm/internal/hostimage"
+	"github.com/sylvinus/agent-vm/internal/managedproxy"
 	"io"
 	"io/fs"
 	"log"
@@ -25,6 +26,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -41,6 +43,8 @@ type controlFile struct {
 	Controller ControllerIdentity `json:"controller"`
 }
 type Server struct {
+	monitorTimingMu         sync.Mutex
+	monitorTimingLogs       map[string]monitorTimingLog
 	desktopViews            displayViewDemand
 	desktopDisplayUpdate    func(bool) error
 	browserViews            displayViewDemand
@@ -71,6 +75,7 @@ type Server struct {
 	identity                                         ControllerIdentity
 	guestManifest                                    *cage.GuestManifest
 	guestUpdateRequired                              bool
+	guestUpdateGeneration                            uint64
 	guestUpdateError                                 string
 	storageRecoveryError                             string
 	closing                                          bool
@@ -94,6 +99,7 @@ type Server struct {
 	mu                                               sync.Mutex
 	preferences                                      Preferences
 	jobs                                             jobManager
+	desktopOnboardingUntil                           time.Time
 	ready                                            bool
 	location                                         *Location
 	exitProbeError                                   string
@@ -101,8 +107,13 @@ type Server struct {
 	networkIntentError                               string
 	credentials                                      guestCredentials
 	terminals                                        terminalManager
+	notificationConfigPath                           string
+	notifications                                    notificationHub
 	mobileCLI                                        mobileCLIStore
 	conversationMu                                   sync.Mutex
+	conversationDiscovered                           conversationDiscovery       // guarded by conversationMu
+	conversationViews                                map[string]conversationView // guarded by conversationMu
+	conversationGeneration                           atomic.Uint64
 	mobileConnectMu                                  sync.Mutex
 	audioClients                                     int
 	projectShares                                    map[string]*projectShare
@@ -118,6 +129,8 @@ type Server struct {
 	monitorSafetyOp                                  sync.Mutex
 	safetyOp                                         sync.Mutex
 	networkPaused                                    bool
+	proxyStore                                       managedproxy.StoreReader
+	proxyNetworkRetry                                time.Time
 	proxyNetworkLost                                 bool
 	checkCancel                                      context.CancelFunc
 	lifeContext                                      context.Context
@@ -190,6 +203,7 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 	}
 	defer listener.Close()
 	s := &Server{profile: profile, configPath: configPath, exe: exe, clientOnly: clientOnly, origin: fmt.Sprintf("http://localhost:%d", port), token: randomToken(), session: randomToken(), preferences: Preferences{Keyboard: defaultKeyboard(), AutoTimezone: true, AutoLanguage: true, BalancedDisplay: true, ProjectFileCache: true}}
+	s.notificationConfigPath = fullConfigPath
 	s.desktopEntry = fullConfigPath != ""
 	workload := !s.desktopEntry && !clientOnly
 	if s.desktopEntry {
@@ -387,6 +401,9 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /api/account", s.accountStatus)
 	mux.HandleFunc("POST /api/account/{action}", s.accountAction)
 	mux.HandleFunc("GET /api/settings", s.getSettings)
+	mux.HandleFunc("GET /api/client/notifications", s.notificationPreferences)
+	mux.HandleFunc("POST /api/client/notifications", s.notificationPreferences)
+	mux.HandleFunc("GET /api/notifications/events", s.notificationEvents)
 	mux.HandleFunc("POST /api/projects/open", s.openProject)
 	mux.HandleFunc("POST /api/projects/remove", s.removeProject)
 	mux.HandleFunc("POST /api/projects/refresh", s.refreshProjectFiles)
@@ -533,6 +550,10 @@ func (s *Server) handler() http.Handler {
 				return
 			}
 		}
+		if r.URL.Path == "/api/client/notifications" {
+			mux.ServeHTTP(w, r)
+			return
+		}
 		if s.macosGuest == nil && !s.desktopEntry && !s.clientOnly && strings.HasPrefix(r.URL.Path, "/api/") {
 			pending, err := guestos.LoadInstallation(s.profile)
 			if err != nil {
@@ -591,8 +612,13 @@ func (s *Server) handler() http.Handler {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") && !accountRoute && !bootstrapRoute && !strings.HasPrefix(r.URL.Path, "/api/diagnostics") && !(r.Method == "GET" && r.URL.Path == "/api/appearance") {
-			epoch, unlocked := s.account.accessFor(trustedDesktop, phoneRoom != nil)
-			if !unlocked {
+			epoch, access := s.account.accessStateFor(trustedDesktop, phoneRoom != nil)
+			if access != accountAccessGranted {
+				if access == accountAccessDesktopOnly {
+					w.Header().Set("X-Cage-Recovery", "desktop-account-mobile-access")
+					http.Error(w, s.account.desktopOnlyMobileMessage(), http.StatusLocked)
+					return
+				}
 				http.Error(w, "Cage 已锁定，请先登录", http.StatusLocked)
 				return
 			}
@@ -625,6 +651,10 @@ func (s *Server) handler() http.Handler {
 				http.Error(w, err.Error(), http.StatusConflict)
 				return
 			}
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			s.invalidateConversationDiscovery()
+			defer s.invalidateConversationDiscovery()
 		}
 		mux.ServeHTTP(w, r)
 	})
@@ -660,6 +690,9 @@ func requestError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
+	if requestInitiator(r) == jobInitiatorSetup {
+		s.touchDesktopOnboarding()
+	}
 	if s.windowsGuest != nil && !s.storageRecoveryStatus().Required {
 		s.refreshWindowsComponents()
 	}
@@ -718,29 +751,48 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, settingsView(c, p))
 }
 func (s *Server) proposed(w http.ResponseWriter, r *http.Request) (savedProfile, bool) {
-	var input Settings
+	v, _, ok := s.proposedWithOptions(w, r)
+	return v, ok
+}
+
+func (s *Server) proposedWithOptions(w http.ResponseWriter, r *http.Request) (savedProfile, bool, bool) {
+	var input struct {
+		Settings
+		SaveStaticDraft bool `json:"save_static_draft"`
+	}
+
 	// Older clients omit preferences introduced after their release.
 	s.mu.Lock()
 	input.MobileRelay = s.preferences.MobileRelay
 	input.BalancedDisplay = s.preferences.BalancedDisplay
+	input.BrowserGraphics = s.preferences.BrowserGraphics
 	input.ProjectFileCache = s.preferences.ProjectFileCache
 	input.Clock12Hour = s.preferences.Clock12Hour
 	input.BrowserHomeURL = browserHomeURL(s.preferences)
+	input.InstallTLS12Compat = s.preferences.InstallTLS12Compat
+	input.LocationIPInfoFallback = s.preferences.LocationIPInfoFallback
 	s.mu.Unlock()
+	// Clients predating the DNS options keep the saved ones.
+	if current, err := loadConfig(s.configPath); err == nil {
+		input.DNSFallbackURLs = current.DNS.FallbackURLs()
+		input.DNSPublicFallback = current.DNS.PublicFallback
+		input.DNSBootstrapURLs = current.DNS.BootstrapURLs()
+	}
+
 	if !readJSON(w, r, &input) {
-		return savedProfile{}, false
+		return savedProfile{}, false, false
 	}
 	old, err := loadConfig(s.configPath)
 	if err != nil {
 		requestError(w, err)
-		return savedProfile{}, false
+		return savedProfile{}, false, false
 	}
-	c, p, err := proposedSettings(input, old, s.profile)
+	c, p, err := proposedSettings(input.Settings, old, s.profile)
 	if err != nil {
 		requestError(w, err)
-		return savedProfile{}, false
+		return savedProfile{}, false, false
 	}
-	return savedProfile{c, p}, true
+	return savedProfile{c, p}, input.SaveStaticDraft, true
 }
 func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	v, ok := s.proposed(w, r)
@@ -751,7 +803,7 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 		requestError(w, err)
 		return
 	}
-	loc, err := probeLocation(r.Context(), v.Config)
+	loc, err := probeLocation(r.Context(), v.Config, v.Preferences.locationOptions())
 	if finishErr := s.finishLocationProbe(v.Config, loc, err); finishErr != nil {
 		requestError(w, finishErr)
 		return
@@ -763,7 +815,7 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, loc)
 }
 func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
-	v, ok := s.proposed(w, r)
+	v, saveDraft, ok := s.proposedWithOptions(w, r)
 	if !ok {
 		return
 	}
@@ -779,7 +831,7 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		v.Preferences.BrowserHomeURL = s.preferences.BrowserHomeURL
 		s.mu.Unlock()
-		return s.apply(v, true)
+		return s.applyWithOptions(v, true, saveDraft)
 	})
 }
 func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
@@ -787,6 +839,10 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 	b, e := os.ReadFile(filepath.Join(s.profile, "previous-profile.json"))
 	if e != nil || json.Unmarshal(b, &v) != nil {
 		requestError(w, errors.New("没有可恢复的配置"))
+		return
+	}
+	if v.Config.DNS, e = cage.LoadDNSOptionsFile(filepath.Join(s.profile, previousDNSFile)); e != nil {
+		requestError(w, e)
 		return
 	}
 	s.launch(w, "restore", func() error {
@@ -797,6 +853,11 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func (s *Server) start(w http.ResponseWriter, r *http.Request) {
+	if requestInitiator(r) == jobInitiatorAgent && s.desktopOnboardingActive() {
+		http.Error(w, "桌面端正在进行首次引导，请先在 Cage 窗口完成或关闭引导后再启动环境", http.StatusConflict)
+		return
+	}
+
 	var input guestInstallRequest
 	if r.ContentLength != 0 && !readJSON(w, r, &input) {
 		return
@@ -806,7 +867,7 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "此配置已绑定 Windows 客机", http.StatusConflict)
 			return
 		}
-		s.launch(w, "start", s.startWindowsGuest)
+		s.launchRequest(w, r, "start", s.startWindowsGuest)
 		return
 	}
 	if s.macosGuest != nil {
@@ -814,7 +875,7 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "此配置已绑定 macOS 客机", http.StatusConflict)
 			return
 		}
-		s.launch(w, "start", s.startMacOSGuest)
+		s.launchRequest(w, r, "start", s.startMacOSGuest)
 		return
 	}
 	if input.System == guestos.MacOS {
@@ -865,14 +926,14 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if input.System != "" && input.System != boundSystem {
-		if canInstallCatalogLinux(input.System) {
-			s.beginGuestInstall(w, r, input)
-		} else {
-			http.Error(w, "当前环境无法启动所选客户机系统，请保留原环境并重新检查安装选择", http.StatusConflict)
-		}
+		http.Error(w, "新环境使用 Debian 13；已有环境请继续使用原系统。", http.StatusConflict)
 		return
 	}
-	s.launch(w, "start", func() error {
+	if input.Media != "" || input.SHA256 != "" {
+		http.Error(w, "只有原安装记录支持继续使用原镜像。", http.StatusConflict)
+		return
+	}
+	s.launchRequest(w, r, "start", func() error {
 		if err := s.prepareEnvironment(); err != nil {
 			return err
 		}
@@ -880,10 +941,10 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
-	s.requestStop(w, false)
+	s.requestStop(w, r, false)
 }
 
-func (s *Server) requestStop(w http.ResponseWriter, logout bool) {
+func (s *Server) requestStop(w http.ResponseWriter, r *http.Request, logout bool) {
 	if err := s.requireStorageReady(); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -893,7 +954,7 @@ func (s *Server) requestStop(w http.ResponseWriter, logout bool) {
 			_ = cage.RequestJobStop(s.profile, owner)
 		}
 	}
-	jobID := s.jobs.cancelRunning()
+	jobID := s.jobs.cancelRunningBy(requestInitiator(r))
 	if jobID != "" {
 		_ = cage.RequestJobStop(s.profile, jobID)
 	}
@@ -908,7 +969,7 @@ func (s *Server) requestStop(w http.ResponseWriter, logout bool) {
 	if logout {
 		kind = "logout"
 	}
-	s.launch(w, kind, s.stopEnvironment)
+	s.launchRequest(w, r, kind, s.stopEnvironment)
 }
 
 func (s *Server) cookieName() string { u, _ := url.Parse(s.origin); return cookieName + "_" + u.Port() }

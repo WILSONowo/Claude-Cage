@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { projectSessionRows, sessionKey } from "./session-order.mjs";
+import { TERMINAL_LIMIT, liveTerminalCount, projectSessionRows, sessionKey, unassignedTerminalTabs } from "./session-order.mjs";
 
 const sessions = [
   { id: "one", title: "第一段", pinned: true },
@@ -65,4 +65,27 @@ test("indexed matching preserves the first live tab and first manual rank", () =
   assert.deepEqual(keys(rows), ["session:three", "session:one", "session:two", "terminal:local"]);
   assert.equal(rows[1].id, "terminal:first");
   assert.equal(rows.at(-1).sessionPinned, true);
+});
+
+test("only running terminals count toward the host limit", () => {
+  const tabs = [
+    { id: "terminal:a", kind: "terminal" },
+    { id: "terminal:b", kind: "terminal", closed: true, cli_session_id: "ended" },
+    { id: "editor", kind: "editor" },
+  ];
+  assert.equal(liveTerminalCount(tabs), 1);
+  assert.equal(liveTerminalCount(Array.from({ length: TERMINAL_LIMIT }, (_, i) => ({ id: `t${i}`, kind: "terminal" }))), TERMINAL_LIMIT);
+});
+test("terminals outside every project folder stay reachable", () => {
+  const tabs = [
+    { id: "terminal:in", kind: "terminal", workspace: "/p/one" },
+    { id: "terminal:grouped", kind: "terminal", workspace: "/p/extra" },
+    { id: "terminal:removed", kind: "terminal", workspace: "/p/gone", closed: true, cli_session_id: "old" },
+    { id: "page", kind: "web", workspace: "/p/gone" },
+  ];
+  const groups = [{ workspace: "/p/one", folders: ["/p/one", "/p/extra"] }];
+  assert.deepEqual(unassignedTerminalTabs(tabs, ["/p/one"], groups).map(tab => tab.id), ["terminal:removed"]);
+  assert.deepEqual(unassignedTerminalTabs(tabs, []).map(tab => tab.id), ["terminal:in", "terminal:grouped", "terminal:removed"]);
+  const rows = projectSessionRows(unassignedTerminalTabs(tabs, ["/p/one"], groups), [], {}, undefined, new Map());
+  assert.deepEqual(rows.map(row => row.id), ["terminal:removed"], "an ended conversation terminal is listed as itself, not as history");
 });

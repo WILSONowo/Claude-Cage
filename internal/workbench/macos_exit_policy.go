@@ -69,7 +69,7 @@ func (s *Server) saveMacOSStaticExit(ctx context.Context, sample macOSExitCandid
 	if state.RunID != sample.Run || state.Configuration != sample.Fingerprint {
 		return errors.New("客机或网络配置已变化，请重新运行联网检查")
 	}
-	loc, err := probeLocation(ctx, cfg)
+	loc, err := probeLocation(ctx, cfg, s.locationLookupOptions())
 	if err != nil {
 		return err
 	}

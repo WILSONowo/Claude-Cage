@@ -26,6 +26,9 @@ import { useSSHNavigation } from "./remote-hosts";
 import { SetupBrand } from "./setup-brand";
 import "./initialization.css";
 
+const setupApi = (path, body, method, headers = {}, options) =>
+  api(path, body, method, { "X-Cage-Initiator": "setup", ...headers }, options);
+
 const steps = [["system", "系统与存储"], ["proxy", "网络代理"], ["install", "安装与检查"]];
 
 function InitializationFrame({ children }) {
@@ -43,8 +46,8 @@ export function InitializationGate({ children }) {
     let live = true;
     setError("");
     (async () => {
-      const next = await api("/environment/initialization");
-      if (next.required && !next.tracked && !next.started && !account?.initial_mac_setup) await api("/environment/initialization", { action: "begin" });
+      const next = await setupApi("/environment/initialization");
+      if (next.required && !next.tracked && !next.started && !account?.initial_mac_setup) await setupApi("/environment/initialization", { action: "begin" });
       if (live) setState(next);
     })().catch(error => { if (live) setError(error.message); });
     return () => { live = false; };
@@ -103,13 +106,13 @@ function Initialization({ initial, onComplete }) {
       clearTimeout(timer);
       polling = true;
       try {
-        const next = await api("/status");
+        const next = await setupApi("/status");
         if (!alive.current) return;
         setStatus(next);
         setConnectionError("");
         const results = await Promise.allSettled([
-          api("/proxy"),
-          account?.guest_system ? Promise.resolve(null) : api("/environment/guest-systems"),
+          setupApi("/proxy"),
+          account?.guest_system ? Promise.resolve(null) : setupApi("/environment/guest-systems"),
         ]);
         if (!alive.current) return;
         if (results[0].status === "fulfilled") setProxy(results[0].value);
@@ -118,7 +121,7 @@ function Initialization({ initial, onComplete }) {
           const install = results[1].value;
           if (install?.pending?.system === "macos" && !install?.activate) {
             try {
-              const recovery = await api("/macos/install-recovery");
+              const recovery = await setupApi("/macos/install-recovery");
               if (!alive.current) return;
               setMacRecovery(recovery);
               setRecoveryError("");
@@ -137,7 +140,7 @@ function Initialization({ initial, onComplete }) {
             activation.current = true;
             setStep("install");
             try {
-              await api("/environment/guest-systems/activate", {});
+              await setupApi("/environment/guest-systems/activate", {});
               await native("reconnect");
             } catch (error) {
               activation.current = false;
@@ -180,37 +183,37 @@ function Initialization({ initial, onComplete }) {
   async function install(skipMirrors) {
     if (needsProxySetup(null, status, proxy)) { setError("请先选择并应用代理节点。"); setStep("proxy"); return; }
     await run(async () => {
-      const check = await api("/host/git");
+      const check = await setupApi("/host/git");
       if (!check.ready) { setGit(check); return; }
       // Measure the Debian sources through the proxy once, before the first
       // install; the choice is kept for later updates and maintenance.
       if (skipMirrors !== true && debianGuest() && !status?.vm_running && !job.setup_progress) {
-        const probe = await api("/host/debian-mirrors");
+        const probe = await setupApi("/host/debian-mirrors");
         if (!probe.decided) { setMirrors(probe); setMirrorChoice(probe.preference); return; }
       }
-      await api("/environment/initialization", { action: "install" });
-      const accepted = await api("/start", startOptions());
+      await setupApi("/environment/initialization", { action: "install" });
+      const accepted = await setupApi("/start", startOptions());
       if (!alive.current) return;
       setGit(null); setStep("install");
       setStatus(current => ({ ...current, job: { ...accepted, running: true, kind: accepted.kind || "start", message: accepted.message || "正在准备客机环境…" } }));
     });
   }
   async function chooseMirror() {
-    await run(async () => { await api("/host/debian-mirrors", { preference: mirrorChoice }); setMirrors(null); });
+    await run(async () => { await setupApi("/host/debian-mirrors", { preference: mirrorChoice }); setMirrors(null); });
     await install(true);
   }
   async function enableGit() {
-    await run(async () => { const next = await api("/host/git", { confirm: true }); setGit(next.ready ? null : next); });
+    await run(async () => { const next = await setupApi("/host/git", { confirm: true }); setGit(next.ready ? null : next); });
   }
   async function stop() {
     if (!await confirm({ title: "停止当前安装？", body: "安装进度、已下载文件和虚拟磁盘会保留。你可以在此界面继续安装。", confirm: "停止安装" })) return;
-    await run(async () => { const accepted = await api("/stop", {}); setStatus(current => ({ ...current, job: { ...accepted, running: true } })); });
+    await run(async () => { const accepted = await setupApi("/stop", {}); setStatus(current => ({ ...current, job: { ...accepted, running: true } })); });
   }
   async function enter() {
     await run(async () => {
       setEntering(true);
       try {
-        await api("/environment/initialization", { action: "complete" });
+        await setupApi("/environment/initialization", { action: "complete" });
         if (alive.current) await refresh();
         if (alive.current) onComplete();
       } finally {
@@ -221,7 +224,7 @@ function Initialization({ initial, onComplete }) {
   async function waitForJob(accepted, kind) {
     if (!accepted.id) throw new Error("操作未返回任务编号，请核对状态后重试。");
     while (alive.current) {
-      const next = await api("/status");
+      const next = await setupApi("/status");
       if (!alive.current) break;
       setStatus(next);
       const current = next.job;
@@ -243,22 +246,22 @@ function Initialization({ initial, onComplete }) {
     await run(async () => {
       const running = status.vm_running;
       if (!await confirm({ title: running ? "重启虚拟 Mac 并检查？" : "启动环境并重新检测？", body: "请先保存文件。当前终端会话会结束，浏览器登录和项目文件会保留。重新检测通过前，外网保持关闭。", confirm: running ? "重启并检查" : "启动并检测" })) return;
-      const current = await api("/status");
+      const current = await setupApi("/status");
       if (!alive.current) return;
       if (current.job?.running) throw new Error("其他操作仍在进行，请等待完成后重试。");
       if (current.vm_running) {
-        const stopped = await waitForJob(await api("/stop", {}), "stop");
+        const stopped = await waitForJob(await setupApi("/stop", {}), "stop");
         if (stopped.vm_running) throw new Error("客机尚未停止，请核对状态后重试。");
       }
       if (!alive.current) return;
-      const accepted = await api("/start", {});
+      const accepted = await setupApi("/start", {});
       if (!accepted.id) throw new Error("启动请求未返回任务编号，请核对状态后重试。");
       setStatus(current => ({ ...current, job: { ...accepted, running: true, kind: "start", message: accepted.message || "正在启动并检查客机…" } }));
     });
   }
   async function checkNetwork() {
     await run(async () => {
-      const accepted = await api("/safety/check", {});
+      const accepted = await setupApi("/safety/check", {});
       setStatus(current => ({ ...current, job: { ...accepted, running: true, kind: "safety", message: "正在检查代理出口和环境隔离…" } }));
     });
   }
@@ -271,17 +274,17 @@ function Initialization({ initial, onComplete }) {
     await run(async () => {
       const directory = storage.directory.trim();
       if (directory !== storage.location.directory) {
-        const accepted = await api("/environment/storage", { directory, previous: storage.location.directory, migrate: false });
+        const accepted = await setupApi("/environment/storage", { directory, previous: storage.location.directory, migrate: false });
         let job;
         do {
           await new Promise(resolve => setTimeout(resolve, 300));
           if (!alive.current) return;
-          const next = await api("/status");
+          const next = await setupApi("/status");
           setStatus(next); job = next.job;
           if (job.id !== accepted.id) throw new Error("存储操作状态已变化，请核对目录后重试。");
         } while (job.running);
         if (job.error) throw new Error(job.error);
-        const location = await api("/environment/storage");
+        const location = await setupApi("/environment/storage");
         if (location.directory !== directory) throw new Error("存储目录尚未保存，请重新选择后重试。");
         setStorage({ location, directory: location.directory });
       }
@@ -297,7 +300,7 @@ function Initialization({ initial, onComplete }) {
   return <InitializationFrame>
     <section className="initialization-content">
       <ol className="initialization-steps" aria-label="初始化步骤">{steps.map(([key, label], position) => <li key={key} aria-current={step === key ? "step" : undefined}><span>{position < index ? <Check size={14} /> : position + 1}</span>{label}</li>)}</ol>
-      <div className="initialization-title"><h1>{title}</h1><p>{step === "system" ? "选择客机系统和存储位置。" : step === "proxy" ? "客机程序共用此代理。系统镜像通过主机网络下载，遵循系统代理或 TUN 设置。" : showReady ? "系统和开发组件已安装，网络检查已通过。" : "安装中断后，可从上次进度继续。"}</p></div>
+      <div className="initialization-title"><h1>{title}</h1><p>{step === "system" ? "设置环境的存储位置。" : step === "proxy" ? "客机程序共用此代理。系统镜像通过主机网络下载，遵循系统代理或 TUN 设置。" : showReady ? "系统和开发组件已安装，网络检查已通过。" : "安装中断后，可从上次进度继续。"}</p></div>
       {connectionError && <div className="initialization-notice" role="alert"><SafetyMessage message={connectionError} /><button onClick={() => pollNow.current?.()}>重新连接</button></div>}
       {!status ? <p role="status"><LoaderCircle size={18} className="spin" />正在读取安装状态…</p> : <>
         <div className="initialization-stage" key={step}>
@@ -311,7 +314,7 @@ function Initialization({ initial, onComplete }) {
             <GuestSystemPicker system={choice} onChange={setChoice} preserveOnUnmount deferMatch />
             <InitializationStorage value={storage} onChange={setStorage} disabled={busy} />
           </>}
-          {step === "proxy" && <><ProxySettings initializing status={status} onConfirm={confirm} onDirty={setProxyDirty} onApplied={async () => { setProxy(await api("/proxy")); pollNow.current?.(); }} />{choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}</>}
+          {step === "proxy" && <><ProxySettings initializing status={status} onConfirm={confirm} onDirty={setProxyDirty} onApplied={async () => { setProxy(await setupApi("/proxy")); pollNow.current?.(); }} />{choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}</>}
           {step === "install" && (showReady ? <div className="initialization-ready"><ShieldCheck size={36} /><h2>{entering ? "正在打开 Cage" : "环境已就绪"}</h2><p role={entering ? "status" : undefined}>{entering ? "正在等待后台检查结束…" : "工具、文件和登录状态已保存在虚拟机中。"}</p></div> : <>
             {exitCandidate && <section className="initialization-notice" aria-label="确认固定出口"><p>客机终端、浏览器和代理已测得一致出口。请确认是否将它绑定为固定出口。</p><button disabled={busy || Boolean(connectionError)} onClick={bindExit}>绑定检测到的固定出口 {exitCandidate}</button></section>}
             {needsRestart && <section className="initialization-notice" aria-label="需要重启环境"><h2>下一步：重启环境并重新检测</h2><p>请先保存文件。重启并通过检查后，客机才能联网。</p><button className="primary" disabled={busy || Boolean(connectionError)} onClick={restart}>{status.vm_running ? "重启环境并重新检测" : "启动环境并重新检测"}</button></section>}
@@ -327,17 +330,19 @@ function Initialization({ initial, onComplete }) {
                 <li>系统弹出允许访问系统配置文件的提示时，选择允许。</li>
               </ol>
               <p>安装过程中关闭恢复画面会取消本次作业；取消不会丢失已有进度，重新启动客机后再试。反复失败时，可使用页面底部的「日志与诊断」查看记录。</p>
-              {!macRecovery.running && <button disabled={busy} onClick={() => run(() => api("/macos/install-recovery", { action: "start" }))}>启动恢复客机</button>}
-              {macRecovery.running && <MacOSLogin initialSetup installRecovery label="打开恢复画面" setupHint="先登录安装时创建的客机普通账户，再点击「打开 Apple Installer」。管理员认证用户名填 cagesetup，密码与 Cage 账户相同；系统提示时选择允许。" setupStatus="安装完成后返回 Cage 继续置备。" setupActions={<button disabled={busy} onClick={() => run(() => api("/macos/install-recovery", { action: "resume" }))}>打开 Apple Installer</button>} onSettings={() => setHelp(true)} />}
+              {!macRecovery.running && <button disabled={busy} onClick={() => run(() => setupApi("/macos/install-recovery", { action: "start" }))}>启动恢复客机</button>}
+              {macRecovery.running && <MacOSLogin initialSetup installRecovery label="打开恢复画面" setupHint="先登录安装时创建的客机普通账户，再点击「打开 Apple Installer」。管理员认证用户名填 cagesetup，密码与 Cage 账户相同；系统提示时选择允许。" setupStatus="安装完成后返回 Cage 继续置备。" setupActions={<button disabled={busy} onClick={() => run(() => setupApi("/macos/install-recovery", { action: "resume" }))}>打开 Apple Installer</button>} onSettings={() => setHelp(true)} />}
             </section>}
             {pending?.system === "macos" && macRecovery && !macRecovery.available && macRecovery.can_prepare && <section className="initialization-notice" aria-label="macOS 安装恢复">
               <p>检测到未完成的 macOS 安装；macOS 27 需要你在客机中完成一次管理员授权，这是正常流程。后续恢复将沿用原客机磁盘。准备完成后，这里会出现继续安装的指引。</p>
-              <button disabled={busy} onClick={() => run(async () => { await api("/macos/install-recovery", { action: "prepare" }); pollNow.current?.(); })}>准备恢复入口</button>
+              <button disabled={busy} onClick={() => run(async () => { await setupApi("/macos/install-recovery", { action: "prepare" }); pollNow.current?.(); })}>准备恢复入口</button>
             </section>}
             {pending?.system === "macos" && macRecovery && !macRecovery.available && !macRecovery.can_prepare && <section className="initialization-notice" aria-label="macOS 恢复入口不可用">
               <p>检测到未完成的 macOS 安装；macOS 27 需要你在客机中完成一次管理员授权，这是正常流程。恢复入口尚未就绪，可能仍在准备中。可查看操作详情了解进度，或继续原安装；现有数据会保留。</p>
-              <button disabled={busy} onClick={() => setDetails(true)}>查看操作详情</button>
-              <button className="primary" disabled={busy || Boolean(connectionError)} onClick={install}>继续原安装</button>
+              <div className="initialization-notice-actions">
+                <button disabled={busy} onClick={() => setDetails(true)}>查看操作详情</button>
+                <button className="primary" disabled={busy || Boolean(connectionError)} onClick={install}>继续原安装</button>
+              </div>
             </section>}
             {pending?.system === "macos" && recoveryError && <section className="initialization-notice" role="alert" aria-label="恢复状态读取失败">
               <p>暂时无法读取 macOS 安装恢复状态，安装进度不受影响。</p>
@@ -345,9 +350,16 @@ function Initialization({ initial, onComplete }) {
               <button disabled={busy} onClick={() => pollNow.current?.()}>重新检查</button>
             </section>}
             {job.error && !progress && !(status.guest_system === "macos" && networkPending) && <div className="initialization-notice" role="alert"><SafetyMessage message={job.error} />{!networkPending && !needsRestart && <button className="primary" disabled={busy || Boolean(connectionError)} onClick={install}>继续安装</button>}</div>}
-            {status.guest_system === "macos" && status.vm_running && !status.ready && !busy && <section className="initialization-notice"><h2>连接虚拟 Mac</h2><p>{status.environment_update_error || "虚拟 Mac 已启动。请检查它是否停在登录画面，再重新连接。"}</p><MacOSLogin onSessionClosed={() => pollNow.current?.()} /><button disabled={Boolean(connectionError)} onClick={install}>重新连接并检查</button></section>}
+            {status.guest_system === "macos" && status.vm_running && !status.ready && !busy && <section className="initialization-notice">
+              <h2>连接虚拟 Mac</h2>
+              <p>{status.environment_update_error || "虚拟 Mac 已启动。请检查它是否停在登录画面，再重新连接。"}</p>
+              <div className="initialization-notice-actions">
+                <MacOSLogin onSessionClosed={() => pollNow.current?.()} />
+                <button disabled={Boolean(connectionError)} onClick={install}>重新连接并检查</button>
+              </div>
+            </section>}
             {status.ready && network.mode !== "open" && !busy && !needsRestart && <>
-              {status.guest_system === "macos" && <InitializationChecks status={status} busy={Boolean(connectionError)} onWorkspace={setApprovalWorkspace} onCheck={checkNetwork} onStart={install} onRestart={restart} onUpdate={() => run(() => api("/environment/update", {}))} onDiagnostics={() => setHelp(true)} />}
+              {status.guest_system === "macos" && <InitializationChecks status={status} busy={Boolean(connectionError)} onWorkspace={setApprovalWorkspace} onCheck={checkNetwork} onStart={install} onRestart={restart} onUpdate={() => run(() => setupApi("/environment/update", {}))} onDiagnostics={() => setHelp(true)} />}
               <div className="initialization-network"><p>{status.safety?.error || job.error || status.network_error || "虚拟机已连接。完成网络与隔离检查即可开始使用。"}</p><button disabled={Boolean(connectionError)} onClick={checkNetwork}>运行网络与隔离检查</button></div>
             </>}
             {(progress?.setup_progress.phase === "image" || (failed && !networkPending)) && <p>系统镜像和 macOS 安装组件通过主机代理下载。失败时可在操作详情查看文件和重试记录。客机使用 Cage 代理。</p>}
@@ -360,7 +372,18 @@ function Initialization({ initial, onComplete }) {
           <label className="mirror-option"><input type="radio" name="debian-mirror" value="domestic" checked={mirrorChoice === "domestic"} onChange={() => setMirrorChoice("domestic")} />国内镜像优先（南大、中科大，不可达时回到官方源）{mirrors.recommended === "domestic" && <em>推荐</em>}</label>
           <p>选择会保存在设置中，之后的安装、更新和维护沿用；可在客机的 <code>/etc/claude-cage/debian-mirror</code> 中改回。</p>
           <button className="primary" disabled={busy || !mirrorChoice} onClick={chooseMirror}>使用所选软件源并开始安装</button></section>}
-        {git && <section className="initialization-notice" aria-label="Git 安全保护"><h2>安装前，保护本机 Git</h2><p>{git.message}</p>{git.can_enable && <><p>启用后，Git 会忽略未经你明确指定的裸仓库。该操作会修改当前用户的全局设置，影响本机其他 Git 工具，普通项目保持原有操作。</p><pre>git config --global safe.bareRepository explicit</pre><button className="primary" disabled={busy} onClick={enableGit}>启用 Git 保护</button></>}<button disabled={busy} onClick={install}>重新检查并安装</button></section>}
+        {git && <section className="initialization-notice" aria-label="Git 安全保护">
+          <h2>安装前，保护本机 Git</h2>
+          <p>{git.message}</p>
+          {git.can_enable && <>
+            <p>启用后，Git 会忽略未经你明确指定的裸仓库。该操作会修改当前用户的全局设置，影响本机其他 Git 工具，普通项目保持原有操作。</p>
+            <pre>git config --global safe.bareRepository explicit</pre>
+          </>}
+          <div className="initialization-notice-actions">
+            {git.can_enable && <button className="primary" disabled={busy} onClick={enableGit}>启用 Git 保护</button>}
+            <button disabled={busy} onClick={install}>重新检查并安装</button>
+          </div>
+        </section>}
         {error && <p className="initialization-notice" role="alert"><SafetyMessage message={error} /></p>}
         <footer className="initialization-actions">
           {step !== "system" && <button className="text-button" disabled={busy} onClick={back}><ChevronLeft size={16} />上一步</button>}

@@ -39,12 +39,22 @@ func parseNodes(data []byte, sourceID string) ([]Node, []NodeIssue, error) {
 		Proxies []map[string]any `yaml:"proxies"`
 		Payload []map[string]any `yaml:"payload"`
 	}
-	if yaml.Unmarshal(data, &input) != nil {
-		return nil, nil, errors.New("无法读取 YAML，请导入 Clash/Mihomo 节点订阅或配置；暂不支持 Base64 列表或分享链接")
+	yamlErr := yaml.Unmarshal(data, &input)
+	var proxies []map[string]any
+	var presetReasons []string
+	if yamlErr == nil {
+		proxies = input.Proxies
+		if len(proxies) == 0 {
+			proxies = input.Payload
+		}
 	}
-	proxies := input.Proxies
 	if len(proxies) == 0 {
-		proxies = input.Payload
+		// Share-link lists, plain or Base64, are a YAML scalar or an error.
+		if links, reasons, ok := shareLinkNodes(data); ok {
+			proxies, presetReasons = links, reasons
+		} else if yamlErr != nil {
+			return nil, nil, errors.New("无法读取订阅内容：需要 Clash/Mihomo YAML、分享链接列表或其 Base64 编码")
+		}
 	}
 	if len(proxies) == 0 || len(proxies) > 3000 {
 		return nil, nil, errors.New("配置需要包含 1–3000 个 proxies 节点；仅含远程 provider 的配置请改为导入节点订阅链接")
@@ -78,6 +88,8 @@ func parseNodes(data []byte, sourceID string) ([]Node, []NodeIssue, error) {
 			issue.Type = typ
 		}
 		switch {
+		case i < len(presetReasons) && presetReasons[i] != "":
+			issue.Reason = presetReasons[i]
 		case keyErrors[i] != nil:
 			issue.Reason = keyErrors[i].Error()
 		case strings.TrimSpace(name) == "" || len(name) > 240:

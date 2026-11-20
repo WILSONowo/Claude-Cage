@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"os"
 	"path/filepath"
 	"regexp"
 
+	"github.com/google/uuid"
+	"github.com/sylvinus/agent-vm/internal/durable"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -214,10 +215,5 @@ func FinishMacOSSetup(profile, setupID string) error {
 	if err = os.Rename(f.Name(), filepath.Join(profile, "macos-guest.json")); err != nil {
 		return err
 	}
-	dir, err := os.Open(profile)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
+	return durable.SyncDir(profile)
 }

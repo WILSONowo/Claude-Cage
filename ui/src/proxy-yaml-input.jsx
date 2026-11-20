@@ -56,8 +56,8 @@ export function ProxyYAMLInput({
       return;
     }
     const value = files[0];
-    if (!/\.(ya?ml|json)$/i.test(value.name)) {
-      setError("请选择 .yaml、.yml 或 .json 配置文件。");
+    if (!/\.(ya?ml|json|txt)$/i.test(value.name)) {
+      setError("请选择 .yaml、.yml、.json 或 .txt 文件。");
       return;
     }
     if (value.size > 8 * 1024 * 1024) {
@@ -127,7 +127,7 @@ export function ProxyYAMLInput({
         type="file"
         ref={input}
         disabled={disabled}
-        accept=".yaml,.yml,.json,text/yaml,application/yaml,application/json"
+        accept=".yaml,.yml,.json,.txt,text/plain,text/yaml,application/yaml,application/json"
         onChange={(event) => {
           const files = Array.from(event.target.files || []);
           event.target.value = "";
@@ -171,7 +171,7 @@ export function ProxyYAMLInput({
         </span>
       </button>
       <p id={helpID} className="proxy-yaml-help">
-        支持 YAML / YML / JSON，单个文件不超过 8 MiB
+        支持 YAML、JSON 或分享链接文本，最大 8 MiB
       </p>
       <p className="proxy-yaml-status" role="status">
         {reading

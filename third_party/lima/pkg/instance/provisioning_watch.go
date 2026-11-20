@@ -51,7 +51,7 @@ func aptPartialBytes(ctx context.Context, inst *limatype.Instance) (int64, bool)
 	return n, err == nil && n >= 0
 }
 
-func hostAgentWatchContext(parent context.Context, inst *limatype.Instance) (context.Context, context.CancelFunc) {
+func hostAgentWatchContext(parent context.Context, inst *limatype.Instance, progress <-chan struct{}) (context.Context, context.CancelFunc) {
 	idle := watchHostAgentTimeout(parent)
 	policy, enabled := parent.Value(baseProvisioningKey{}).(baseProvisioningWatch)
 	if !enabled || inst.Config.OS == nil || *inst.Config.OS != limatype.LINUX {
@@ -72,8 +72,10 @@ func hostAgentWatchContext(parent context.Context, inst *limatype.Instance) (con
 			select {
 			case <-ctx.Done():
 				return
+			case <-progress:
+				idleTimer.Reset(idle)
 			case <-idleTimer.C:
-				cancel(fmt.Errorf("Linux 基础环境未就绪，连续 %s 没有观察到 APT 下载进度: %w", idle, context.DeadlineExceeded))
+				cancel(fmt.Errorf("Linux 基础环境未就绪，连续 %s 没有观察到 cloud-init 输出或 APT 下载进度: %w", idle, context.DeadlineExceeded))
 				return
 			case <-ticks.C:
 				probe, stop := context.WithTimeout(ctx, 5*time.Second)

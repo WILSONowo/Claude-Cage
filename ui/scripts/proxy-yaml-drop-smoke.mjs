@@ -90,7 +90,7 @@ try {
 
   const preserved = await editor.inputValue();
   for (const [files, message] of [
-    [[{ name: "image.png", content: "image" }], ".yaml、.yml 或 .json"],
+    [[{ name: "image.png", content: "image" }], ".yaml、.yml、.json 或 .txt"],
     [[{ name: "a.yaml", content: yaml }, { name: "b.yml", content: yaml }], "一次只能导入一个"],
     [[{ name: "empty.yaml", content: "  " }], "文件内容为空"],
   ]) {

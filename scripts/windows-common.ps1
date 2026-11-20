@@ -235,13 +235,28 @@ function Get-BuildCommand {
     if (-not $Optional) { throw "Missing build tool: $($Names -join ' or ')" }
 }
 
+function Publish-WindowsCacheFile {
+    param([string]$Candidate, [string]$Path)
+    # Another build may have published a verified copy while this one downloaded.
+    try { [IO.File]::Move($Candidate, $Path) }
+    catch [IO.IOException] { if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw } }
+}
+
 function Get-VerifiedDependency {
     param($Dependency, [string]$Cache)
     if ($Dependency.url -notlike 'https://*') { throw 'Build dependencies must use HTTPS.' }
     $path = Join-Path $Cache $Dependency.file
+    $fetcher = Join-Path $PSScriptRoot 'fetch-build-artifact.mjs'
+    $node = Get-BuildCommand @('node.exe', 'node') -Optional
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf) -and $node -and (Test-Path -LiteralPath $fetcher -PathType Leaf)) {
+        # The shared fetcher resumes with HTTP Range after each interruption and
+        # only publishes a file whose pinned digest matches.
+        New-Item -ItemType Directory -Path $Cache -Force | Out-Null
+        Invoke-BuildTool $node @($fetcher, $Dependency.url, $Dependency.hash, $path)
+    }
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         New-Item -ItemType Directory -Path $Cache -Force | Out-Null
-        $partial = "$path.partial"
+        $partial = "$path.partial-$([guid]::NewGuid().ToString('N'))"
         try {
             # Release hosts and CDNs drop connections now and then. Retry the
             # transfer; the checksum below still decides what is accepted.
@@ -255,7 +270,9 @@ function Get-VerifiedDependency {
                     Start-Sleep -Seconds (5 * $attempt)
                 }
             }
-            Move-Item -LiteralPath $partial -Destination $path -Force
+            $actual = (Get-FileHash -LiteralPath $partial -Algorithm $Dependency.algorithm).Hash
+            if ($actual -ne $Dependency.hash) { throw "Downloaded dependency checksum mismatch: $($Dependency.file)" }
+            Publish-WindowsCacheFile $partial $path
         } finally {
             if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force }
         }
@@ -362,6 +379,83 @@ function Invoke-WindowsQemuProbe {
         }
         return $stdout.GetAwaiter().GetResult()
     } finally { $process.Dispose() }
+}
+
+function Enter-WindowsQemuOutputLock {
+    param([string]$Directory)
+    $deadline = [DateTime]::UtcNow.AddMinutes(30)
+    while ($true) {
+        try { return [IO.File]::Open("$Directory.lock", [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
+        catch [IO.IOException] {
+            if ($IsWindows -and ($_.Exception.HResult -band 0xffff) -notin @(32, 33)) { throw }
+            if ([DateTime]::UtcNow -ge $deadline) { throw "Timed out waiting for the QEMU runtime cache lock: $Directory.lock" }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+}
+
+function Test-WindowsQemuBuildManifest {
+    param([string]$Directory, [string]$Fingerprint)
+    try {
+        $root = Get-Item -LiteralPath $Directory
+        if ($root -isnot [IO.DirectoryInfo] -or ($root.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
+        $files = @{}
+        foreach ($file in (Get-ChildItem -LiteralPath $Directory -Force)) {
+            if ($file -isnot [IO.FileInfo] -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
+            $files[$file.Name] = $file.FullName
+        }
+        foreach ($name in @('cage-build.json', 'qemu-system-x86_64.exe', 'qemu-img.exe', 'build-packages.txt', 'build-source-packages.txt')) {
+            if (-not $files.ContainsKey($name)) { return $false }
+        }
+        $manifest = Get-Content -LiteralPath $files['cage-build.json'] -Raw | ConvertFrom-Json -AsHashtable -NoEnumerate
+        if ($manifest -isnot [System.Collections.IDictionary] -or $manifest['fingerprint'] -isnot [string] -or
+            $manifest['fingerprint'] -notmatch '^[0-9a-fA-F]{64}$' -or
+            ($Fingerprint -and $manifest['fingerprint'] -ne $Fingerprint) -or $manifest['files'] -isnot [array]) { return $false }
+        $files.Remove('cage-build.json')
+        foreach ($entry in $manifest['files']) {
+            if ($entry -isnot [System.Collections.IDictionary] -or $entry['name'] -isnot [string] -or $entry['sha256'] -isnot [string] -or
+                -not $files.ContainsKey($entry['name'])) { return $false }
+            if ((Get-FileHash -LiteralPath $files[$entry['name']] -Algorithm SHA256).Hash -ne $entry['sha256']) { return $false }
+            $files.Remove($entry['name'])
+        }
+        return $files.Count -eq 0
+    } catch {
+        return $false
+    }
+}
+
+function Publish-WindowsQemuRuntime {
+    param([string]$StagedDirectory, [string]$Directory, [switch]$ManagedCache)
+    # The caller holds the per-output lock and stages the runtime on this volume.
+    $previous = $null
+    if (Test-Path -LiteralPath $Directory) {
+        $current = Get-Item -LiteralPath $Directory
+        if ($current -isnot [IO.DirectoryInfo] -or ($current.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Choose a normal directory for QEMU build output: $Directory"
+        }
+        $empty = -not (Get-ChildItem -LiteralPath $Directory -Force | Select-Object -First 1)
+        $marker = Get-Item -LiteralPath (Join-Path $Directory 'cage-build.json') -ErrorAction SilentlyContinue
+        if (-not $ManagedCache -and -not $empty -and
+            ($marker -isnot [IO.FileInfo] -or ($marker.Attributes -band [IO.FileAttributes]::ReparsePoint))) {
+            throw "Choose an empty directory or an existing Cage QEMU build output: $Directory"
+        }
+        $removePrevious = $empty -or (Test-WindowsQemuBuildManifest $Directory)
+        $previous = "$Directory.previous-$([guid]::NewGuid().ToString('N'))"
+        [IO.Directory]::Move($Directory, $previous)
+    }
+    try { [IO.Directory]::Move($StagedDirectory, $Directory) }
+    catch {
+        if ($previous) { [IO.Directory]::Move($previous, $Directory) }
+        throw
+    }
+    if ($previous) {
+        if ($removePrevious) {
+            try { Remove-Item -LiteralPath $previous -Recurse -Force }
+            catch { Write-Warning "The previous QEMU output is retained at $previous." }
+        } else {
+            Write-Warning "The previous QEMU output was incomplete or contained extra files and is retained at $previous."
+        }
+    }
 }
 
 function Assert-WindowsQemuRuntime {

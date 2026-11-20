@@ -2,9 +2,12 @@ package managedproxy
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.yaml.in/yaml/v3"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -188,10 +191,92 @@ func removeStaleCore(profile, path string) error {
 }
 
 func removeWindowsCoreSocket(profile string) error {
-	if err := os.Remove(Socket(profile)); err != nil && !os.IsNotExist(err) {
+	// A legacy socket may be inaccessible after an upgrade. Only remove an
+	// authenticated profile-owned socket, and never let legacy debris block restart.
+	if old, err := legacySocketFromConfig(profile); err == nil {
+		_ = os.Remove(old)
+	}
+	dir, err := host.PrivateSocketDir(profile, len(`\proxy.sock`), false)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return &coreError{stage: "socket.remove", err: err}
+	}
+	if _, err := os.Lstat(dir); os.IsNotExist(err) {
+		return nil
+	}
+	if err := host.CheckPrivateDir(dir); err != nil {
+		return &coreError{stage: "socket.remove", err: err}
+	}
+	if err := os.Remove(filepath.Join(dir, "proxy.sock")); err != nil && !os.IsNotExist(err) {
 		return &coreError{stage: "socket.remove", err: err}
 	}
 	return nil
+}
+
+// A core started by an earlier Cage may run under a different TEMP. Its
+// private generated config is authoritative for the old location. Restrict
+// lookups to the exact profile hash and a user-owned, non-redirected directory.
+func legacySocketFromConfig(profile string) (string, error) {
+	config := filepath.Join(Dir(profile), "config.yaml")
+	if err := host.CheckPrivateFile(config); err != nil {
+		return "", err
+	}
+	file, err := os.Open(config)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	var parsed struct {
+		Socket string `yaml:"external-controller-unix"`
+	}
+	if err := yaml.NewDecoder(io.LimitReader(file, maxStoreSize)).Decode(&parsed); err != nil {
+		return "", err
+	}
+	socket := filepath.Clean(parsed.Socket)
+	dir := filepath.Dir(socket)
+	sum := sha256.Sum256([]byte(filepath.Clean(profile)))
+	if !filepath.IsAbs(socket) || strings.HasPrefix(socket, `\\`) || !strings.EqualFold(filepath.Base(socket), "control.sock") || !strings.EqualFold(filepath.Base(dir), fmt.Sprintf("cage-proxy-%x", sum[:8])) {
+		return "", os.ErrNotExist
+	}
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil || !strings.EqualFold(real, dir) {
+		return "", os.ErrNotExist
+	}
+	if err := host.CheckPrivateDir(dir); err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(socket)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		return "", os.ErrNotExist
+	}
+	return socket, nil
+}
+
+func controlSocketForDial(profile string) (string, error) {
+	dir, err := host.PrivateSocketDir(profile, len(`\proxy.sock`), false)
+	if err == nil {
+		socket := filepath.Join(dir, "proxy.sock")
+		if _, statErr := os.Lstat(socket); statErr == nil {
+			if err := host.CheckPrivateDir(dir); err != nil {
+				return "", err
+			}
+			return socket, nil
+		} else if !os.IsNotExist(statErr) {
+			return "", statErr
+		}
+	}
+	if old, oldErr := legacySocketFromConfig(profile); oldErr == nil {
+		return old, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return "", os.ErrNotExist
 }
 
 func startWindowsCoreProcess(profile string, cmd *exec.Cmd) error {
@@ -233,7 +318,7 @@ func startWindowsCore(ctx context.Context, profile string, s Store) error {
 	if err != nil {
 		return err
 	}
-	if err := host.EnsurePrivateDir(filepath.Dir(Socket(profile))); err != nil {
+	if _, err := host.PrivateSocketDir(profile, len(`\proxy.sock`), true); err != nil {
 		return err
 	}
 	b, err := s.Runtime(profile)

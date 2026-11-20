@@ -129,7 +129,7 @@ func (s *Server) applyResources(w http.ResponseWriter, r *http.Request) {
 		jsonReply(w, map[string]bool{"ok": true})
 		return
 	}
-	s.launch(w, "resources", func() error {
+	s.launchRequest(w, r, "resources", func() error {
 		allocation, err := cage.LoadResourceAllocation(s.configPath)
 		if err != nil {
 			return err

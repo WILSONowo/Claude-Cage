@@ -678,7 +678,9 @@ ln -sf "${SSH_AUTH_SOCK}" /run/host-services/ssh-auth.sock`
 		if a.showProgress {
 			cloudInitDone := make(chan struct{})
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+				// Progress mode follows a first boot that may download packages
+				// for a long time; the caller's idle timeout detects a stall.
+				timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Hour)
 				defer cancel()
 
 				a.watchCloudInitProgress(timeoutCtx)

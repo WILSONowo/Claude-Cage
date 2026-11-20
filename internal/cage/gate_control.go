@@ -16,7 +16,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sylvinus/agent-vm/internal/durable"
 	"github.com/sylvinus/agent-vm/internal/host"
+	"github.com/sylvinus/agent-vm/internal/managedproxy"
 )
 
 const gateRecordName = "cage-gate.json"
@@ -79,11 +81,17 @@ func StartGateControl(configPath, instanceDir string, gate *EgressGate) (func(),
 		return nil, err
 	}
 	_, err = temporary.Write(data)
+	if err == nil {
+		err = temporary.Sync()
+	}
 	if closeErr := temporary.Close(); err == nil {
 		err = closeErr
 	}
 	if err == nil {
 		err = os.Rename(temporary.Name(), filepath.Join(instanceDir, gateRecordName))
+	}
+	if err == nil {
+		err = durable.SyncDir(instanceDir)
 	}
 	if err != nil {
 		listener.Close()
@@ -168,6 +176,8 @@ func StartGateControl(configPath, instanceDir string, gate *EgressGate) (func(),
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+		// Reread every second; only unchanged proxy store bytes skip the parse.
+		var applied managedproxy.AppliedCheck
 		for {
 			select {
 			case <-ctx.Done():
@@ -175,7 +185,7 @@ func StartGateControl(configPath, instanceDir string, gate *EgressGate) (func(),
 			case <-ticker.C:
 				cfg, err := Load(configPath)
 				if err == nil {
-					err = cfg.RequireManagedProxy(filepath.Dir(configPath))
+					err = applied.Check(filepath.Dir(configPath), cfg.ProxyURL, cfg.ProxyRevision)
 				}
 				if err != nil || cfg.Fingerprint() != gate.Status().Configuration {
 					gate.Close("配置已变更或无法读取，请重启环境并重新检测")

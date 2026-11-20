@@ -30,7 +30,7 @@ func validAgentSocket(path string) bool {
 	path = filepath.FromSlash(path)
 	if strings.HasPrefix(strings.ToLower(path), `\\.\pipe\`) {
 		name := path[len(`\\.\pipe\`):]
-		return name != "" && !strings.ContainsAny(name, `\:`) && name != "." && name != ".."
+		return len(path) <= 256 && name != "" && !strings.ContainsAny(name, `\:`) && name != "." && name != ".."
 	}
 	return filepath.IsAbs(path) && len(filepath.VolumeName(path)) == 2 && !strings.Contains(path[2:], ":")
 }

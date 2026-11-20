@@ -39,7 +39,7 @@ func TestMacMediaUsesHostDownloaderForEveryPackage(t *testing.T) {
 set -eu
 test "$1" = host-download
 case "$4" in chrome.dmg|macos-cli-latest|macos-cli-manifest.json) test "$#" = 5;; *) test "$6" = "$FIXTURE_MEDIA/.downloads"; test "$7" = "$FIXTURE_DIGEST";; esac
-printf '%s %s %s\n' "$2" "$4" "${5:-}" >> "$FIXTURE_DOWNLOADS"
+printf '%s %s %s\n' "$2" "$4" "${5:-}" > "$(mktemp "$FIXTURE_DOWNLOADS/request.XXXXXXXX")"
 case "$4" in macos-cli-git.tar.gz) test ! -f "$FIXTURE_MEDIA/fail-git" || exit 1;; esac
 case "$2" in https://github.com/*) exit 1;; esac
 case "$2" in https://api.github.com/*) test "$5" = application/octet-stream;; esac
@@ -69,10 +69,24 @@ plutil() {
 	if err := os.WriteFile(marker, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
+	// The shell may see a POSIX mount path for the same test directory
+	// (for example, bash via WSL). Resolve shell arguments within that shell.
+	const runner = `set -eu
+export BASH_ENV="$PWD/environment.sh" CAGE_HOST_DOWNLOADER="$PWD/Cage helper" CAGE_REFRESH_TOOLS=1
+export FIXTURE_MEDIA="$PWD/media" FIXTURE_DIGEST="$1" FIXTURE_DOWNLOADS="$PWD/requests"
+exec bash ./prepare-macos-media.sh "$FIXTURE_MEDIA"
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-fixture.sh"), []byte(runner), 0700); err != nil {
+		t.Fatal(err)
+	}
 	run := func() ([]byte, error) {
-		cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(dir, "prepare-macos-media.sh"), media)
-		cmd.Env = append(os.Environ(), "BASH_ENV="+environment, "CAGE_HOST_DOWNLOADER="+helper, "CAGE_REFRESH_TOOLS=1", "FIXTURE_MEDIA="+media, "FIXTURE_DIGEST="+digest, "FIXTURE_DOWNLOADS="+filepath.Join(dir, "requests"))
+		cmd := exec.CommandContext(t.Context(), "bash", "./run-fixture.sh", digest)
+		cmd.Dir = dir
 		return cmd.CombinedOutput()
+	}
+	requestDir := filepath.Join(dir, "requests")
+	if err := os.Mkdir(requestDir, 0700); err != nil {
+		t.Fatal(err)
 	}
 	output, err := run()
 	if err == nil {
@@ -86,9 +100,20 @@ plutil() {
 		t.Fatalf("%v\n%s", err, retry)
 	}
 	output = append(output, retry...)
-	requests, _ := os.ReadFile(filepath.Join(dir, "requests"))
+	var requests []byte
+	entries, err := os.ReadDir(requestDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range entries {
+		data, err := os.ReadFile(filepath.Join(requestDir, item.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		requests = append(requests, data...)
+	}
 	if strings.Count(string(requests), " macos-cli-claude ") != 1 {
-		t.Fatal("completed CLI package was fetched again on retry")
+		t.Fatalf("expected exactly one CLI download across both runs; requests:\n%s", requests)
 	}
 	for _, name := range []string{"editor.tgz", "node.tgz", "chrome.dmg", "macos-cli-claude", "macos-cli-uv.tar.gz", "macos-cli-python.tar.gz", "macos-cli-git.tar.gz"} {
 		if !strings.Contains(string(requests), " "+name+" ") || !strings.Contains(string(output), "CAGE_HOST_BYTES "+name+" 7 7") {

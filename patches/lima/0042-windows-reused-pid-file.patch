@@ -1,0 +1,402 @@
+diff --git a/pkg/store/pidliveness_windows.go b/pkg/store/pidliveness_windows.go
+index 7c6d3504..90d1cdda 100644
+--- a/pkg/store/pidliveness_windows.go
++++ b/pkg/store/pidliveness_windows.go
+@@ -57,6 +57,37 @@ func readCurrentPID(path string, pid int) (int, error) {
+ 		return 0, err
+ 	}
+ 	if alive {
++		file, err := os.Open(path)
++		if os.IsNotExist(err) {
++			return 0, nil
++		}
++		if err != nil {
++			return 0, err
++		}
++		defer file.Close()
++		// Bind the modification time to the same marker that named this PID.
++		data, err := io.ReadAll(io.LimitReader(file, 32))
++		if err != nil {
++			return 0, err
++		}
++		current, err := strconv.Atoi(strings.TrimSpace(string(data)))
++		if err != nil {
++			return 0, err
++		}
++		if current != pid {
++			return 0, fmt.Errorf("VM PID changed while checking %s; retry", path)
++		}
++		info, err := file.Stat()
++		if err != nil {
++			return 0, err
++		}
++		reused, err := processStartedAfter(pid, info.ModTime())
++		if err != nil {
++			return 0, err
++		}
++		if reused {
++			return 0, nil
++		}
+ 		return pid, nil
+ 	}
+ 	// Remove only the same still-stale record. A concurrent launcher may
+diff --git a/pkg/store/process_windows.go b/pkg/store/process_windows.go
+new file mode 100644
+index 00000000..6a014c80
+--- /dev/null
++++ b/pkg/store/process_windows.go
+@@ -0,0 +1,69 @@
++// SPDX-FileCopyrightText: Copyright The Lima Authors
++// SPDX-License-Identifier: Apache-2.0
++
++package store
++
++import (
++	"fmt"
++	"time"
++	"unsafe"
++
++	"golang.org/x/sys/windows"
++)
++
++// FAT-family file systems round write times down by up to two seconds, which
++// would otherwise make a live owner look newer than its own PID file.
++const pidFileTimeSlack = 2 * time.Second
++
++// A process created after the PID file was written cannot be its owner. This
++// also covers old PID files without a boot marker (Windows has no boot ID).
++// Query failures retain the marker: they do not prove that its owner is gone.
++func processStartedAfter(pid int, modified time.Time) (bool, error) {
++	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
++	if err == nil {
++		defer windows.CloseHandle(handle)
++		var created, exited, kernel, user windows.Filetime
++		if windows.GetProcessTimes(handle, &created, &exited, &kernel, &user) == nil && created != (windows.Filetime{}) {
++			return created.Nanoseconds() > modified.Add(pidFileTimeSlack).UnixNano(), nil
++		}
++	}
++	// The snapshot includes processes whose handles we cannot open.
++	created, ok := processCreationTimeFromSnapshot(pid)
++	if !ok {
++		return false, fmt.Errorf("cannot confirm creation time of Windows process %d", pid)
++	}
++	return created > modified.Add(pidFileTimeSlack).UnixNano(), nil
++}
++
++func processCreationTimeFromSnapshot(pid int) (int64, bool) {
++	size := uint32(64 * 1024)
++	for size <= 64<<20 {
++		buf := make([]byte, size)
++		var length uint32
++		err := windows.NtQuerySystemInformation(windows.SystemProcessInformation, unsafe.Pointer(&buf[0]), size, &length)
++		if err == windows.STATUS_INFO_LENGTH_MISMATCH {
++			size = max(size*2, length)
++			continue
++		}
++		if err != nil || length > uint32(len(buf)) {
++			return 0, false
++		}
++		buf = buf[:length]
++		for len(buf) >= int(unsafe.Sizeof(windows.SYSTEM_PROCESS_INFORMATION{})) {
++			info := (*windows.SYSTEM_PROCESS_INFORMATION)(unsafe.Pointer(&buf[0]))
++			if info.UniqueProcessID == uintptr(pid) {
++				if info.CreateTime <= 0 {
++					return 0, false
++				}
++				created := windows.Filetime{LowDateTime: uint32(info.CreateTime), HighDateTime: uint32(info.CreateTime >> 32)}
++				return created.Nanoseconds(), true
++			}
++			if uintptr(info.NextEntryOffset) < unsafe.Sizeof(*info) || info.NextEntryOffset > uint32(len(buf)) {
++				break
++			}
++			buf = buf[info.NextEntryOffset:]
++		}
++		return 0, false
++	}
++	return 0, false
++}
+diff --git a/pkg/store/process_windows_test.go b/pkg/store/process_windows_test.go
+new file mode 100644
+index 00000000..0f0a2097
+--- /dev/null
++++ b/pkg/store/process_windows_test.go
+@@ -0,0 +1,144 @@
++// SPDX-FileCopyrightText: Copyright The Lima Authors
++// SPDX-License-Identifier: Apache-2.0
++
++package store
++
++import (
++	"fmt"
++	"io"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"golang.org/x/sys/windows"
++
++	"github.com/lima-vm/lima/v2/pkg/osutil"
++)
++
++func TestProcessCreationTimeFromSnapshot(t *testing.T) {
++	if os.Getenv("LIMA_TEST_PROCESS_CREATION_TIME_CHILD") == "1" {
++		if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
++			t.Fatal(err)
++		}
++		return
++	}
++	cmd := exec.Command(os.Args[0], "-test.run=^TestProcessCreationTimeFromSnapshot$")
++	cmd.Env = append(os.Environ(), "LIMA_TEST_PROCESS_CREATION_TIME_CHILD=1")
++	stdin, err := cmd.StdinPipe()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := cmd.Start(); err != nil {
++		_ = stdin.Close()
++		t.Fatal(err)
++	}
++	t.Cleanup(func() {
++		_ = stdin.Close()
++		if err := cmd.Wait(); err != nil {
++			t.Error(err)
++		}
++	})
++	for _, tc := range []struct {
++		name string
++		pid  int
++	}{
++		{"current", os.Getpid()},
++		{"child", cmd.Process.Pid},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(tc.pid))
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer windows.CloseHandle(handle)
++			var created, exited, kernel, user windows.Filetime
++			if err := windows.GetProcessTimes(handle, &created, &exited, &kernel, &user); err != nil {
++				t.Fatal(err)
++			}
++			got, ok := processCreationTimeFromSnapshot(tc.pid)
++			if !ok || got != created.Nanoseconds() {
++				t.Fatalf("snapshot creation time = %d, %v; GetProcessTimes = %d", got, ok, created.Nanoseconds())
++			}
++		})
++	}
++	if created, ok := processCreationTimeFromSnapshot(-1); ok {
++		t.Fatalf("nonexistent PID found: %d", created)
++	}
++}
++
++func TestReadPIDFileRejectsReusedWindowsPID(t *testing.T) {
++	for _, boot := range []string{"missing", "unsupported", "current"} {
++		t.Run(boot, func(t *testing.T) {
++			original := bootSessionID
++			bootSessionID = func() (string, error) { return "boot-1", nil }
++			if boot == "unsupported" {
++				bootSessionID = func() (string, error) { return "", osutil.ErrBootSessionNotSupported }
++			}
++			t.Cleanup(func() { bootSessionID = original })
++			dir := t.TempDir()
++			if boot == "current" {
++				if err := writeBootSessionMarker(dir, "boot-1"); err != nil {
++					t.Fatal(err)
++				}
++			}
++			for _, name := range []string{"ha.pid", "qemu.pid"} {
++				path := filepath.Join(dir, name)
++				if err := os.WriteFile(path, fmt.Appendf(nil, "%d\n", os.Getpid()), 0o644); err != nil {
++					t.Fatal(err)
++				}
++				// Model a file left by an earlier owner of this still-live PID.
++				old := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
++				if err := os.Chtimes(path, old, old); err != nil {
++					t.Fatal(err)
++				}
++				if pid, err := ReadPIDFile(path); err != nil || pid != 0 {
++					t.Fatalf("reused PID accepted: %d, %v", pid, err)
++				}
++				if _, err := os.Stat(path); err != nil {
++					t.Fatal("reader removed the marker or signaled its new owner", err)
++				}
++				// The next startup replaces the stale file with its real owner.
++				if err := WritePIDFile(path, os.Getpid()); err != nil {
++					t.Fatal(err)
++				}
++				if pid, err := ReadPIDFile(path); err != nil || pid != os.Getpid() {
++					t.Fatalf("live owner treated as stale: %d, %v", pid, err)
++				}
++			}
++		})
++	}
++}
++
++func TestReadPIDFileRemovesExitedWindowsProcess(t *testing.T) {
++	cmd := exec.Command(os.Args[0], "-test.run=^$")
++	if err := cmd.Run(); err != nil {
++		t.Fatal(err)
++	}
++	path := filepath.Join(t.TempDir(), "ha.pid")
++	if err := os.WriteFile(path, fmt.Appendf(nil, "%d\n", cmd.Process.Pid), 0o644); err != nil {
++		t.Fatal(err)
++	}
++	if pid, err := ReadPIDFile(path); err != nil || pid != 0 {
++		t.Fatalf("exited process accepted: %d, %v", pid, err)
++	}
++	if _, err := os.Stat(path); !os.IsNotExist(err) {
++		t.Fatal("dead process marker not removed", err)
++	}
++}
++
++func TestPIDMarkerChangedBeforeLivenessRead(t *testing.T) {
++	path := filepath.Join(t.TempDir(), "ha.pid")
++	// The first read saw our live PID, then a new launcher replaced its marker.
++	replacement := []byte("2147483647\n")
++	if err := os.WriteFile(path, replacement, 0600); err != nil {
++		t.Fatal(err)
++	}
++	if pid, err := readCurrentPID(path, os.Getpid()); err == nil || pid != 0 {
++		t.Fatalf("trusted previous owner: %d, %v", pid, err)
++	}
++	if b, err := os.ReadFile(path); err != nil || string(b) != string(replacement) {
++		t.Fatal("replacement was modified", err)
++	}
++}
+diff --git a/pkg/networks/usernet/recoincile.go b/pkg/networks/usernet/recoincile.go
+index ebc477ce..177730a2 100644
+--- a/pkg/networks/usernet/recoincile.go
++++ b/pkg/networks/usernet/recoincile.go
+@@ -42,7 +42,10 @@ func Start(ctx context.Context, name string) error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	pid, _ := store.ReadPIDFile(pidFile)
++	pid, err := store.ReadPIDFile(pidFile)
++	if err != nil {
++		return err
++	}
+ 	if pid == 0 {
+ 		qemuSock, err := Sock(name, QEMUSock)
+ 		if err != nil {
+@@ -133,7 +136,10 @@ func Stop(ctx context.Context, name string) error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	pid, _ := store.ReadPIDFile(pidFile)
++	pid, err := store.ReadPIDFile(pidFile)
++	if err != nil {
++		return err
++	}
+ 
+ 	if pid != 0 {
+ 		logrus.Debugf("Stopping usernet daemon")
+@@ -153,9 +159,16 @@ func Stop(ctx context.Context, name string) error {
+ 	// will cause subsequent start commands to fail.
+ 	startWaiting := time.Now()
+ 	for {
+-		if pid, _ := store.ReadPIDFile(pidFile); pid == 0 {
++		current, err := store.ReadPIDFile(pidFile)
++		if err != nil {
++			return err
++		}
++		if current == 0 {
+ 			break
+ 		}
++		if current != pid {
++			return fmt.Errorf("usernet owner changed while stopping %s", name)
++		}
+ 		if time.Since(startWaiting) > 5*time.Second {
+ 			logrus.Infof("usernet network still running after 5 seconds. Attempting to forcibly kill")
+ 			if err := osutil.SysKill(pid, osutil.SigKill); err != nil {
+diff --git a/pkg/networks/usernet/pidliveness_windows_test.go b/pkg/networks/usernet/pidliveness_windows_test.go
+new file mode 100644
+index 00000000..ac7858b3
+--- /dev/null
++++ b/pkg/networks/usernet/pidliveness_windows_test.go
+@@ -0,0 +1,44 @@
++// SPDX-FileCopyrightText: Copyright The Lima Authors
++// SPDX-License-Identifier: Apache-2.0
++
++package usernet
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"testing"
++
++	"golang.org/x/sys/windows"
++)
++
++func TestUsernetPIDSharingViolation(t *testing.T) {
++	t.Setenv("LIMA_HOME", t.TempDir())
++	name := "fixture"
++	path, err := PIDFile(name)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err = os.WriteFile(path, []byte(fmt.Sprint(os.Getpid())), 0600); err != nil {
++		t.Fatal(err)
++	}
++	ptr, err := windows.UTF16PtrFromString(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	handle, err := windows.CreateFile(ptr, windows.GENERIC_READ, 0, nil, windows.OPEN_EXISTING, 0, 0)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer windows.CloseHandle(handle)
++	for _, run := range []func(context.Context, string) error{Stop, Start} {
++		if err = run(t.Context(), name); !errors.Is(err, windows.ERROR_SHARING_VIOLATION) {
++			t.Fatalf("unreadable live owner: %v", err)
++		}
++	}
++}
+diff --git a/pkg/networks/reconcile/reconcile.go b/pkg/networks/reconcile/reconcile.go
+index 989c7150..1ed003ef 100644
+--- a/pkg/networks/reconcile/reconcile.go
++++ b/pkg/networks/reconcile/reconcile.go
+@@ -227,7 +227,10 @@ func startNetwork(ctx context.Context, cfg *networks.Config, name string) error
+ 		return fmt.Errorf("daemon %#q needs to be installed", networks.SocketVMNet)
+ 	}
+ 	for _, daemon := range daemons {
+-		pid, _ := store.ReadPIDFile(cfg.PIDFile(name, daemon))
++		pid, err := store.ReadPIDFile(cfg.PIDFile(name, daemon))
++		if err != nil {
++			return err
++		}
+ 		if pid == 0 {
+ 			logrus.Infof("Starting %s daemon for %#q network", daemon, name)
+ 			if err := startDaemonWithRetry(ctx, cfg, name, daemon); err != nil {
+@@ -414,7 +417,10 @@ func stopNetwork(ctx context.Context, cfg *networks.Config, name string) error {
+ 		if ok, _ := cfg.IsDaemonInstalled(daemon); !ok {
+ 			continue
+ 		}
+-		pid, _ := store.ReadPIDFile(cfg.PIDFile(name, daemon))
++		pid, err := store.ReadPIDFile(cfg.PIDFile(name, daemon))
++		if err != nil {
++			return err
++		}
+ 		if pid != 0 {
+ 			logrus.Infof("Stopping %s daemon for %#q network", daemon, name)
+ 			if err := validateConfig(ctx, cfg); err != nil {
+@@ -433,7 +439,9 @@ func stopNetwork(ctx context.Context, cfg *networks.Config, name string) error {
+ 		// will cause subsequent start commands to fail.
+ 		startWaiting := time.Now()
+ 		for {
+-			if pid, _ := store.ReadPIDFile(cfg.PIDFile(name, daemon)); pid == 0 {
++			if current, err := store.ReadPIDFile(cfg.PIDFile(name, daemon)); err != nil {
++				return err
++			} else if current == 0 {
+ 				break
+ 			}
+ 			if time.Since(startWaiting) > 5*time.Second {

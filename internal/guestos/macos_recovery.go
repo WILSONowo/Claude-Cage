@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/sylvinus/agent-vm/internal/durable"
 )
 
 const macOSInstallRecoveryRecord = "macos-install-recovery.json"
@@ -229,10 +230,5 @@ func writeMacOSInstallRecovery(profile string, recovery MacOSInstallRecovery) er
 	if err := os.Rename(file.Name(), filepath.Join(profile, macOSInstallRecoveryRecord)); err != nil {
 		return err
 	}
-	dir, err := os.Open(profile)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
+	return durable.SyncDir(profile)
 }

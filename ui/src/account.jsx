@@ -181,17 +181,22 @@ export function MacOSAccountGate({ children }) {
   </section></main>;
 }
 
+const passwordHint = (sharedWithMac) =>
+  sharedWithMac ? "8–256 个英文键盘字符（含空格）" : "1–256 个字符";
+
 function PasswordField({
   label,
   value,
   onChange,
   autoComplete = "current-password",
+  hint,
 }) {
   const id = useId();
   return <div className="account-field">
     <label htmlFor={id}>{label}</label>
     <PasswordInput id={id} label={label} value={value} onChange={e => onChange(e.target.value)}
-      autoComplete={autoComplete} required maxLength={1024} />
+      aria-describedby={hint ? id + "-hint" : undefined} autoComplete={autoComplete} required maxLength={1024} />
+    {hint && <small id={id + "-hint"} className="field-help">{hint}</small>}
   </div>;
 }
 
@@ -332,6 +337,7 @@ export function AccountGate({ children }) {
                 value={password}
                 onChange={setPassword}
                 autoComplete={creating ? "new-password" : "current-password"}
+                hint={creating ? passwordHint(account.macos_account_host) : undefined}
               />
               {creating && (
                 <PasswordField
@@ -341,7 +347,6 @@ export function AccountGate({ children }) {
                   autoComplete="new-password"
                 />
               )}
-              {creating && account.macos_account_host && <p className="field-help">密码支持 8–256 个英文键盘字符（含空格）。续装时使用同一账户。</p>}
               {(error || connectionError) && (
                 <p className="account-error" role="alert">
                   {error || connectionError}
@@ -469,7 +474,7 @@ function AccountRecovery({ onBack, onReset }) {
         finally { setBusy(false); }
       }}><fieldset disabled={busy}>
         <label className="account-field">已保存的恢复密钥<textarea aria-label="已保存的恢复密钥" autoFocus required value={code} onChange={(event) => setCode(event.target.value)} rows={4} maxLength={256} autoComplete="off" spellCheck={false} /></label>
-        <PasswordField label="新密码" value={password} onChange={setPassword} autoComplete="new-password" />
+        <PasswordField label="新密码" value={password} onChange={setPassword} autoComplete="new-password" hint={passwordHint(account.macos_password_shared)} />
         <PasswordField label="确认新密码" value={confirmation} onChange={setConfirmation} autoComplete="new-password" />
         <p className="field-help">重置后会换发恢复密钥，旧密钥失效。Cage 的记住我和快捷解锁会关闭。</p>
         {error && <p className="account-error" role="alert">{error}</p>}
@@ -785,6 +790,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
             value={password}
             onChange={setPassword}
             autoComplete="new-password"
+            hint={passwordHint(account.macos_password_shared)}
           />
           <PasswordField
             label="确认新密码"

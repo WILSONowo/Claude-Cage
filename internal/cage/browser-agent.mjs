@@ -6,6 +6,7 @@ const runFile = promisify(execFile);
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, constants } from "node:fs";
 import { open } from "node:fs/promises";
 import http from "node:http";
+import { browserGraphicsFlags } from "./browser-graphics.mjs";
 import { auditBrowser } from "./browser-audit.mjs";
 import { BrowserVault } from "./browser-vault.mjs";
 import { LoginBrowser } from "./browser-login.mjs";
@@ -81,6 +82,7 @@ const flags = [
   // Kiosk mode blocks Chromium's DevTools UI, including F12. Ordinary
   // fullscreen keeps the guest browser chrome hidden while allowing inspection.
   "--start-fullscreen",
+  ...browserGraphicsFlags(config.browser_graphics),
   "--no-first-run",
   "--restore-last-session",
   "--no-default-browser-check",
@@ -363,6 +365,15 @@ chrome.stdio[4].on("data", (chunk) => {
       uploads.cancelTab(uploadTab);
   }
 });
+// systemd restarts the controller after an unexpected error. Record its kind
+// and source line only: error messages can carry page addresses.
+const fatal = kind => error => {
+  const frame = String(error?.stack || "").split("\n").find(line => line.trimStart().startsWith("at "))?.trim();
+  console.error(`Browser controller ${kind}: ${error?.name || typeof error}${error?.code ? ` ${error.code}` : ""}${frame ? ` ${frame}` : ""}`);
+  process.exit(1);
+};
+process.on("uncaughtException", fatal("uncaught exception"));
+process.on("unhandledRejection", fatal("unhandled rejection"));
 chrome.on("exit", (code, signal) => {
   if (!shuttingDown) console.error("Chromium exited", { code, signal });
   ready = false;
@@ -1019,11 +1030,17 @@ const server = http.createServer(async (req, res) => {
           });
           // Keep consecutive close/new commands ordered after target destruction.
           closed.catch(() => {});
+          let retry;
           try {
             await cdp("Target.closeTarget", { targetId: id });
+            // Chromium can accept a close while a new window's first
+            // navigation is starting, then keep the page. Ask again.
+            retry = setInterval(() => {
+              if (targets.has(id)) void cdp("Target.closeTarget", { targetId: id }).catch(() => {});
+            }, 750);
             await closed;
             if (wasPrivate) await privateBrowser.prune();
-          } finally { clearTimeout(timer); closingTargets.delete(id); }
+          } finally { clearTimeout(timer); clearInterval(retry); closingTargets.delete(id); }
           break;
         }
         case "/navigate":

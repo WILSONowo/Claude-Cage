@@ -22,7 +22,11 @@ func (s *Server) browser(w http.ResponseWriter, r *http.Request) {
 	var input *browserInput
 	if r.Method != http.MethodGet {
 		input = &browserInput{}
-		if !readJSON(w, r, input) {
+		limit := int64(64 << 10)
+		if action == "cookies" {
+			limit = 1 << 20
+		}
+		if !readJSON(w, r, input, limit) {
 			return
 		}
 	}

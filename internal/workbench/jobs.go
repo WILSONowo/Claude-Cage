@@ -14,7 +14,16 @@ import (
 	"github.com/sylvinus/agent-vm/internal/usererror"
 )
 
+const (
+	jobInitiatorHeader  = "X-Cage-Initiator"
+	jobInitiatorAgent   = "agent"
+	jobInitiatorDesktop = "desktop"
+	jobInitiatorSetup   = "setup"
+)
+
 type Job struct {
+	SupersededBy  string         `json:"superseded_by,omitempty"`
+	CanceledBy    string         `json:"canceled_by,omitempty"`
 	Canceled      bool           `json:"canceled,omitempty"`
 	SettingsSaved bool           `json:"settings_saved,omitempty"`
 	SetupProgress *SetupProgress `json:"setup_progress,omitempty"`
@@ -22,6 +31,7 @@ type Job struct {
 	Label         string         `json:"label,omitempty"`
 	StartedAt     time.Time      `json:"started_at,omitzero"`
 	Kind          string         `json:"kind"`
+	Initiator     string         `json:"initiator,omitempty"`
 	Running       bool           `json:"running"`
 	Message       string         `json:"message"`
 	Error         string         `json:"error,omitempty"`
@@ -43,6 +53,7 @@ type jobManager struct {
 	history      []Job
 	historyFile  string
 	cancel       context.CancelFunc
+	cancelBy     string
 	active       *jobExecution
 	afterSuccess func() error
 	closed       bool
@@ -53,6 +64,10 @@ type jobManager struct {
 // afterSuccess may call this manager. afterSuccess must not acquire Server.mu:
 // submission can hold Server.mu while waiting for the manager's lock.
 func (m *jobManager) submit(operation sync.Locker, kind string, pauseVersion uint64, prepare func() error, afterSuccess func() error, run func() error) (Job, error) {
+	return m.submitWithInitiator(operation, kind, "", pauseVersion, prepare, afterSuccess, run)
+}
+
+func (m *jobManager) submitWithInitiator(operation sync.Locker, kind, initiator string, pauseVersion uint64, prepare func() error, afterSuccess func() error, run func() error) (Job, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -77,17 +92,26 @@ func (m *jobManager) submit(operation sync.Locker, kind string, pauseVersion uin
 		}
 	}
 	if m.cancel != nil {
+		if m.cancelBy == "" && initiator != "" {
+			m.cancelBy = initiator
+		}
 		m.cancel()
 	}
-	if m.state.Running {
+	nextID := randomToken()[:12]
+	if m.state.Running || (kind == "stop" && m.state.Canceled) {
 		interrupted := m.state
+		interrupted.SupersededBy = nextID
+		if m.cancelBy != "" {
+			interrupted.CanceledBy = m.cancelBy
+		}
 		interrupted.Running, interrupted.Canceled, interrupted.Message = false, true, "已取消"
 		m.rememberLocked(interrupted)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	m.afterSuccess = afterSuccess
-	m.state = Job{ID: randomToken()[:12], Kind: kind, Label: jobName(kind), StartedAt: time.Now(), Running: true, Message: "正在准备…"}
+	m.cancelBy = ""
+	m.state = Job{ID: nextID, Kind: kind, Initiator: initiator, Label: jobName(kind), StartedAt: time.Now(), Running: true, Message: "正在准备…"}
 	execution := &jobExecution{owner: m, id: m.state.ID, ctx: ctx, pauseVersion: pauseVersion}
 	execution.log = diagnostics.NewStreamWithConsumer(diagnostics.Default(), "task/"+kind, "info", func(line string) {
 		if m.state.ID == execution.id {
@@ -122,7 +146,11 @@ func (m *jobManager) submit(operation sync.Locker, kind string, pauseVersion uin
 		}
 		return false
 	})
-	diagnostics.Log("info", "task", kind+" started")
+	if initiator != "" {
+		diagnostics.Log("info", "task", kind+" started ("+initiator+")")
+	} else {
+		diagnostics.Log("info", "task", kind+" started")
+	}
 	m.workers.Add(1)
 	go func() {
 		defer m.workers.Done()
@@ -174,21 +202,34 @@ func (m *jobManager) finishLocked(execution *jobExecution, err error) {
 		err = m.afterSuccess()
 	}
 	m.cancel, m.afterSuccess = nil, nil
+	cancelBy := m.cancelBy
+	m.cancelBy = ""
 	m.state.Running = false
 	switch {
 	case errors.Is(err, context.Canceled):
 		m.state.Canceled = true
+		if m.state.CanceledBy == "" && cancelBy != "" {
+			m.state.CanceledBy = cancelBy
+		}
 		m.state.Message = "已取消"
 		if m.state.SettingsSaved {
 			m.state.Message = "设置已保存，后续操作已取消"
 		}
-		diagnostics.Log("info", "task", m.state.Kind+" canceled")
+		if m.state.CanceledBy != "" {
+			diagnostics.Log("info", "task", m.state.Kind+" canceled ("+m.state.CanceledBy+")")
+		} else {
+			diagnostics.Log("info", "task", m.state.Kind+" canceled")
+		}
 	case err != nil:
 		m.state.Error = usererror.Display(jobName(m.state.Kind), err, "打开“操作详情”查看失败记录；仍无法处理时，"+failureHelp).Error()
 		var projectFailure *projectShareError
 		if errors.As(err, &projectFailure) {
 			m.state.Recovery = projectFailure.Recovery
 			m.state.Workspace = projectFailure.Path
+		}
+		var recoveryFailure *jobRecoveryError
+		if m.state.Recovery == "" && errors.As(err, &recoveryFailure) {
+			m.state.Recovery = recoveryFailure.Recovery
 		}
 		m.state.Message = jobName(m.state.Kind) + "失败"
 		var networkFailure networkCheckError
@@ -236,9 +277,16 @@ func (m *jobManager) execution() *jobExecution {
 }
 
 func (m *jobManager) cancelRunning() string {
+	return m.cancelRunningBy("")
+}
+
+func (m *jobManager) cancelRunningBy(source string) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.state.Kind != "stop" && m.cancel != nil {
+		if source != "" && m.cancelBy == "" {
+			m.cancelBy = source
+		}
 		m.cancel()
 	}
 	if m.active != nil {
@@ -253,6 +301,9 @@ func (m *jobManager) close() {
 	m.mu.Lock()
 	m.closed = true
 	if m.cancel != nil {
+		if m.cancelBy == "" {
+			m.cancelBy = jobInitiatorDesktop
+		}
 		m.cancel()
 	}
 	m.mu.Unlock()

@@ -1,8 +1,6 @@
 .proxy-manager {
   margin-bottom: 28px;
 }
-.proxy-manager .field-row > .secret-field { flex: 1 1 12rem; min-width: 0; }
-.proxy-manager .field-row > .secret-field > label { width: auto; }
 .proxy-heading {
   display: flex;
   align-items: center;
@@ -245,16 +243,64 @@
   padding-left: 20px;
 }
 .proxy-import {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  container: proxy-import / inline-size;
   margin-top: 18px;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 10px;
 }
-.proxy-import h4 {
-  margin: 0 0 16px;
+.proxy-import h4,
+.proxy-import .proxy-tabs,
+.proxy-import .field-help,
+.proxy-import .proxy-form-actions {
+  margin: 0;
 }
 .proxy-import .proxy-tabs {
-  margin-top: 0;
+  flex-wrap: wrap;
+}
+.proxy-import-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+.proxy-subscription-fields {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+.proxy-import label,
+.proxy-import .secret-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--field-gap);
+  min-width: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 550;
+  line-height: 1.45;
+}
+.proxy-import label > :is(input, textarea, .inline-select),
+.proxy-import .inline-select-trigger {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-weight: 400;
+}
+.proxy-import label > input,
+.proxy-import .inline-select-trigger {
+  height: var(--control-height);
+  font-size: 1rem;
+}
+.proxy-import .inline-select-trigger {
+  justify-content: space-between;
+}
+@container proxy-import (max-width: 30rem) {
+  .proxy-import-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .proxy-import textarea {
   width: 100%;
@@ -677,4 +723,14 @@
   .proxy-route-actions .primary {
     transition: none;
   }
+}
+.proxy-node-edit {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.proxy-node-edit > button {
+  justify-self: start;
 }

@@ -34,6 +34,7 @@ func proxyCommand(command, profile string, cfg cage.Config) error {
 		return err
 	}
 	p.Revision = managedproxy.Token()
+	p.GuestDNS, p.BootstrapDNS = cfg.DNSEndpoints(), cfg.BootstrapEndpoints()
 	cfg.ProxyRevision = p.Revision
 	if err = p.Save(profile); err != nil {
 		return err

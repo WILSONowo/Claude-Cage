@@ -140,8 +140,8 @@ func TestRecoveryEnrollmentLegacyValidationAndWriteFailure(t *testing.T) {
 		}
 	}
 	a.nextAttempt = time.Time{}
-	if _, err = a.resetPassword(code, "short"); err == nil {
-		t.Fatal("weak replacement password accepted")
+	if _, err = a.resetPassword(code, ""); err == nil {
+		t.Fatal("empty replacement password accepted")
 	}
 	path := a.path
 	a.path = t.TempDir() // rename over a directory must fail, without touching disk data.

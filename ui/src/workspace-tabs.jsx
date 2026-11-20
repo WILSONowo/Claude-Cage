@@ -109,10 +109,10 @@ export function WorkspaceTabs({
     if (!tabs.find(tab => tab.id === current.id)?.historySession && splitDrag.drop(current.id, clientX, clientY)) return;
     const over = document.elementFromPoint(clientX, clientY);
     if (!list.current?.contains(over)) return;
-    if (horizontal) onReorder(current.id, null, current.order);
+    if (horizontal) onReorder?.(current.id, null, current.order);
     else {
       const target = over?.closest("[data-tab-id]")?.dataset.tabId;
-      if (target && target !== current.id) onReorder(current.id, target);
+      if (target && target !== current.id) onReorder?.(current.id, target);
     }
   };
   useEffect(() => {
@@ -316,7 +316,7 @@ export function WorkspaceTabs({
           const opening = Boolean(openingSession) && openingSession === tab.cli_session_id;
           const runningElsewhere = tab.sessionRunningElsewhere;
           const runningNotice = "其他窗口运行中，退出原会话后可在 Cage 接续";
-          const openError = tab.historySession && sessionOpenError?.id === tab.cli_session_id ? sessionOpenError.message : "";
+          const openError = tab.historySession && sessionOpenError?.id === tab.cli_session_id && !tab.closed ? sessionOpenError.message : "";
           const errorID = `session-open-error-${tab.cli_session_id}`;
           return (
             <React.Fragment key={tab.id}>
@@ -371,7 +371,7 @@ export function WorkspaceTabs({
                   if (!horizontal && !vertical && event.altKey && ["ArrowUp", "ArrowDown"].includes(event.key)) {
                     event.preventDefault();
                     const target = tabs[index + (event.key === "ArrowUp" ? -1 : 1)];
-                    if (target) onReorder(tab.id, target.id);
+                    if (target) onReorder?.(tab.id, target.id);
                     return;
                   }
                   if (event.key === "F10" && event.shiftKey) {
@@ -419,9 +419,9 @@ export function WorkspaceTabs({
                   <TerminalAction label={saved[tab.id]?.pinned ? "取消置顶" : "置顶"}
                     icon={saved[tab.id]?.pinned ? PinOff : Pin} disabled={busy} onClick={() => onPin(tab.id)} />
                   <TerminalAction label="重命名" icon={Pencil} disabled={busy} onClick={event => { focusRow(event.currentTarget); onRename(tab); }} />
-                  <TerminalAction label={tab.cli_session_id ? "归档" : "关闭终端"} icon={tab.cli_session_id ? Archive : X} disabled={busy}
+                  <TerminalAction label={tab.cli_session_id && !tab.closed ? "归档" : "关闭终端"} icon={tab.cli_session_id && !tab.closed ? Archive : X} disabled={busy}
                     onClick={event => {
-                      if (!tab.cli_session_id) focusRow(event.currentTarget);
+                      if (!tab.cli_session_id || tab.closed) focusRow(event.currentTarget);
                       onClose(tab, event.currentTarget);
                     }} />
                 </div>

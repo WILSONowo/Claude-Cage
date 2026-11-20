@@ -20,6 +20,15 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
   const [key, setKey] = useState(""), [notice, setNotice] = useState(""), [query, setQuery] = useState("");
   const [selected, setSelected] = useState(""), [username, setUsername] = useState("");
   const [port, setPort] = useState("80");
+  const [controlURL, setControlURL] = useState("");
+  const lastControlURL = useRef(undefined);
+  const syncControlURL = value => {
+    const next = value?.control_url || "";
+    if (lastControlURL.current !== next) {
+      lastControlURL.current = next;
+      setControlURL(next);
+    }
+  };
   const mounted = useRef(true), inflight = useRef(false), loginRequested = useRef(false), revision = useRef(0);
   const ready = status.ready && !status.job?.running;
   const connected = ready && state?.backend === "Running";
@@ -38,7 +47,7 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
     try {
       const value = await api("/tailscale");
       if (mounted.current && current === revision.current) {
-        setState(value); setError("");
+        syncControlURL(value); setState(value); setError("");
         if (loginRequested.current && value.auth_url) await openLogin(value);
         if (value.backend === "Running") loginRequested.current = false;
       }
@@ -48,6 +57,13 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
   };
   useEffect(() => {
     mounted.current = true;
+    if (!ready) {
+      const current = ++revision.current;
+      api("/tailscale?config=1").then(value => {
+        if (mounted.current && current === revision.current) syncControlURL(value);
+      }).catch(e => { if (mounted.current && current === revision.current) setError(e.message); });
+      return () => { mounted.current = false; revision.current++; };
+    }
     void refresh();
     const timer = setInterval(() => void refresh(), 3000);
     return () => { mounted.current = false; revision.current++; clearInterval(timer); };
@@ -58,7 +74,7 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
     try {
       inflight.current = true;
       const value = await api(`/tailscale/${action}`, body);
-      if (mounted.current) { setState(value); if (action === "add-key") setKey(""); }
+      if (mounted.current) { syncControlURL(value); setState(value); if (action === "add-key") setKey(""); }
       return value;
     } catch (e) { if (mounted.current) setError(e.message); }
     finally { inflight.current = false; if (mounted.current) setBusy(false); }
@@ -77,6 +93,14 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
     if (!await onConfirm({ title: logout ? "退出 Tailscale 登录？" : "断开 Tailscale？", body: logout ? "私网连接会中断，下次连接需要重新登录。已添加的 SSH 公钥保留。" : "正在使用的私网连接会中断，登录状态和 SSH 公钥保留。", confirm: logout ? "退出登录" : "断开连接" })) return;
     loginRequested.current = false;
     if (await act(logout ? "logout" : "disconnect")) setSelected("");
+  };
+  const saveControlServer = async (value) => {
+    if (state?.enabled && !await onConfirm({ title: "切换控制服务器？", body: "当前私网连接会断开，切换后需要登录目标服务器。原服务器的设备身份和 SSH 公钥会保留。", confirm: "保存并切换" })) return;
+    loginRequested.current = false;
+    if (await act("control-server", {control_url: value.trim()})) {
+      setSelected("");
+      setNotice(value.trim() ? "已保存控制服务器" : "已恢复官方服务");
+    }
   };
   return <Modal title="Tailscale" onClose={onClose} wide>
     <div className="modal-body tailscale-panel">
@@ -104,6 +128,13 @@ export function TailscalePanel({ status, onClose, onOpenBrowser, onInstall, onCo
         </div>}
       </div>
       {error && <p className="error-message" role="alert">{error}</p>}
+      <section className="tailscale-section" aria-label="控制服务器">
+        <label>控制服务器<input type="url" value={controlURL} onChange={e => setControlURL(e.target.value)} placeholder="留空使用 Tailscale 官方服务" disabled={busy} /></label>
+        <div className="tailscale-actions">
+          <button className="quiet-button" disabled={busy || controlURL.trim() === (lastControlURL.current || "")} onClick={() => saveControlServer(controlURL)}>保存</button>
+          {lastControlURL.current && <button className="quiet-button" disabled={busy} onClick={() => saveControlServer("")}>恢复官方服务</button>}
+        </div>
+      </section>
       {connected && state.health?.length > 0 && <div className="tailscale-health" role="status"><strong>网络需要留意</strong>{state.health.map((message, i) => <p key={i}>{message}</p>)}</div>}
       {connected && <section className="tailscale-self" aria-label="当前 Cage 设备">
         <DeviceIcon os={state.os} />

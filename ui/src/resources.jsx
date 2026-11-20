@@ -1,3 +1,4 @@
+import { useWindowVisibility } from "./window-visibility";
 import React, { useEffect, useState } from "react";
 import { api } from "./api";
 import { SafetyMessage } from "./safety-message";
@@ -13,6 +14,7 @@ async function readResources() {
 }
 
 export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
+  const windowVisible = useWindowVisibility();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [readError, setReadError] = useState("");
@@ -37,6 +39,7 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
     finally { setStarting(false); }
   };
   useEffect(() => {
+    if (!windowVisible) return;
     let live = true;
     let timer;
     const refresh = async () => {
@@ -48,7 +51,7 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
     };
     refresh();
     return () => { live = false; clearTimeout(timer); };
-  }, [status.vm_running, status.job?.running]);
+  }, [status.vm_running, status.job?.running, windowVisible]);
   const apply = async () => {
     if (!(await onConfirm({
       title: "重启并应用已保存的资源配置？",

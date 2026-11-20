@@ -150,15 +150,34 @@ export default function TerminalView({ session, visible, focused = true, onStatu
       if (historyFrame) {
         historyFrame = false;
         replayingHistory = true;
-        terminal.write(new Uint8Array(event.data), () => { replayingHistory = false; });
+        // History includes old device/color queries. Answering them again can
+        // overflow the remote PTY input queue and close the new connection.
+        // Keep input disabled until xterm has finished parsing the replay;
+        // subsequent live output must still receive normal terminal replies.
+        terminal.options.disableStdin = true;
+        terminal.write(new Uint8Array(event.data), () => {
+          replayingHistory = false;
+          if (!disposed) terminal.options.disableStdin = false;
+        });
       } else terminal.write(new Uint8Array(event.data));
     };
-    ws.onclose = () => { setConnected(false); reveal(); };
+    ws.onclose = () => { if (!disposed) { setConnected(false); reveal(); } };
+    let inputTimer = null, pendingInput = [];
     const send = (data) => {
       if (disposed || ws.readyState !== WebSocket.OPEN) throw new Error("终端已断开，请重新连接后重试");
-      ws.send(JSON.stringify({ type: "input", data }));
+      // A redraw can produce several synchronous device replies. Preserve
+      // byte order but send each event-loop batch as one PTY input message.
+      pendingInput.push(data);
+      if (inputTimer === null) inputTimer = setTimeout(() => {
+        inputTimer = null;
+        const data = pendingInput.join("");
+        pendingInput = [];
+        if (!disposed && ws.readyState === WebSocket.OPEN)
+          ws.send(JSON.stringify({ type: "input", data }));
+      }, 0);
     };
     terminal.onData((data) => {
+      if (replayingHistory) return;
       if (emittingPaste) send(data);
       else void enqueue(() => send(data)).catch(() => {});
     });
@@ -304,6 +323,8 @@ export default function TerminalView({ session, visible, focused = true, onStatu
     resize();
     return () => {
       disposed = true;
+      clearTimeout(inputTimer);
+      pendingInput = [];
       clearTimeout(startupTimer);
       revealStartup.current = null;
       startupRender.dispose();

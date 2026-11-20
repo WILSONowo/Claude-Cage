@@ -37,9 +37,9 @@ test("web copy stops before key injection after its target changes", async () =>
   }));
   assert.equal(sent, false);
 });
-function fixture({ available = true } = {}) {
-  const sent = [], writes = [], active = [], notices = [], released = [];
-  let revision = 1, content = { text: "host initial" }, pauseRead, pauseWrite, nativeGeneration = 0, delayAcks = false;
+function fixture({ available = true, deferFiles = false, initial = { text: "host initial" } } = {}) {
+  const sent = [], writes = [], active = [], notices = [], released = [], reads = [];
+  let revision = 1, content = initial, pauseRead, pauseWrite, nativeGeneration = 0, delayAcks = false;
   const pendingAcks = [];
   const socket = { readyState: 1, send: text => {
     const value = JSON.parse(text);
@@ -52,7 +52,9 @@ function fixture({ available = true } = {}) {
     native: async (action, value) => {
       if (action === "clipboardRevision") return revision;
       if (action === "clipboardSyncRead") {
-        const snapshot = { ...content, revision };
+        const deferred = deferFiles && value?.defer_files === true && typeof content.files === "string";
+        reads.push(value?.defer_files === true ? "deferred" : "read");
+        const snapshot = deferred ? { revision, files_pending: true, count: 1 } : { ...content, revision };
         if (pauseRead) await pauseRead;
         return snapshot;
       }
@@ -69,7 +71,7 @@ function fixture({ available = true } = {}) {
   });
   socket.onopen();
   socket.onmessage({ data: JSON.stringify({ hello: { version: 1, os: "windows", session: "fixture-session", formats: ["text", "png", "files"], available } }) });
-  return { socket, controller, sent, writes, active, notices, released,
+  return { socket, controller, sent, writes, active, notices, released, reads, cancels: () => nativeGeneration,
     host: value => { content = value; revision++; },
     guest: value => socket.onmessage({ data: JSON.stringify(value) }),
     readDelay: value => { pauseRead = value; }, writeDelay: value => { pauseWrite = value; },
@@ -345,4 +347,137 @@ test("a failing guest clipboard reconnects with backoff that resets after a succ
   assert.equal(delays.at(-1), 1500);
   assert.equal(clipboardReconnectDelay(0), 1500);
   assert.equal(clipboardReconnectDelay(100), 30000);
+});
+
+test("hidden window pauses host clipboard polling but keeps guest push and syncs immediately when shown", async t => {
+  let revision = 1, content = { text: "initial" }, revisionReads = 0;
+  const sent = [], writes = [];
+  const socket = {
+    readyState: 1,
+    send: text => {
+      const value = JSON.parse(text);
+      sent.push(Object.fromEntries(Object.entries(value).filter(([k]) => k !== "serial")));
+      queueMicrotask(() => socket.onmessage({ data: JSON.stringify({ ack: value.serial }) }));
+    },
+    close() { this.readyState = 3; this.onclose?.(); },
+  };
+  const controller = shareClipboard({
+    connect: () => socket,
+    interval: 20,
+    isVisible: () => false,
+    onStatus: () => {},
+    setActive: () => {},
+    native: async (action, value) => {
+      if (action === "clipboardRevision") { revisionReads++; return revision; }
+      if (action === "clipboardSyncRead") return { ...content, revision };
+      if (action === "clipboardSyncWrite") {
+        content = { ...value }; delete content.revision;
+        writes.push(content);
+        return { revision: ++revision };
+      }
+    },
+  });
+  t.after(() => controller.dispose());
+  socket.onopen();
+  socket.onmessage({ data: JSON.stringify({ hello: { version: 1, os: "linux", session: "s1", formats: ["text", "png", "files"], available: true } }) });
+  await settle(); await settle();
+  const afterHelloReads = revisionReads;
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(revisionReads, afterHelloReads, "polling must stay paused while window is hidden");
+  // Guest -> host push still works while hidden.
+  socket.onmessage({ data: JSON.stringify({ text: "from guest while hidden" }) });
+  await settle(); await settle();
+  assert.deepEqual(writes, [{ text: "from guest while hidden" }]);
+  // Host copy while hidden syncs immediately when window becomes visible.
+  content = { text: "host copied while hidden" };
+  revision++;
+  controller.setVisible(true);
+  await settle(); await settle();
+  assert.deepEqual(sent.at(-1), { text: "host copied while hidden" });
+  // Hiding again stops polling again.
+  controller.setVisible(false);
+  const afterHideReads = revisionReads;
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(revisionReads, afterHideReads, "polling must stop again after hiding");
+});
+
+test("host files wait for an explicit paste instead of being read by background polling or a new GUI session", async () => {
+  const f = fixture({ deferFiles: true, initial: { files: "host selection" } });
+  try {
+    await settle();
+    assert.deepEqual(f.sent, [{ text: "" }]);
+    assert.equal(f.active.at(-1), true);
+    await f.controller.poll(); await f.controller.poll();
+    assert.deepEqual(f.reads, ["deferred"]);
+    f.guest({ hello: { version: 1, os: "windows", session: "restarted-gui", formats: ["text", "png", "files"], available: true } });
+    await settle();
+    assert.deepEqual(f.reads, ["deferred", "deferred"]);
+    assert.equal(f.sent.some(value => value.files), false);
+    await f.controller.sync();
+    assert.deepEqual(f.sent.filter(value => value.files), [{ files: "host selection" }]);
+    await f.controller.sync(); await f.controller.poll();
+    assert.deepEqual(f.reads, ["deferred", "deferred", "read"]);
+  } finally { f.controller.dispose(); }
+});
+
+test("a replaced host clipboard drops a file selection that was never pasted", async () => {
+  const f = fixture({ deferFiles: true });
+  try {
+    await settle();
+    f.host({ files: "unpasted files" }); await f.controller.poll();
+    assert.deepEqual(f.sent.at(-1), { text: "" });
+    f.host({ text: "newer host text" }); await f.controller.poll();
+    assert.deepEqual(f.sent.at(-1), { text: "newer host text" });
+    await f.controller.sync();
+    assert.equal(f.sent.some(value => value.files), false);
+    assert.equal(f.reads.includes("read"), false);
+  } finally { f.controller.dispose(); }
+});
+
+test("a guest copy reaches the host while host files wait for a paste", async () => {
+  const f = fixture({ deferFiles: true });
+  try {
+    await settle();
+    f.host({ files: "unpasted files" }); await f.controller.poll();
+    f.guest({ text: "guest copy" }); await settle(); await settle();
+    assert.deepEqual(f.writes, [{ text: "guest copy" }]);
+    await f.controller.sync();
+    assert.equal(f.sent.some(value => value.files), false);
+  } finally { f.controller.dispose(); }
+});
+
+test("disconnecting during an explicit file paste cancels the native transfer", async () => {
+  const f = fixture({ deferFiles: true });
+  let release;
+  try {
+    await settle();
+    f.host({ files: "large host files" }); await f.controller.poll();
+    f.readDelay(new Promise(resolve => { release = resolve; }));
+    const rejected = assert.rejects(f.controller.sync());
+    await settle();
+    const cancels = f.cancels();
+    f.socket.close();
+    await rejected;
+    assert.equal(f.cancels(), cancels + 1);
+    assert.equal(f.sent.some(value => value.files), false);
+  } finally { release?.(); f.controller.dispose(); }
+});
+
+test("a paste racing the visible-window refresh imports deferred files once", async () => {
+  const f = fixture({ deferFiles: true });
+  let release;
+  try {
+    await settle();
+    f.controller.setVisible(false);
+    f.host({ files: "new selection" });
+    f.readDelay(new Promise(resolve => { release = resolve; }));
+    f.controller.setVisible(true);
+    await settle();
+    assert.equal(f.reads.at(-1), "deferred");
+    const first = f.controller.sync(), second = f.controller.sync();
+    release();
+    await Promise.all([first, second]);
+    assert.deepEqual(f.sent.filter(value => value.files), [{ files: "new selection" }]);
+    assert.equal(f.reads.filter(value => value === "read").length, 1);
+  } finally { release?.(); f.controller.dispose(); }
 });

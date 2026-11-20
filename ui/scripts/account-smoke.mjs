@@ -40,8 +40,8 @@ try {
   await page.waitForFunction(async (previous) => await window.fixtureLaunchAcks() > previous, previousAcks);
   await page.screenshot({path:output+'create.png'});
   await page.getByLabel('用户名',{exact:true}).fill('林间工作室');
-  await page.getByLabel('设置密码',{exact:true}).fill('fixture-password');
-  await page.getByLabel('确认密码',{exact:true}).fill('fixture-password');
+  await page.getByLabel('设置密码',{exact:true}).fill('1');
+  await page.getByLabel('确认密码',{exact:true}).fill('1');
   await page.getByRole('button',{name:'创建本地账户',exact:true}).click();
   await accountMenu().waitFor();
   await checkMenuLayout();
@@ -66,9 +66,9 @@ try {
   assert.equal(state.account.username,'山雀的工作室');
   assert.match(state.account.avatar,/^data:image\/png;base64,/);
   await page.screenshot({path:output+'settings.png'});
-  await page.getByLabel('当前密码',{exact:true}).fill('fixture-password');
-  await page.getByLabel('新密码',{exact:true}).fill('changed-fixture-password');
-  await page.getByLabel('确认新密码',{exact:true}).fill('changed-fixture-password');
+  await page.getByLabel('当前密码',{exact:true}).fill('1');
+  await page.getByLabel('新密码',{exact:true}).fill('密');
+  await page.getByLabel('确认新密码',{exact:true}).fill('密');
   await page.getByRole('button',{name:'修改密码',exact:true}).click();
   await page.getByRole('status').filter({hasText:'密码已修改'}).waitFor();
   await page.getByRole('button',{name:'关闭设置',exact:true}).click();
@@ -84,10 +84,10 @@ try {
   assert.deepEqual(state.terminals.map(x=>x.id),ids);
   await page.getByText('后台环境仍在运行，任务没有停止',{exact:true}).waitFor();
   await page.screenshot({path:output+'locked.png'});
-  await page.getByLabel('账户密码',{exact:true}).fill('fixture-password');
+  await page.getByLabel('账户密码',{exact:true}).fill('1');
   await page.getByRole('button',{name:'解锁 Cage',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'密码不正确'}).waitFor();
-  await page.getByLabel('账户密码',{exact:true}).fill('changed-fixture-password');
+  await page.getByLabel('账户密码',{exact:true}).fill('密');
   await page.getByRole('button',{name:'解锁 Cage',exact:true}).click();
   await accountMenu().waitFor();
   assert.deepEqual(state.terminals.map(x=>x.id),ids);

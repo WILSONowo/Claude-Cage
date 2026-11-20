@@ -1,6 +1,6 @@
 ---
 title: 安装与首次启动
-description: 安装适合电脑的 Cage，选择客机系统和数据盘，完成第一次环境启动。
+description: 安装适合电脑的 Cage，选择存储位置并启动 Debian 13 环境。
 group: 开始使用
 order: 1
 keywords: 下载 安装 客机 macOS Windows Debian Apple Silicon Hyper-V WHPX KVM 账户 密码 镜像 继续安装
@@ -17,7 +17,7 @@ keywords: 下载 安装 客机 macOS Windows Debian Apple Silicon Hyper-V WHPX K
 
 Windows ARM64 和 Linux ARM64 暂不支持。平台依赖详情见 [Windows 指南](https://github.com/Lee-xeo/Claude-Cage/blob/main/docs/windows.md)与 [Linux 指南](https://github.com/Lee-xeo/Claude-Cage/blob/main/docs/linux.md)。
 
-这里选择的是运行 Cage 的主机平台。虚拟机里的客机系统在首次创建环境时选择：Apple 芯片 Mac 可用 macOS 或 Debian；具备完整 Hyper-V 的 Windows 11 专业版、企业版和教育版可用 Windows 11 或 Debian；Linux 主机可选择与本机同发行版的系统或 Debian 13。具体组合见[选择客机系统](guest-systems.md)。Cage 的 macOS 14+ 运行要求与系统克隆条件分别判断；当前 Mac 克隆入口要求 macOS 26.4+。
+以上平台均使用 Debian 13 创建新环境。已有 Ubuntu、Windows 或 macOS 客机继续沿用原配置。详情见[客机系统指南](guest-systems.md)。
 
 <figure class="guide-shot">
   <a href="../../www/public/docs/screenshots/account-setup.jpg" target="_blank" rel="noopener" aria-label="查看原图：首次创建 Cage 账户"><img src="../../www/public/docs/screenshots/account-setup.jpg" alt="首次创建 Cage 账户" width="2560" height="1764" loading="lazy" decoding="async" /></a>
@@ -26,7 +26,7 @@ Windows ARM64 和 Linux ARM64 暂不支持。平台依赖详情见 [Windows 指�
 
 ## 创建 Cage 账户
 
-首次使用时，创建用户名和至少 8 个字符的密码，用来解锁本机 Cage。Claude 账户需在环境内另行登录。请保存好 Cage 密码，目前没有在线找回功能。
+首次使用时，创建用户名和密码（1–256 个字符），用来解锁本机 Cage。与 macOS 客机共用的密码需为 8–256 个英文键盘字符。Claude 账户在环境内另行登录。
 
 桌面版默认勾选“记住我”。勾选后，同一系统用户下次打开 Cage 时会自动进入。已有账户可在登录页或“设置 → 账户”调整，macOS 还可启用 Touch ID。手动锁定后仍需验证，退出账户会撤销快捷登录授权。账户密码不会加密项目目录或虚拟磁盘。
 
@@ -34,7 +34,7 @@ Windows ARM64 和 Linux ARM64 暂不支持。平台依赖详情见 [Windows 指�
 
 ## 初始化系统与存储
 
-首次登录后，Cage 显示独立的初始化界面。先选择适合项目的客机系统，可选择“自动匹配本机系统版本”或具体系统。自动匹配在下一步显示对应的官方镜像，安装干净的独立系统，主机个人文件与登录资料不会复制。以后启动沿用原系统和磁盘，更新 Cage 不会替换客机系统。
+首次登录后，在初始化界面选择存储位置并配置网络。Cage 自动使用与主机架构匹配的 Debian 13 镜像。以后启动沿用原系统和磁盘。
 
 “存储目录”已填入默认位置。需要更换时直接编辑，或点击“选择文件夹”选定本地磁盘上的专用空文件夹；点击“下一步：配置代理”时保存，目录无效时留在当前页提示修改。Windows 安装器里的程序目录与环境数据目录分开；例如应用装在 C 盘，环境可放在 `D:\CageData`。
 
@@ -56,7 +56,7 @@ Git 保护会修改当前主机用户的全局 `safe.bareRepository=explicit`，
 
 ## 第一次启动需要等待什么
 
-首次安装内容取决于客机系统。克隆入口优先复用已校验的匹配材料，缺少时下载官方镜像。macOS 使用 Apple IPSW；Windows 克隆使用匹配的 Microsoft ESD，手动安装可选择官方 ISO；Linux 克隆使用对应发行版的云镜像。Debian 13 基础镜像约 320–325 MiB，开发工具另行安装。镜像来源、系统许可和存储要求见[客机系统指南](guest-systems.md#下载量与磁盘空间)。
+首次安装需要下载 Debian 13 基础镜像（约 320–325 MiB）和开发工具。磁盘按实际写入增长，建议为工具和项目预留额外空间。详情见[客机系统指南](guest-systems.md#下载量与磁盘空间)。
 
 系统镜像、镜像版本目录和在主机上预备的 macOS 应用与开发工具包通过主机网络下载，遵循主机代理设置；未配置代理时直连官方源。使用 Clash 等软件时，可开启其系统代理或 TUN，实际出口由该软件对下载网站的规则决定。已选择的主机代理连接失败、明确配置的 PAC 解析失败时，下载会报错，不自动回退直连。客机内的进程和下载任务使用 Cage 的独立代理，官方源与备用镜像的选择及平台设置见[系统镜像的下载网络](network.md#系统镜像的下载网络)。
 

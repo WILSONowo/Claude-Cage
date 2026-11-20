@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -103,7 +104,13 @@ esac
 }
 
 func TestBrowserLanguagePreferencesReplaceStaleSelection(t *testing.T) {
-	if _, err := exec.LookPath("python3"); err != nil {
+	if runtime.GOOS == "windows" {
+		// The guest writer flushes its directory after the atomic rename.
+		// Run that Linux filesystem operation with guest Python.
+		if err := exec.Command("wsl.exe", "--exec", "python3", "--version").Run(); err != nil {
+			t.Skip("Linux guest Python unavailable")
+		}
+	} else if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("guest Python interpreter unavailable")
 	}
 	start := strings.Index(guestStart, "import json, os\nfrom pathlib import Path\np = Path.home()")
@@ -123,7 +130,12 @@ func TestBrowserLanguagePreferencesReplaceStaleSelection(t *testing.T) {
 	}
 	for _, language := range []string{"zh-TW", "fr-FR", "en-US"} {
 		cmd := exec.Command("python3", "-c", script)
-		cmd.Env = append(os.Environ(), "FIXTURE="+dir, "CAGE_LANGUAGE="+language)
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("wsl.exe", "--cd", dir, "--exec", "env", "FIXTURE=.", "CAGE_LANGUAGE="+language, "python3", "-")
+			cmd.Stdin = strings.NewReader(script)
+		} else {
+			cmd.Env = append(os.Environ(), "FIXTURE="+dir, "CAGE_LANGUAGE="+language)
+		}
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v %s", err, out)
 		}

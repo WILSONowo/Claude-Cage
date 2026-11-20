@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sylvinus/agent-vm/internal/host"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -96,7 +97,7 @@ func TestCoreLatencyExcludesProxyHandshake(t *testing.T) {
 	if err := Write(config, data); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(Socket(profile)), 0700); err != nil {
+	if err := host.EnsurePrivateDir(filepath.Dir(Socket(profile))); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(Socket(profile))) })

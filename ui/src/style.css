@@ -935,7 +935,7 @@ button.large {
   margin: 0;
   color: var(--ink);
 }
-.settings-content label:not(.check-line):not(.choice):not(.toggle-row) {
+.settings-content label:not(.check-line):not(.choice):not(.toggle-row):where(:not(.proxy-import label)) {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1699,6 +1699,14 @@ svg {
   color: var(--muted);
   flex: none;
 }
+.terminal-limit-note {
+  margin: 0;
+  padding: 6px 10px 8px;
+  color: var(--muted);
+  font-size: 0.8571rem;
+  line-height: 1.5;
+  white-space: normal;
+}
 .sidebar-bottom {
   padding: 8px 0 12px;
   border-top: 1px solid var(--line);
@@ -1960,6 +1968,9 @@ svg {
   flex-direction: column;
   gap: 16px;
 }
+.project-form > * {
+  flex-shrink: 0;
+}
 .project-form > label {
   font-size: 0.9286rem;
   font-weight: 500;
@@ -1991,8 +2002,6 @@ svg {
   padding: 0;
   margin: 0;
   border: 0;
-  max-height: 300px;
-  overflow-y: auto;
 }
 .project-picker-list legend {
   font-size: 0.8571rem;
@@ -2672,6 +2681,16 @@ svg {
 .browser-private-badge { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--strong); font-size: 0.8rem; }
 .browser-private-note { margin: 0; padding: 3px 12px 6px; color: var(--muted); font-size: 0.8rem; }
 .browser-cookies { margin: 0 12px 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); font-size: 0.86rem; }
+.cookie-editor { display: grid; gap: 6px; margin-top: 8px; padding: 8px; background: var(--hover); }
+.cookie-editor > label { display: grid; gap: 3px; }
+.cookie-editor textarea { resize: vertical; font-family: inherit; }
+.cookie-editor .cookie-secret { -webkit-text-security: disc; }
+.cookie-editor-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.cookie-editor-row > label:not(.cookie-check), .cookie-editor-row > span { display: inline-flex; align-items: center; gap: 6px; }
+.cookie-editor-row > button { padding: 6px 10px; }
+.cookie-editor .cookie-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.cookie-editor .cookie-check > input { width: 16px; height: 16px; padding: 0; margin: 0; accent-color: var(--accent); }
+.cookie-editor-note { color: var(--muted); margin: 0; }
 .cookie-heading, .cookie-toolbar, .cookie-pagination, .cookie-record-heading, .cookie-confirm { display: flex; align-items: center; gap: 8px; }
 .cookie-heading { margin-bottom: 8px; }
 .cookie-heading > span, .cookie-pagination > span { color: var(--muted); margin-right: auto; }

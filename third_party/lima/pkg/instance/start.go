@@ -290,6 +290,9 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 		if prepared.NerdctlArchiveCache != "" {
 			args = append(args, "--nerdctl-archive", prepared.NerdctlArchiveCache)
 		}
+		if _, firstBoot := ctx.Value(baseProvisioningKey{}).(baseProvisioningWatch); firstBoot && *inst.Config.OS == limatype.LINUX {
+			showProgress = true
+		}
 		if showProgress {
 			args = append(args, "--progress")
 		}
@@ -384,7 +387,8 @@ func waitHostAgentStart(ctx context.Context, haPIDPath, haStderrPath string) err
 }
 
 func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdoutPath, haStderrPath string, begin time.Time, showProgress bool) error {
-	ctx, cancel := hostAgentWatchContext(ctx, inst)
+	progress := make(chan struct{}, 1)
+	ctx, cancel := hostAgentWatchContext(ctx, inst, progress)
 	defer cancel()
 
 	var (
@@ -395,6 +399,12 @@ func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdout
 	)
 
 	onEvent := func(ev hostagentevents.Event) bool {
+		if ev.Status.CloudInitProgress != nil && ev.Status.CloudInitProgress.LogLine != "" {
+			select {
+			case progress <- struct{}{}:
+			default:
+			}
+		}
 		if !printedSSHLocalPort && ev.Status.SSHLocalPort != 0 {
 			logrus.Infof("SSH Local Port: %d", ev.Status.SSHLocalPort)
 			printedSSHLocalPort = true

@@ -49,7 +49,7 @@ func TestLinuxBaseProvisioningWait(t *testing.T) {
 				}
 				linux := limatype.LINUX
 				start := time.Now()
-				ctx, stop := hostAgentWatchContext(parent, &limatype.Instance{Config: &limatype.LimaYAML{OS: &linux}})
+				ctx, stop := hostAgentWatchContext(parent, &limatype.Instance{Config: &limatype.LimaYAML{OS: &linux}}, nil)
 				defer stop()
 				<-ctx.Done()
 				if elapsed := time.Since(start); elapsed != tc.elapsed {
@@ -96,4 +96,28 @@ func TestLinuxBaseProvisioningBootEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCloudInitOutputExtendsIdleWithoutAPTActivity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		linux := limatype.LINUX
+		policy := baseProvisioningWatch{time.Minute, time.Hour, func(context.Context, *limatype.Instance) (int64, bool) { return 0, false }}
+		parent := context.WithValue(t.Context(), baseProvisioningKey{}, policy)
+		progress := make(chan struct{}, 1)
+		ctx, stop := hostAgentWatchContext(parent, &limatype.Instance{Config: &limatype.LimaYAML{OS: &linux}}, progress)
+		defer stop()
+		for i := 0; i < 3; i++ {
+			time.Sleep(8 * time.Minute)
+			if ctx.Err() != nil {
+				t.Fatalf("active cloud-init timed out: %v", context.Cause(ctx))
+			}
+			progress <- struct{}{}
+			synctest.Wait()
+		}
+		idleAt := time.Now()
+		<-ctx.Done()
+		if time.Since(idleAt) != 10*time.Minute || !errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
+			t.Fatalf("stalled cloud-init: %s %v", time.Since(idleAt), context.Cause(ctx))
+		}
+	})
 }

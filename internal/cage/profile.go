@@ -1,15 +1,18 @@
 package cage
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/sylvinus/agent-vm/internal/durable"
 	"github.com/sylvinus/agent-vm/internal/host"
 )
 
@@ -40,8 +43,14 @@ func (r runningProfile) alive() bool {
 func (c Config) Fingerprint() string {
 	c.ExitPolicy = c.ExitPolicy.Normalized()
 	b, _ := json.Marshal(c)
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
+	h := sha256.New()
+	h.Write(b)
+	if c.DNS != (DNSOptions{}) {
+		extra, _ := json.Marshal(dnsOptionsFile{FallbackURLs: c.DNS.FallbackURLs(), BootstrapURLs: c.DNS.BootstrapURLs(), PublicFallback: c.DNS.PublicFallback})
+		h.Write([]byte{'\n'})
+		h.Write(extra)
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (c Config) RecordRunning(state, name string) error {
@@ -62,7 +71,12 @@ func (c Config) RecordRunningAt(dir string) error {
 		return err
 	}
 	defer os.Remove(f.Name())
-	if _, err = f.Write(b); err != nil {
+	if _, err = f.Write(b); err == nil {
+		// Flush before the rename: after a power loss the record is either
+		// the previous one or complete, never an empty file.
+		err = f.Sync()
+	}
+	if err != nil {
 		f.Close()
 		return err
 	}
@@ -72,7 +86,15 @@ func (c Config) RecordRunningAt(dir string) error {
 	if err := host.ReplaceFile(context.Background(), f.Name(), filepath.Join(dir, "cage-running.json")); err != nil {
 		return fmt.Errorf("无法更新环境运行记录，请等待占用文件的程序释放后重试: %w", err)
 	}
-	return nil
+	return durable.SyncDir(dir)
+}
+
+// IncompleteRunningRecord recognizes an interrupted JSON write. Other damage
+// cannot establish that it is safe to move or replace a running VM.
+func IncompleteRunningRecord(data []byte) bool {
+	var raw json.RawMessage
+	err := json.NewDecoder(bytes.NewReader(data)).Decode(&raw)
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // CheckRunning prevents a profile edit from silently leaving a running VM on
@@ -89,12 +111,18 @@ func (c Config) CheckRunning(state string) error {
 	files = append(files, containerRecords...)
 	for _, file := range files {
 		b, err := os.ReadFile(file)
+		if errors.Is(err, os.ErrNotExist) {
+			continue // The owner stopped since the listing.
+		}
 		if err != nil {
 			return err
 		}
 		var r runningProfile
-		if json.Unmarshal(b, &r) != nil {
-			return errors.New("invalid running cage profile record")
+		if err := json.Unmarshal(b, &r); err != nil || r.PID < 1 {
+			if IncompleteRunningRecord(b) {
+				continue
+			}
+			return errors.New("无法核验环境运行记录，请检查运行状态后重试")
 		}
 		if r.alive() && r.Fingerprint != c.Fingerprint() {
 			return fmt.Errorf("cage configuration changed while a VM is running; run cage stop before restarting")

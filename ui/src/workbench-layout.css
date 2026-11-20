@@ -279,7 +279,7 @@
 }
 .settings-content .field-row { display: flex; flex-flow: row wrap; gap: .65rem 1rem; }
 .settings-content .field-row > label { width: auto; min-width: 0; flex: 1 1 12rem; }
-.settings-content .secret-field { align-content: start; margin-block-end: 17px; }
+.settings-content .secret-field:where(:not(.proxy-import .secret-field)) { align-content: start; margin-block-end: 17px; }
 .settings-content :is(.secret-field, .account-field) > label:not(.check-line):not(.choice):not(.toggle-row),
 .settings-content label.account-field:not(.check-line):not(.choice):not(.toggle-row) { margin-block: 0; }
 .remote-relay-settings > .secret-field { margin-block-start: 24px; }
@@ -327,6 +327,9 @@
   .status-bar > .status-safety > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
 .settings-sheet .field-help { margin-top: 0; }
+.settings-sheet[data-section="project"] .settings-fields > :is(section, .setting-summary-row, .text-button) {
+  margin-block-start: 1.5rem;
+}
 .settings-sheet .toggle-row > span { min-width: 0; }
 .settings-sheet .toggle-row input[role="switch"] { flex: none; }
 

@@ -321,7 +321,11 @@ func runAgent(args []string, stdin io.Reader, stdout io.Writer, clientOnly bool)
 			return finish(data, nil)
 		}
 		if job.Canceled {
-			return finish(data, &workbench.AgentError{Code: "job_canceled", Message: "The original job was canceled. Inspect status before retrying.", NextAction: "status"})
+			message := "The original job was canceled. Inspect status before retrying."
+			if job.CanceledBy != "" {
+				message = "The original job was canceled by " + job.CanceledBy + ". Inspect status before retrying."
+			}
+			return finish(data, &workbench.AgentError{Code: "job_canceled", Message: message, NextAction: "status"})
 		}
 		if job.Error != "" {
 			return finish(data, &workbench.AgentError{Code: "job_failed", Message: job.Error, NextAction: "doctor"})

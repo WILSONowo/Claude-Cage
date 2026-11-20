@@ -20,7 +20,7 @@ func macGuestLoginAvailable() bool { return vzdriver.OffscreenView != nil }
 
 func runMacGuest(ctx context.Context, profile, state string, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: cage guest-os macos create <absolute.ipsw> | bind <user> | start | stop")
+		return errors.New("usage: cage guest-os macos bind <user> | start | stop")
 	}
 	lima, err := vm.NewLima(filepath.Join(state, "lima"), state)
 	if err != nil {
@@ -47,8 +47,19 @@ func runMacGuest(ctx context.Context, profile, state string, args []string) erro
 		}
 		return installMacWorkbench(ctx, profile, state, lima)
 	case "create":
+		install, err := guestos.LoadInstallation(profile)
+		if err != nil || install == nil || install.System != guestos.MacOS {
+			return errors.New("新环境使用 Debian 13。仅可继续已有的 macOS 安装。")
+		}
 		if len(args) != 2 {
 			return errors.New("supply the absolute path to an official macOS IPSW")
+		}
+		media := install.Media
+		if media == "" {
+			media = filepath.Join(state, "guest-media", guestos.MacOS, "MacOS.ipsw")
+		}
+		if filepath.Clean(args[1]) != media {
+			return errors.New("请使用原安装记录中的 macOS 恢复镜像。")
 		}
 		instances, err := lima.List(ctx)
 		if err != nil {

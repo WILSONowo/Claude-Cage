@@ -116,6 +116,8 @@ try {
   const projectFilter = panel.getByRole("combobox",{name:"项目筛选"});
   const group = panel.locator(".archive-project").first();
   await group.waitFor();
+  // Compare the filter layout after the settings sheet has finished sliding in.
+  await panel.evaluate(node => Promise.all(node.closest(".settings-sheet").getAnimations().map(animation => animation.finished)));
   const before = await group.boundingBox();
   await projectFilter.click();
   const options = page.getByRole("listbox",{name:"项目筛选选项"});

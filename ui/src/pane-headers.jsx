@@ -21,6 +21,7 @@ export const ExpandPane = ({ onClick }) => <button className="icon-button expand
 
 export function TerminalHeader({ tab, contentWorkspace, project, metadata, terminalDetail, terminalDetailHint,
   onHome, busy, onClose, sidebarButton, exitButton, location, triggerRef, menu }) {
+  const archives = tab?.cli_session_id && !tab.closed;
   return <header className="chrome terminal-chrome">
     <div className="content-heading">
       {sidebarButton}
@@ -48,12 +49,12 @@ export function TerminalHeader({ tab, contentWorkspace, project, metadata, termi
         {tab && (
           <button
             className="icon-button"
-            aria-label={tab.cli_session_id ? "归档当前会话" : "关闭当前标签"}
-            title={shortcut(tab.cli_session_id ? "归档当前会话 ⌘W" : "关闭当前标签 ⌘W")}
+            aria-label={archives ? "归档当前会话" : "关闭当前标签"}
+            title={shortcut(archives ? "归档当前会话 ⌘W" : "关闭当前标签 ⌘W")}
             onClick={onClose}
             disabled={busy}
           >
-            {tab.cli_session_id ? <Archive size={16} /> : <X size={16} />}
+            {archives ? <Archive size={16} /> : <X size={16} />}
           </button>
         )}
         {exitButton}

@@ -57,6 +57,37 @@ func readCurrentPID(path string, pid int) (int, error) {
 		return 0, err
 	}
 	if alive {
+		file, err := os.Open(path)
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		if err != nil {
+			return 0, err
+		}
+		defer file.Close()
+		// Bind the modification time to the same marker that named this PID.
+		data, err := io.ReadAll(io.LimitReader(file, 32))
+		if err != nil {
+			return 0, err
+		}
+		current, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err != nil {
+			return 0, err
+		}
+		if current != pid {
+			return 0, fmt.Errorf("VM PID changed while checking %s; retry", path)
+		}
+		info, err := file.Stat()
+		if err != nil {
+			return 0, err
+		}
+		reused, err := processStartedAfter(pid, info.ModTime())
+		if err != nil {
+			return 0, err
+		}
+		if reused {
+			return 0, nil
+		}
 		return pid, nil
 	}
 	// Remove only the same still-stale record. A concurrent launcher may

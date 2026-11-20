@@ -31,6 +31,60 @@ func newTestAccount(t *testing.T) *localAccount {
 	return a
 }
 
+func TestLocalAccountPasswordPolicy(t *testing.T) {
+	for _, password := range []string{"1", " ", "密", strings.Repeat("密", 256), strings.Repeat("😀", 128)} {
+		if err := validAccountPassword(password); err != nil {
+			t.Errorf("valid password rejected: %v", err)
+		}
+	}
+	for _, password := range []string{"", "a\x00b", strings.Repeat("a", 257), strings.Repeat("😀", 128) + "a"} {
+		if validAccountPassword(password) == nil {
+			t.Error("invalid password accepted")
+		}
+	}
+}
+
+func TestLocalAccountPasswordChangeFromLegacyLength(t *testing.T) {
+	profile := t.TempDir()
+	a, err := loadLocalAccount(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovery, err := a.createAccount("user", "一", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a 0.1.38 password record whose password exceeds the new limit.
+	legacy := strings.Repeat("a", 1024)
+	if err = sealAccountKey(a.record, legacy, a.key); err != nil {
+		t.Fatal(err)
+	}
+	if err = writePrivate(a.path, a.record); err != nil {
+		t.Fatal(err)
+	}
+	a.lock()
+	if a, err = loadLocalAccount(profile); err != nil {
+		t.Fatal(err)
+	}
+	defer a.lock()
+	if err = a.unlock(legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.changePassword(legacy, "2"); err != nil {
+		t.Fatal(err)
+	}
+	a.lock()
+	if err = a.unlock("2"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.resetPassword(recovery, "好"); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.unlock("好"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLocalAccountEncryptionPasswordChangeAndReload(t *testing.T) {
 	a := newTestAccount(t)
 	key, _ := a.desktopKey()

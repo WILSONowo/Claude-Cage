@@ -2,6 +2,10 @@
 import { createRequire } from "node:module";
 import { defaultAppearance, presets } from "../src/appearance-state.mjs";
 const require = createRequire(import.meta.url);
+function validNewPassword(password, mac) {
+  if (typeof password !== "string" || !password || password.length > 256 || password.includes("\0")) return false;
+  return !mac || (password.length >= 8 && /^[ -~]+$/.test(password));
+}
 export async function createWorkbench({
   viewport = { width: 1280, height: 850 },
   recordVideo,
@@ -135,7 +139,7 @@ export async function createWorkbench({
       const action = path.split("/").at(-1);
       if (!["create", "unlock"].includes(action) && !state.account.unlocked) return route.fulfill({ status: 423, body: "请先解锁 Cage" });
       if (action === "create") {
-        if (state.account.exists || !body.username?.trim() || body.password?.length < 8 || body.password !== body.confirm_password) return route.fulfill({ status: 400, body: "账户信息无效" });
+        if (state.account.exists || !body.username?.trim() || !validNewPassword(body.password, state.account.macos_account_host) || body.password !== body.confirm_password) return route.fulfill({ status: 400, body: "账户信息无效" });
         Object.assign(state.account, { exists: true, unlocked: true, username: body.username.trim(), avatar: body.avatar || "" });
         state.accountPassword = body.password;
       } else if (action === "unlock") {
@@ -147,7 +151,7 @@ export async function createWorkbench({
         Object.assign(state.account, { username: body.username.trim(), avatar: body.avatar });
       } else if (action === "password") {
         if (body.old_password !== state.accountPassword) return route.fulfill({ status: 400, body: "密码不正确" });
-        if (body.password?.length < 8 || body.password !== body.confirm_password) return route.fulfill({ status: 400, body: "新密码无效" });
+        if (!validNewPassword(body.password, state.account.macos_password_shared) || body.password !== body.confirm_password) return route.fulfill({ status: 400, body: "新密码无效" });
         state.accountPassword = body.password;
       } else if (action === "lock") { state.account.unlocked = false; state.account.require_authentication = true; }
       else if (action === "suspend") state.account.unlocked = false;

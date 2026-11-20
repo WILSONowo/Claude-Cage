@@ -78,6 +78,35 @@ func (s *Server) writeInitialization(r *http.Request, record initializationRecor
 	return writePrivate(filepath.Join(s.profile, "initialization.json"), record)
 }
 
+const desktopOnboardingLease = 15 * time.Second
+
+func (s *Server) touchDesktopOnboarding() {
+	s.mu.Lock()
+	s.desktopOnboardingUntil = time.Now().Add(desktopOnboardingLease)
+	s.mu.Unlock()
+}
+
+func (s *Server) clearDesktopOnboarding() {
+	s.mu.Lock()
+	s.desktopOnboardingUntil = time.Time{}
+	s.mu.Unlock()
+}
+
+func (s *Server) desktopOnboardingLeaseActive() bool {
+	s.mu.Lock()
+	active := !s.desktopOnboardingUntil.IsZero() && time.Now().Before(s.desktopOnboardingUntil)
+	s.mu.Unlock()
+	return active
+}
+
+func (s *Server) desktopOnboardingActive() bool {
+	if !s.desktopOnboardingLeaseActive() {
+		return false
+	}
+	state, err := s.initializationState()
+	return err == nil && state.Required
+}
+
 type initializationRecord struct {
 	Version   int  `json:"version"`
 	Completed bool `json:"completed"`
@@ -85,10 +114,11 @@ type initializationRecord struct {
 }
 
 type initializationView struct {
-	Required bool `json:"required"`
-	Started  bool `json:"started"`
-	Tracked  bool `json:"tracked"`
-	Prepared bool `json:"prepared"`
+	DesktopActive bool `json:"desktop_active,omitempty"`
+	Required      bool `json:"required"`
+	Started       bool `json:"started"`
+	Tracked       bool `json:"tracked"`
+	Prepared      bool `json:"prepared"`
 }
 
 func (s *Server) initializationState() (initializationView, error) {
@@ -148,11 +178,15 @@ func (s *Server) finishInitialization(r *http.Request) error {
 
 func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		if requestInitiator(r) == jobInitiatorSetup {
+			s.touchDesktopOnboarding()
+		}
 		state, err := s.initializationState()
 		if err != nil {
 			requestError(w, err)
 			return
 		}
+		state.DesktopActive = state.Required && s.desktopOnboardingLeaseActive()
 		jsonReply(w, state)
 		return
 	}
@@ -211,6 +245,11 @@ func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		requestError(w, err)
 		return
+	}
+	if input.Action == "complete" {
+		s.clearDesktopOnboarding()
+	} else if state.Required && requestInitiator(r) != jobInitiatorAgent {
+		s.touchDesktopOnboarding()
 	}
 	jsonReply(w, map[string]bool{"completed": input.Action == "complete" || !state.Required})
 }

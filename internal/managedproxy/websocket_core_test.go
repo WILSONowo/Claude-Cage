@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/sylvinus/agent-vm/internal/host"
 )
 
 // Configuration validation alone accepts legacy fields that the transport ignores.
@@ -100,7 +101,7 @@ func TestCoreWebSocketAliasesReachHandshake(t *testing.T) {
 				if err := Write(config, runtime); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.MkdirAll(filepath.Dir(Socket(profile)), 0700); err != nil {
+				if err := host.EnsurePrivateDir(filepath.Dir(Socket(profile))); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(Socket(profile))) })

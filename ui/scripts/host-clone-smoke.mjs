@@ -8,6 +8,7 @@ for (const [platform, system, version, edition] of [
 ]) {
   let planRequests = 0;
   const fixture = await createWorkbench({
+    initialization: { required: true, tracked: true },
     clientContext: {
       mode: "local",
       connection_id: "local",
@@ -16,8 +17,9 @@ for (const [platform, system, version, edition] of [
     },
     beforeNavigate: async (page, state) => {
       state.status.local_vm_storage = true;
+      await page.route("**/api/environment/storage", route => route.fulfill({ json: { directory: "/fixture/cage", has_environment: true } }));
       await page.route("**/api/environment/guest-systems", (route) =>
-        route.fulfill({ json: { fresh: true, available: true, system } }),
+        route.fulfill({ json: { fresh: false, available: true, system, pending: { system, id: "original", source: { host: { system } }, editor_terms: true } } }),
       );
       await page.route("**/api/environment/guest-systems/clone", (route) => {
         planRequests++;
@@ -48,43 +50,26 @@ for (const [platform, system, version, edition] of [
   try {
     const { page } = fixture;
     const region = page.locator(".guest-system-picker");
-    const picker = region.getByRole("combobox");
-    await picker.waitFor();
-    const initialHeight = (await region.boundingBox()).height;
-    await picker.focus();
-    await picker.press("ArrowDown");
-    const option = page.getByRole("option", {
-      name: "自动匹配本机系统版本",
-      exact: true,
-    });
-    await option.waitFor();
-    assert.ok(
-      Math.abs((await region.boundingBox()).height - initialHeight) < 1,
-      "floating options must not change layout height",
-    );
-    await picker.press("Home");
-    await picker.press("Enter");
-    assert.equal(await picker.getAttribute("aria-expanded"), "false");
-    await region
-      .getByText("本机构建号 host-build · 镜像构建号 image-build")
-      .waitFor();
-    if (system === "windows-11") await region.getByRole("checkbox").check();
+    await region.waitFor();
+    assert.equal(await region.getByRole("combobox").count(), 0);
+    await page.getByRole("button", { name: "下一步" }).click();
+    await page.getByText("首次检测的本机构建号 host-build · 镜像构建号 image-build").waitFor();
     const submit = page.waitForRequest(
       (request) =>
         request.url().endsWith("/api/start") && request.method() === "POST",
     );
     await page
       .getByRole("button", {
-        name: "安装客户机",
+        name: "开始安装",
         exact: true,
       })
       .click();
     const body = (await submit).postDataJSON();
-    assert.equal(body.clone_key, "source-key");
+    assert.equal(body.clone_key, undefined); // Backend resumes the saved plan.
     assert.equal(body.guest_system, system);
     assert.equal(planRequests, 1);
     assert.deepEqual(fixture.errors, []);
-    console.log(platform, "host clone selection and submission passed");
+    console.log(platform, "resumed saved host-matched image");
   } finally {
     await fixture.browser.close();
   }

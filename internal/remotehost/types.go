@@ -11,9 +11,12 @@ import (
 const APIProtocol = 1
 
 type AuthConfig struct {
-	AgentSocket  string `json:"agent_socket,omitempty"`
 	Kind         string `json:"kind"`
 	IdentityFile string `json:"identity_file,omitempty"`
+	// AgentSocket optionally names the local agent for Kind "agent": an
+	// absolute Unix socket path, or a \\.\pipe\ name on Windows. Empty keeps
+	// SSH_AUTH_SOCK (and the Windows OpenSSH pipe) as before.
+	AgentSocket string `json:"agent_socket,omitempty"`
 }
 
 type HostKey struct {

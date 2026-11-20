@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sylvinus/agent-vm/internal/durable"
 	"github.com/sylvinus/agent-vm/internal/paths"
 )
 
@@ -88,7 +89,7 @@ func (d Dir) Write(name string, data []byte) error {
 		return err
 	}
 	_, werr := tmp.Write(data)
-	if err := errors.Join(werr, tmp.Chmod(0o644), tmp.Close()); err != nil {
+	if err := errors.Join(werr, tmp.Sync(), tmp.Chmod(0o644), tmp.Close()); err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}
@@ -96,7 +97,7 @@ func (d Dir) Write(name string, data []byte) error {
 		os.Remove(tmp.Name())
 		return err
 	}
-	return nil
+	return durable.SyncDir(filepath.Dir(d.Path(name)))
 }
 
 // ReadMarker is Read for a marker of vm.

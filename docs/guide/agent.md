@@ -121,13 +121,13 @@ cage agent call proxy.status
 
 ```sh
 cage agent call guest.options
-cage agent call guest.match
+
 cage agent call storage.get
 cage agent call resources.get
 cage agent call settings.get
 ```
 
-根据实际可用性选择系统。`guest.match` 给出匹配主机版本的干净镜像方案；将返回的 `key` 作为 `clone_key`，将 `plan.host.system` 作为 `guest_system` 传给 `environment.start`。镜像下载量、磁盘、主机权限和系统授权条件见[客机系统指南](guest-systems.md)。它不复制主机账户和个人文件。已有客机应继续原安装，保留原系统与介质信息。
+新环境调用 `environment.start` 时可传 `{}` 或 `{"guest_system":"debian-13"}`。已有环境使用 `{}` 继续。若 `guest.options` 返回安装记录，请使用原系统继续安装；只有旧版本保存的本机匹配计划可用 `guest.match` 查询。见[客机系统指南](guest-systems.md)。
 
 首次需要换存储位置时，在安装前用 `storage.set`，输入 `directory`、`previous`、`migrate`；后两项分别来自 `storage.get` 的 `directory` 和 `has_environment`。已有环境的迁移会停止任务并保留备份，应先保存工作。资源配置用 `resources.set` 的 `allocation` 对象；修改保存后再以 `{}` 调用应用资源，会重启环境。容器资源由服务器部署管理。
 

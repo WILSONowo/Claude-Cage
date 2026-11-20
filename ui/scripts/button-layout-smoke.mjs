@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { createWorkbench } from "./workbench-fixture.mjs";
 
 const workspace = "/projects/layout";
+const longProject = "/projects/" + "long-folder-name-".repeat(8) + "archive";
 const { browser, page, errors } = await createWorkbench({
   beforeNavigate: async (_page, state) => {
-    Object.assign(state.status, { ready: true, vm_running: true, projects: [workspace] });
+    Object.assign(state.status, { ready: true, vm_running: true, projects: [workspace, longProject] });
     state.settings.workspace = workspace;
   },
 });
@@ -62,6 +63,13 @@ try {
 
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "打开项目", exact: true });
+    const addProject = dialog.getByRole("button", { name: "添加本机项目…" });
+    const lastProject = await dialog.locator(".project-picker-row").last().boundingBox();
+    const addBounds = await addProject.boundingBox();
+    assert.ok(addBounds.y >= lastProject.y + lastProject.height + 8,
+      `wrapped project paths leave room before the add button at ${width}px`);
+    await addProject.scrollIntoViewIfNeeded();
+    await addProject.click({ trial: true });
     const offset = await dialog.locator("footer").evaluate(footer =>
       footer.getBoundingClientRect().right - footer.querySelector("button.primary").getBoundingClientRect().right
       - parseFloat(getComputedStyle(footer).paddingRight));

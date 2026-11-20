@@ -8,6 +8,7 @@ import { clientKeyboard, isRemoteClient, saveClientKeyboard } from "./client-con
 import { shortcut, usesControl } from "./platform.mjs";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Bell,
   Globe2,
   Clock3,
   FolderOpen,
@@ -24,6 +25,7 @@ import {
 import { api } from "./api";
 import { SafetyMessage } from "./safety-message";
 import { AppearanceSettings } from "./appearance-settings";
+import { NotificationSettings } from "./notification-settings";
 import { ProxySettings } from "./proxy-settings";
 import { ExitPolicyFields } from "./exit-policy";
 import { canonicalExitPolicy } from "./safety-state.mjs";
@@ -39,6 +41,7 @@ import { ClaudeAccountsPanel } from "./claude-accounts";
 const sections = [
   ["keyboard", "通用", Settings],
   ["appearance", "外观", Palette],
+  ["notifications", "通知", Bell],
   ["account", "账户", UserRound],
   ["vault", "密码保险箱", KeyRound],
   ["claude-accounts", "Claude 账号", UsersRound],
@@ -69,6 +72,7 @@ export function SettingsPanel({
     [probing, setProbing] = useState(false),
     [probeFailed, setProbeFailed] = useState(false),
     [error, setError] = useState(""),
+    [staticDraftOffer, setStaticDraftOffer] = useState(false),
     [jobId, setJobId] = useState(""),
     [submitting, setSubmitting] = useState(false);
   const changed =
@@ -84,6 +88,9 @@ export function SettingsPanel({
     });
   const environmentChanged = [
     "dns_url",
+    "dns_fallback_urls",
+    "dns_public_fallback",
+    "dns_bootstrap_urls",
     "timezone",
     "locale",
     "browser_language",
@@ -94,7 +101,9 @@ export function SettingsPanel({
     k === "exit_policy"
       ? JSON.stringify(canonicalExitPolicy(draft[k])) !==
         JSON.stringify(canonicalExitPolicy(current[k]))
-      : draft[k] !== current[k],
+      : Array.isArray(draft[k]) || Array.isArray(current[k])
+        ? JSON.stringify(draft[k] ?? []) !== JSON.stringify(current[k] ?? [])
+        : draft[k] !== current[k],
   );
   const busy =
     Boolean(status.job?.running) || Boolean(status.storage_recovery?.required) || probing || submitting || Boolean(jobId);
@@ -102,7 +111,7 @@ export function SettingsPanel({
   const linuxGuest = !/^(windows|macos)/.test(status.guest_system || "");
   const update = (key, value) => {
     setDraft((p) => ({ ...p, [key]: value }));
-    if (["dns_url"].includes(key)) setProbe(null);
+    if (["dns_url", "dns_fallback_urls", "dns_public_fallback"].includes(key)) setProbe(null);
     setError("");
   };
   const close = async () => {
@@ -126,8 +135,10 @@ export function SettingsPanel({
       setJobId("");
       if (status.job.error || status.job.canceled) {
         if (status.job.settings_saved) onSaved();
+        setStaticDraftOffer(status.job.recovery === "static-ip-draft-available");
         setError(status.job.error || status.job.message);
       } else {
+        setStaticDraftOffer(false);
         onSaved();
         if (!proxyDirty) onClose();
       }
@@ -155,9 +166,18 @@ export function SettingsPanel({
       setProbing(false);
     }
   };
-  const save = async () => {
+  const save = async ({ saveStaticDraft = false } = {}) => {
     if (busy) return;
-    if (
+    if (saveStaticDraft) {
+      if (
+        !(await onConfirm({
+          title: "离线保存待验证的静态 IP 草稿？",
+          body: "仅保存静态 IP 基准，不会放行外网。待代理恢复并通过实时出口、国家与隔离检查后才允许联网。",
+          confirm: "保存待验证草稿",
+        }))
+      )
+        return;
+    } else if (
       environmentChanged &&
       status.vm_running &&
       !(await onConfirm({
@@ -168,10 +188,12 @@ export function SettingsPanel({
     )
       return;
     setError("");
+    setStaticDraftOffer(false);
     setSubmitting(true);
     try {
       const payload = { ...draft };
       delete payload.browser_home_url;
+      if (saveStaticDraft) payload.save_static_draft = true;
       const result = await api("/settings", payload);
       setJobId(result.id);
     } catch (e) {
@@ -259,6 +281,7 @@ export function SettingsPanel({
         <div className={section === "archived-sessions" ? "settings-content settings-content--archives" : section === "claude-accounts" ? "settings-content settings-content--accounts" : section === "mobile" ? "settings-content settings-content--remote" : "settings-content"} ref={contentRef}>
           <div className="settings-sheet" data-section={section} key={section}>
           {section === "appearance" && <AppearanceSettings />}
+          {section === "notifications" && <NotificationSettings />}
           {section === "archived-sessions" && <ArchivedSessions ready={status.ready && !busy} />}
           {section === "vault" && <PasswordVaultSettings onConfirm={onConfirm} onDirty={setAccountDirty} />}
           {section === "account" && <AccountSettings busy={busy} onDirty={setAccountDirty} />}
@@ -295,6 +318,71 @@ export function SettingsPanel({
                     value={draft.dns_url}
                     onChange={(e) => update("dns_url", e.target.value)}
                     spellCheck="false"
+                  />
+                </label>
+                <label>
+                  备用加密 DNS（每行一个，最多 4 个）
+                  <textarea
+                    rows={2}
+                    value={(draft.dns_fallback_urls ?? []).join("\n")}
+                    onChange={(e) => update("dns_fallback_urls", e.target.value.split(/\r?\n/))}
+                    spellCheck="false"
+                    placeholder="https://…/dns-query"
+                  />
+                </label>
+                <label className="toggle-row">
+                  <span>
+                    <strong>以上端点都不可用时改用 Google 公共 DNS（8.8.8.8）</strong>
+                    <small>
+                      业务 DNS、联网检查与内置核心使用同一组端点，均经所选节点发出，按顺序尝试。默认只使用上面的加密 DNS；开启公共 DNS 备用后，查询可能发给第二家服务商。
+                    </small>
+                  </span>
+                  <input
+                    role="switch"
+                    type="checkbox"
+                    checked={Boolean(draft.dns_public_fallback)}
+                    onChange={(e) => update("dns_public_fallback", e.target.checked)}
+                  />
+                </label>
+                <label>
+                  节点域名解析（每行一个数字 IP 的 DoH，留空使用默认）
+                  <textarea
+                    rows={2}
+                    value={(draft.dns_bootstrap_urls ?? []).join("\n")}
+                    onChange={(e) => update("dns_bootstrap_urls", e.target.value.split(/\r?\n/))}
+                    spellCheck="false"
+                    placeholder="https://223.5.5.5/dns-query"
+                  />
+                </label>
+                <p className="field-help">
+                  经主机网络解析节点服务器域名。保存以上任一 DNS 设置后，环境重启时内置核心随之改用新设置，与业务 DNS 和联网检查保持一致。加密 DNS 或备用端点使用域名而非数字 IP 时，该域名会由这里的节点域名解析服务经主机网络解析。
+                </p>
+                <label className="toggle-row">
+                  <span>
+                    <strong>安装与工具下载兼容模式（限制 curl 最高使用 TLS 1.2）</strong>
+                    <small>
+                      默认关闭。仅当所选代理出口会中断 curl 的 TLS 1.3 握手、导致安装或工具下载失败时开启；不影响正常浏览与对话连接。
+                    </small>
+                  </span>
+                  <input
+                    role="switch"
+                    type="checkbox"
+                    checked={Boolean(draft.install_tls12_compat)}
+                    onChange={(e) => update("install_tls12_compat", e.target.checked)}
+                  />
+                </label>
+                <label className="toggle-row">
+                  <span>
+                    <strong>出口位置查询备用服务 ipinfo.io</strong>
+                    <small>
+                      默认关闭。开启后，仅当默认的五家位置服务都失败时，经所选节点把已测得的出口 IP 发给 ipinfo.io 查询国家或地区；其结果只用于国家级判断，不用于绑定或核对州、省和城市。
+                    </small>
+                  </span>
+                  <input
+                    role="switch"
+                    type="checkbox"
+                    checked={Boolean(draft.location_ipinfo_fallback)}
+                    onChange={(e) => update("location_ipinfo_fallback", e.target.checked)}
                   />
                 </label>
                 <div className="probe-line">
@@ -641,6 +729,31 @@ export function SettingsPanel({
                 <p className="footnote">
                   切换项目会改变新终端和编辑器的起始目录。已有终端、网页和登录状态会保留。
                 </p>
+                {linuxGuest && current.browser_graphics && !status.storage_recovery?.required && (
+                  <section aria-label="浏览器图形">
+                    <h4>浏览器图形</h4>
+                    <label>渲染后端
+                      <InlineSelect aria-label="渲染后端" value={draft.browser_graphics.backend || "auto"}
+                        onValueChange={value => update("browser_graphics", { ...draft.browser_graphics, backend: value === "auto" ? "" : value })}>
+                        <option value="auto">自动</option>
+                        <option value="gl">OpenGL</option>
+                        <option value="vulkan">Vulkan</option>
+                        <option value="swiftshader">软件渲染</option>
+                      </InlineSelect>
+                    </label>
+                    {[
+                      ["disable_webgl", "关闭 WebGL"],
+                      ["block_canvas_read", "阻止网页读取 Canvas 图像"],
+                    ].map(([key, label]) => (
+                      <label key={key} className="toggle-row">
+                        <span>{label}</span>
+                        <input type="checkbox" role="switch" checked={Boolean(draft.browser_graphics[key])}
+                          onChange={event => update("browser_graphics", { ...draft.browser_graphics, [key]: event.target.checked })} />
+                      </label>
+                    ))}
+                    <p className="field-help">下次启动环境时应用于内置浏览器。部分网页的 3D 显示或图片导出可能受限。</p>
+                  </section>
+                )}
                 {!status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
                 {!status.storage_recovery?.required && <EnvironmentCache status={status} onConfirm={onConfirm} />}
                 {status.guest_system === "macos" && <section aria-label="客机系统权限">
@@ -704,11 +817,22 @@ export function SettingsPanel({
                   手动设置时区和语言
                 </button>
               )}
+              {(staticDraftOffer || probeFailed) &&
+                draft.exit_policy?.mode === "static" &&
+                Boolean(draft.exit_policy?.ip?.trim()) && (
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => save({ saveStaticDraft: true })}
+                  >
+                    离线保存待验证的静态 IP 草稿
+                  </button>
+                )}
             </div>
           )}
           </div>
         </div>
-        {(!["appearance", "browser", "account", "claude-accounts", "vault", "mobile", "archived-sessions", "project"].includes(section) || changed) && (
+        {(!["appearance", "notifications", "browser", "account", "claude-accounts", "vault", "mobile", "archived-sessions", "project"].includes(section) || changed) && (
           <footer className="settings-footer">
             {" "}
             <>
@@ -727,7 +851,7 @@ export function SettingsPanel({
               <button
                 className="primary"
                 disabled={!changed || busy}
-                onClick={save}
+                onClick={() => save()}
               >
                 {busy ? (
                   <LoaderCircle size={15} className="spin" />

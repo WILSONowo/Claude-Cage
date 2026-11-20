@@ -5,6 +5,7 @@ import { QrCode } from "lucide-react";
 
 export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
   const tokenId = useId();
+  const [mobileAccessReason, setMobileAccessReason] = useState("");
   const [custom, setCustom] = useState(Boolean(relay));
   const [token, setToken] = useState("");
   const [code, setCode] = useState(null);
@@ -22,6 +23,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
         const state = await api("/mobile-pair");
         if (!active || revision !== statusRevision.current) return;
         setPaired(state.paired);
+        setMobileAccessReason(state.mobile_access_blocked ? state.mobile_access_reason || "请先在电脑上解锁 Cage。" : "");
         setDevice(state.paired ? state.device ?? null : null);
         setPower(state.paired ? state.keep_awake ?? null : null);
         if (state.paired) setCode(null);
@@ -104,10 +106,11 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
                 <span>{device.platform === "ios" ? "iOS" : "Android"}</span>
               </>
             ) : (
-              <span>未能读取型号，请更新手机端 Cage 后重连。</span>
+              <span>{mobileAccessReason ? "等待电脑解锁" : "未能读取型号，请更新手机端 Cage 后重连。"}</span>
             )}
           </p>
         )}
+        {mobileAccessReason && <p role="alert">{mobileAccessReason}</p>}
         {paired ? (
           <p role="status">在手机上选择「重新连接」即可连接 Cage。</p>
         ) : (

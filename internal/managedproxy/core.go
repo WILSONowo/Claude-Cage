@@ -27,8 +27,9 @@ import (
 // Keep the original cause available to errors.Is/As without putting private
 // socket paths, request URLs or response contents into user-visible errors.
 type coreError struct {
-	stage string
-	err   error
+	status int
+	stage  string
+	err    error
 }
 
 func (e *coreError) Error() string {
@@ -114,7 +115,11 @@ func Validate(ctx context.Context, profile string, s Store) error {
 }
 func API(ctx context.Context, profile, method, path string, body any, reply any) error {
 	tr := &http.Transport{Proxy: nil, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "unix", Socket(profile))
+		socket, err := controlSocketForDial(profile)
+		if err != nil {
+			return nil, &net.OpError{Op: "dial", Net: "unix", Err: err}
+		}
+		return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "unix", socket)
 	}}
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect refused") }}
@@ -141,7 +146,7 @@ func apiWithClient(ctx context.Context, client *http.Client, method, path string
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return &coreError{stage: fmt.Sprintf("api.http-%d", res.StatusCode)}
+		return &coreError{status: res.StatusCode, stage: fmt.Sprintf("api.http-%d", res.StatusCode)}
 	}
 	if reply != nil {
 		if err := json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(reply); err != nil {
@@ -150,6 +155,34 @@ func apiWithClient(ctx context.Context, client *http.Client, method, path string
 	}
 	return nil
 }
+
+// DelayError explains a failed /proxies/{id}/delay call. Checked against the
+// bundled mihomo v1.19.33 hub/route: 404 when the node is not loaded
+// (findProxyByName), 504 when the test timed out, 503 when the node failed to
+// connect or respond, 400 for an invalid query. 408 is not sent by that version
+// and is treated as a timeout only for forward compatibility. Only fixed text and the API stage are
+// reported; node addresses and core output stay out of the message.
+func DelayError(err error) error {
+	var core *coreError
+	if !errors.As(err, &core) {
+		return fmt.Errorf("测速失败：%w", err)
+	}
+	switch {
+	case core.status == http.StatusNotFound:
+		return errors.New("节点未载入核心；请先应用节点以载入当前列表")
+	case core.status == http.StatusGatewayTimeout || core.status == http.StatusRequestTimeout:
+		return errors.New("测速超时：节点已载入核心，但 5 秒内没有收到测速地址的响应；请检查节点或上游代理")
+	case core.status == http.StatusServiceUnavailable:
+		return errors.New("测速失败：节点已载入核心，但连接节点或上游代理时出错；请检查节点或上游代理")
+	case core.status != 0:
+		return fmt.Errorf("测速失败：代理核心返回 HTTP %d", core.status)
+	case strings.HasPrefix(core.stage, "api.transport"):
+		return fmt.Errorf("代理核心未运行或无法连接；请先应用节点。%w", err)
+	default:
+		return fmt.Errorf("测速失败：%w", err)
+	}
+}
+
 func Running(ctx context.Context, profile string, s Store) bool {
 	return checkRunning(ctx, profile, s) == nil
 }

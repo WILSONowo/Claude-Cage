@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sylvinus/agent-vm/internal/host"
 	"golang.org/x/sys/windows"
 )
 
@@ -101,6 +102,9 @@ func TestInstallerReleasesOnlyRecordedOrphanProxy(t *testing.T) {
 func TestRemoveStaleCoreRetainsRecordOnSocketFailure(t *testing.T) {
 	profile := t.TempDir()
 	socket := Socket(profile)
+	if err := host.EnsurePrivateDir(filepath.Dir(socket)); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(socket, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +139,9 @@ func TestRemoveStaleCoreRetainsRecordOnSocketFailure(t *testing.T) {
 func TestRemoveWindowsCoreSocket(t *testing.T) {
 	profile := t.TempDir()
 	socket := Socket(profile)
+	if err := host.EnsurePrivateDir(filepath.Dir(socket)); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(filepath.Dir(socket), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +205,9 @@ func TestStopWindowsCoreForgetsReusedPID(t *testing.T) {
 			// A stale identity is still useful evidence when its socket cannot
 			// be removed. In particular, a missing PID must not lose it first.
 			socket := Socket(profile)
+			if err := host.EnsurePrivateDir(filepath.Dir(socket)); err != nil {
+				t.Fatal(err)
+			}
 			if err := os.MkdirAll(socket, 0700); err != nil {
 				t.Fatal(err)
 			}

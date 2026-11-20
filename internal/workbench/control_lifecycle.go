@@ -171,8 +171,14 @@ func controllerVMOwners(profile string) ([]string, error) {
 	var owners []string
 	for _, path := range records {
 		b, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return nil, err
+		}
+		if cage.IncompleteRunningRecord(b) {
+			continue
 		}
 		var record struct {
 			PID     int    `json:"pid"`

@@ -8,7 +8,14 @@ import (
 )
 
 func (s *Server) macAccountHost() bool {
-	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" && s.localVMStorage()
+	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" || !s.localVMStorage() {
+		return false
+	}
+	if s.macosGuest != nil {
+		return true
+	}
+	install, err := guestos.LoadInstallation(s.profile)
+	return err == nil && install != nil && install.System == guestos.MacOS
 }
 
 func (s *Server) accountStatus(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +176,7 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 	case "device-unlock":
 		err = s.account.unlockDevice(input.Kind, input.Credential)
 	case "logout":
-		s.requestStop(w, true)
+		s.requestStop(w, r, true)
 		return
 	}
 	if err != nil {

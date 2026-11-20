@@ -42,7 +42,10 @@ func Start(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	pid, _ := store.ReadPIDFile(pidFile)
+	pid, err := store.ReadPIDFile(pidFile)
+	if err != nil {
+		return err
+	}
 	if pid == 0 {
 		qemuSock, err := Sock(name, QEMUSock)
 		if err != nil {
@@ -133,7 +136,10 @@ func Stop(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	pid, _ := store.ReadPIDFile(pidFile)
+	pid, err := store.ReadPIDFile(pidFile)
+	if err != nil {
+		return err
+	}
 
 	if pid != 0 {
 		logrus.Debugf("Stopping usernet daemon")
@@ -153,8 +159,15 @@ func Stop(ctx context.Context, name string) error {
 	// will cause subsequent start commands to fail.
 	startWaiting := time.Now()
 	for {
-		if pid, _ := store.ReadPIDFile(pidFile); pid == 0 {
+		current, err := store.ReadPIDFile(pidFile)
+		if err != nil {
+			return err
+		}
+		if current == 0 {
 			break
+		}
+		if current != pid {
+			return fmt.Errorf("usernet owner changed while stopping %s", name)
 		}
 		if time.Since(startWaiting) > 5*time.Second {
 			logrus.Infof("usernet network still running after 5 seconds. Attempting to forcibly kill")

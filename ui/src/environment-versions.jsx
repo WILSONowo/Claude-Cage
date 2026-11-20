@@ -33,7 +33,7 @@ export function EnvironmentVersions({ status, onConfirm }) {
     catch (e) { setError(e.message); }
     finally { setStarting(false); }
   };
-  const componentLabels = { current: "已同步", update_required: "需要更新", stopped: "环境已停止", unknown: "暂时无法确认" };
+  const componentLabels = { current: "已同步", update_required: "需要更新", recovery_required: "需要恢复", stopped: "环境已停止", unknown: "暂时无法确认" };
   const toolNames = { chromium: "浏览器", code_server: "文件编辑器", claude: "Claude Code", mise: "工具版本管理器", node: "Node.js", python: "Python", git: "Git", gh: "GitHub CLI", proxy: "代理核心" };
   return (
     <section className="environment-versions" aria-label="环境版本">

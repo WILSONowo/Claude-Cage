@@ -421,6 +421,11 @@ func stoppedStorage(source string) error {
 			var pid int
 			started := ""
 			if name == "cage-running.json" {
+				if IncompleteRunningRecord(data) {
+					// Records are replaced atomically after fsync, so an empty or
+					// cut-off file only comes from an interrupted write and names no live VM.
+					continue
+				}
 				var record runningProfile
 				err = json.Unmarshal(data, &record)
 				pid, started = record.PID, record.Started

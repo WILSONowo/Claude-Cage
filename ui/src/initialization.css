@@ -54,7 +54,10 @@
 .initialization-notice h2, .mac-setup-task h2, .initialization-ready h2 {
   font-size: 1.15rem; font-weight: 600; margin: 0 0 .5rem;
 }
-.initialization-notice > button { margin-block-start: .65rem; }
+.initialization-notice > button, .initialization-notice-actions { margin-block-start: .65rem; }
+.initialization-notice > button { display: flex; }
+.initialization-notice-actions { display: flex; flex-wrap: wrap; align-items: stretch; gap: .65rem; }
+.initialization-notice pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .initialization-notice p { margin: .35rem 0; }
 .initialization-operation p { margin: .4rem 0 1rem; }
 .initialization-recovery { margin-top: 1rem; }

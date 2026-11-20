@@ -219,3 +219,5 @@
 
 .account-field textarea { resize: vertical; line-height: 1.7; overflow-wrap: anywhere; }
 .account-recovery-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.account-recovery > form + .account-submit { margin-block-start: var(--scene-gap); }
+.account-recovery > .account-device-option { margin-block: var(--scene-gap); }

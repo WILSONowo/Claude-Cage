@@ -7,12 +7,19 @@ import { startDisplay } from "./rfb-wire-fixture.mjs";
 const display = await startDisplay(process.env.CAGE_UI_URL || "http://127.0.0.1:5198", { sharedClipboard: true });
 let revision = 1, clipboard = { text: "initial host text" };
 const writes = [];
+let hostReads = 0, releaseDeferred;
 const { browser, page, state, errors } = await createWorkbench({
   mockWebSockets: false, url: display.url,
   nativeRequest: request => {
     if (request.action === "clipboardWrite") { clipboard = { text: request.text }; revision++; return true; }
-    if (request.action === "clipboardRevision") return revision;
-    if (request.action === "clipboardSyncRead") return { ...clipboard, revision };
+    if (request.action === "clipboardRevision") { hostReads++; return revision; }
+    if (request.action === "clipboardSyncRead") {
+      if (request.defer_files && clipboard.files) return new Promise(resolve => {
+        const current = revision;
+        releaseDeferred = () => resolve({ files_pending: true, count: 1, revision: current });
+      });
+      return { ...clipboard, revision };
+    }
     if (request.action === "clipboardSyncWrite") {
       if (request.revision !== revision) return { revision, superseded: true };
       clipboard = Object.fromEntries(Object.entries(request).filter(([key]) => ["text","png","files"].includes(key)));
@@ -38,6 +45,23 @@ try {
     await page.waitForTimeout(350);
     assert.equal(display.stats.clipboardUpdates.length,count,"native writes must not echo");
   }
+
+  const setVisible = visible => page.evaluate(value => {
+    window.cageWindowVisible = value;
+    window.dispatchEvent(new Event("cage-window-visibility"));
+  }, visible);
+  await setVisible(false);
+  await page.waitForTimeout(400);
+  const hiddenReads = hostReads;
+  clipboard = { files:"20000000-2222-4333-8444-123456789abc" }; revision++;
+  await page.waitForTimeout(650);
+  assert.equal(hostReads, hiddenReads, "hidden workbench must stop polling host revisions");
+  await setVisible(true);
+  await waitFor(() => typeof releaseDeferred === "function");
+  const explicitPaste = page.evaluate(() => window.cageSyncClipboard());
+  releaseDeferred();
+  await explicitPaste;
+  assert.equal(display.stats.clipboardUpdates.at(-1).files, clipboard.files);
 
   clipboard = { text:"new host copy" }; revision++;
   await page.locator(".remote-canvas canvas").click({ position:{ x:40,y:40 } });

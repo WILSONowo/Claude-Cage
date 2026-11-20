@@ -49,16 +49,20 @@ func TestGuestRunnerDistinguishesRequestedStopFromFailure(t *testing.T) {
 	}
 	python, err := exec.Command("uv", "python", "find").Output()
 	if err != nil {
-		t.Skip("uv Python unavailable")
+		path, lookErr := exec.LookPath("python3")
+		if lookErr != nil {
+			t.Skip("Python unavailable")
+		}
+		python = []byte(path)
 	}
 	for _, tc := range []struct {
 		name, child string
 		stop        bool
 		want        int
 	}{
-		{"requested-stop", `import signal,time; signal.signal(signal.SIGTERM,lambda *_:exit(143)); print('ready',flush=True); time.sleep(10)`, true, 0},
+		{"requested-stop", `import signal; signal.signal(signal.SIGTERM,lambda *_:exit(143)); print('ready',flush=True); signal.pause()`, true, 0},
 		{"unexpected-143", `exit(143)`, false, 143},
-		{"failure-during-stop", `import signal,time; signal.signal(signal.SIGTERM,lambda *_:exit(7)); print('ready',flush=True); time.sleep(10)`, true, 7},
+		{"failure-during-stop", `import signal; signal.signal(signal.SIGTERM,lambda *_:exit(7)); print('ready',flush=True); signal.pause()`, true, 7},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := filepath.Join(t.TempDir(), "runner.py")

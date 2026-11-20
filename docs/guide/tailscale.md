@@ -6,6 +6,8 @@ order: 6.5
 keywords: Tailscale tailnet 设备 私网 SSH Web TCP 代理
 ---
 
+使用 Headscale 时，在 Tailscale 窗口的「控制服务器」填写 HTTPS 地址并保存。切换服务器后需要登录，原服务器的设备身份和 SSH 公钥会保留。选择「恢复官方服务」可以切回 Tailscale。
+
 ## 登录并加入私网
 
 工作台左侧「浏览器」下方的「Tailscale」，用于将当前 Cage 环境作为一台独立设备加入你的 Tailscale 网络。登录状态保存在客机磁盘中，关闭面板不会断开连接。本机、手机或服务器也需要安装 Tailscale，并加入同一网络。

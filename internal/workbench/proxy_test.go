@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 )
 
@@ -75,5 +76,31 @@ func TestSettingsCannotWriteProxyEndpoint(t *testing.T) {
 	}
 	if w := request(s, "POST", "/api/proxy/migrate", s.origin, `{}`, true); w.Code != 404 {
 		t.Fatal("removed migration entry accepted", w.Code)
+	}
+}
+
+// A DNS settings save restarts the environment; the core must be reloaded
+// then so its resolvers match guest DNS and the network check.
+func TestProxyDNSOutdatedCoversEveryDNSSetting(t *testing.T) {
+	cfg := cage.DefaultConfig()
+	store := managedproxy.Store{GuestDNS: cfg.DNSEndpoints(), BootstrapDNS: cfg.BootstrapEndpoints()}
+	if proxyDNSOutdated(store, cfg) {
+		t.Fatal("matching core DNS reported outdated")
+	}
+	if proxyDNSOutdated(managedproxy.Store{}, cfg) {
+		t.Fatal("a store from before the DNS options must not force a core reload with default settings")
+	}
+	primary := cfg
+	primary.DNSURL = "https://dns.example/dns-query"
+	backup := cfg
+	backup.DNS = cage.NewDNSOptions([]string{"https://9.9.9.9/dns-query"}, nil, false)
+	public := cfg
+	public.DNS = cage.NewDNSOptions(nil, nil, true)
+	bootstrap := cfg
+	bootstrap.DNS = cage.NewDNSOptions(nil, []string{"https://223.5.5.5/dns-query"}, false)
+	for name, changed := range map[string]cage.Config{"primary": primary, "backup": backup, "public fallback": public, "node resolvers": bootstrap} {
+		if !proxyDNSOutdated(store, changed) {
+			t.Fatalf("%s change not detected", name)
+		}
 	}
 }

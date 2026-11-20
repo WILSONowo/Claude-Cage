@@ -209,6 +209,99 @@ func TestTerminalManagerStopAllowsLaterTerminals(t *testing.T) {
 	}
 }
 
+func TestTerminalManagerEvictsOldestEndedSessions(t *testing.T) {
+	for _, liveCount := range []int{0, 3} {
+		t.Run(fmt.Sprintf("live-%d", liveCount), func(t *testing.T) {
+			var manager terminalManager
+			t.Cleanup(manager.close)
+			var retained, live []*terminalSession
+			for i := 0; i < terminalLimit; i++ {
+				session := startControlledTerminal(t, &manager, "shell")
+				if i < liveCount {
+					live = append(live, session)
+				} else {
+					_ = session.file.Close()
+					awaitTerminalSignal(t, session.done)
+					retained = append(retained, session)
+				}
+			}
+			for i := 0; i < 3; i++ {
+				session := startControlledTerminal(t, &manager, "shell")
+				live = append(live, session)
+				if count := len(manager.snapshot()); count != terminalLimit {
+					t.Fatalf("retained %d terminals after publication", count)
+				}
+				for j, ended := range retained {
+					got := manager.get(ended.id)
+					if j <= i {
+						if got != nil {
+							t.Fatalf("oldest ended terminal %d survived eviction %d", j, i)
+						}
+					} else if got != ended {
+						t.Fatalf("newer ended terminal %d was evicted early", j)
+					}
+				}
+				for _, running := range live {
+					if manager.get(running.id) != running || running.ended() {
+						t.Fatal("publication evicted or closed a live terminal")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestTerminalManagerLimitCountsLiveSessions(t *testing.T) {
+	var manager terminalManager
+	t.Cleanup(manager.close)
+	for i := 0; i < terminalLimit; i++ {
+		kind := "shell"
+		if i == 0 {
+			kind = "claude-login"
+		}
+		startControlledTerminal(t, &manager, kind)
+	}
+	if err := manager.canStart(); !errors.Is(err, errTerminalLimit) || err.Error() != "最多同时运行 12 个终端，请先关闭或归档不用的会话" {
+		t.Fatalf("live terminal limit: %v", err)
+	}
+	started := false
+	_, err := manager.startSessionWithPTY(nil, "", "shell", claudeSelection{}, nil, func() (terminalPTY, error) {
+		started = true
+		return nil, nil
+	})
+	if !errors.Is(err, errTerminalLimit) || started || len(manager.snapshot()) != terminalLimit {
+		t.Fatalf("full manager started a process or changed history: started=%t err=%v", started, err)
+	}
+}
+
+func TestTerminalManagerCanStartDoesNotEvictHistory(t *testing.T) {
+	var manager terminalManager
+	t.Cleanup(manager.close)
+	var retained []*terminalSession
+	for i := 0; i < terminalLimit; i++ {
+		session := startControlledTerminal(t, &manager, "shell")
+		_ = session.file.Close()
+		awaitTerminalSignal(t, session.done)
+		retained = append(retained, session)
+	}
+	if err := manager.canStart(); err != nil {
+		t.Fatalf("ended sessions blocked admission: %v", err)
+	}
+	if _, err := manager.startSessionWithPTY(nil, "", "shell", claudeSelection{}, nil, func() (terminalPTY, error) {
+		return nil, errors.New("PTY startup failed")
+	}); !errors.Is(err, errTerminalStart) {
+		t.Fatalf("startup failure: %v", err)
+	}
+	if len(manager.snapshot()) != terminalLimit || manager.sequence != terminalLimit {
+		t.Fatal("admission check or failed startup changed history")
+	}
+	for _, session := range retained {
+		if manager.get(session.id) != session {
+			t.Fatal("admission check or failed startup evicted a terminal")
+		}
+	}
+}
+
 type controlledTerminal struct {
 	reader      *io.PipeReader
 	writer      *io.PipeWriter
@@ -218,13 +311,32 @@ type controlledTerminal struct {
 	killOnce    sync.Once
 }
 
-func newControlledSession() (*terminalSession, *controlledTerminal) {
+func newControlledTerminal() *controlledTerminal {
 	reader, writer := io.Pipe()
-	file := &controlledTerminal{reader: reader, writer: writer, killed: make(chan struct{}), waitStarted: make(chan struct{}), waitRelease: make(chan struct{})}
+	return &controlledTerminal{reader: reader, writer: writer, killed: make(chan struct{}), waitStarted: make(chan struct{}), waitRelease: make(chan struct{})}
+}
+
+func newControlledSession() (*terminalSession, *controlledTerminal) {
+	file := newControlledTerminal()
 	session := newTerminalSession(file)
 	go session.run()
 	return session, file
 }
+
+func startControlledTerminal(t *testing.T, manager *terminalManager, kind string) *terminalSession {
+	t.Helper()
+	file := newControlledTerminal()
+	close(file.waitRelease)
+	session, err := manager.startSessionWithPTY(nil, "/project", kind, claudeSelection{}, nil, func() (terminalPTY, error) {
+		return file, nil
+	})
+	if err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	return session
+}
+
 func (f *controlledTerminal) Read(data []byte) (int, error)  { return f.reader.Read(data) }
 func (f *controlledTerminal) Write(data []byte) (int, error) { return len(data), nil }
 func (f *controlledTerminal) Resize(uint16, uint16) error    { return nil }
@@ -234,10 +346,14 @@ func (f *controlledTerminal) Close() error                   { _ = f.writer.Clos
 
 func TestTerminalEOFReapsProcessBeforeSessionCompletes(t *testing.T) {
 	session, file := newControlledSession()
+	manager := terminalManager{sessions: map[string]*terminalSession{"reaping": session}}
 	sub := session.subscribe()
 	_ = file.writer.Close()
 	awaitTerminalSignal(t, file.killed)
 	awaitTerminalSignal(t, file.waitStarted)
+	if session.ended() || !manager.hasLive() {
+		t.Fatal("terminal stopped counting as live before process was reaped")
+	}
 	select {
 	case <-session.done:
 		t.Fatal("EOF completed session before process was reaped")
@@ -252,6 +368,9 @@ func TestTerminalEOFReapsProcessBeforeSessionCompletes(t *testing.T) {
 	}
 	close(file.waitRelease)
 	awaitTerminalSignal(t, closed)
+	if !session.ended() || manager.hasLive() {
+		t.Fatal("reaped terminal remained live")
+	}
 	if _, ok := <-sub.Output; ok {
 		t.Fatal("session completion did not close subscription")
 	}

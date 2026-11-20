@@ -54,10 +54,22 @@ func (s *Server) guestInstallView() (guestInstallView, error) {
 	}
 	v.Fresh = !loc.HasEnvironment
 	v.Pending = pending
-	if !v.Fresh && pending == nil {
+	if pending == nil {
+		if v.Fresh {
+			system, err := s.installedLinuxSystem()
+			if err != nil {
+				return v, err
+			}
+			if system != guestos.Debian13 {
+				v.Fresh = false
+				return v, nil
+			}
+			v.System = guestos.Debian13
+			v.LinuxSystems = []string{guestos.Debian13}
+			v.Available = true
+		}
 		return v, nil
 	}
-	v.LinuxSystems = linuxGuestSystems(runtime.GOOS, runtime.GOARCH)
 	switch {
 	case runtime.GOOS == "darwin" && runtime.GOARCH == "arm64":
 		v.System = guestos.MacOS
@@ -73,34 +85,32 @@ func (s *Server) guestInstallView() (guestInstallView, error) {
 	default:
 		return v, nil
 	}
-	if pending != nil {
-		v.Reselect, err = guestos.UnstartedInstallation(s.profile, *pending)
+	v.Reselect, err = guestos.UnstartedInstallation(s.profile, *pending)
+	if err != nil {
+		return v, err
+	}
+	catalog := pending.SourceKind == guestos.LinuxImageSource && canInstallCatalogLinux(pending.System) && pending.Source.Host.Arch == runtime.GOARCH
+	if !catalog && pending.System != v.System {
+		return v, errors.New("客户机安装记录与这台宿主不匹配")
+	}
+	if pending.SourceKind == guestos.LinuxImageSource && !catalog {
+		return v, errors.New("客户机镜像架构与这台主机不匹配，请恢复原主机环境")
+	}
+	mac, err := guestos.LoadMacOSProfile(s.profile)
+	if err != nil {
+		return v, err
+	}
+	win, err := guestos.LoadWindowsProfile(s.profile)
+	if err != nil {
+		return v, err
+	}
+	v.Activate = (pending.System == guestos.MacOS && mac != nil) || (pending.System == guestos.Windows11 && win != nil)
+	if pending.System == guestos.Windows11 && win != nil {
+		cleanup, err := guestos.WindowsCloneCleanupPending(s.profile)
 		if err != nil {
 			return v, err
 		}
-		catalog := pending.SourceKind == guestos.LinuxImageSource && canInstallCatalogLinux(pending.System) && pending.Source.Host.Arch == runtime.GOARCH
-		if !catalog && pending.System != v.System {
-			return v, errors.New("客户机安装记录与这台宿主不匹配")
-		}
-		if pending.SourceKind == guestos.LinuxImageSource && !catalog {
-			return v, errors.New("客户机镜像架构与这台主机不匹配，请恢复原主机环境")
-		}
-		mac, err := guestos.LoadMacOSProfile(s.profile)
-		if err != nil {
-			return v, err
-		}
-		win, err := guestos.LoadWindowsProfile(s.profile)
-		if err != nil {
-			return v, err
-		}
-		v.Activate = (pending.System == guestos.MacOS && mac != nil) || (pending.System == guestos.Windows11 && win != nil)
-		if pending.System == guestos.Windows11 && win != nil {
-			cleanup, err := guestos.WindowsCloneCleanupPending(s.profile)
-			if err != nil {
-				return v, err
-			}
-			v.Activate = !cleanup
-		}
+		v.Activate = !cleanup
 	}
 	if v.System == "" {
 		return v, nil
@@ -124,13 +134,6 @@ func (s *Server) guestInstallation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet {
-		if v.System == guestos.Windows11 && v.Available && v.Pending == nil {
-			check := guestos.Inspect(r.Context())
-			if !check.HostCheckPassed {
-				v.Available = false
-				v.Reason = check.Detail
-			}
-		}
 		jsonReply(w, v)
 		return
 	}
@@ -223,52 +226,29 @@ func guestInstallFailureMessage(system string, err error) error {
 }
 
 func (s *Server) beginGuestInstallMode(w http.ResponseWriter, r *http.Request, in guestInstallRequest, guiAuthorize bool, recoveryUser string) {
-	if in.System == guestos.MacOS && !s.account.view().MacOSCredentialsReady {
-		http.Error(w, "请先注册或确认 Cage 账密，再安装 macOS 客机", http.StatusConflict)
-		return
-	}
 	v, err := s.guestInstallView()
 	if err != nil {
 		requestError(w, err)
 		return
 	}
-	catalog := canInstallCatalogLinux(in.System) && in.CloneKey == ""
-	if v.Pending != nil {
-		catalog = v.Pending.SourceKind == guestos.LinuxImageSource
-	}
-	if (!catalog && (!v.Available || v.System != in.System)) || !s.hasTrustedView(r) || (!v.Fresh && v.Pending == nil) || v.Activate {
-		http.Error(w, "当前环境无法安装所选客户机系统", http.StatusConflict)
+	if v.Pending == nil {
+		http.Error(w, "新环境使用 Debian 13。已有环境请从原配置继续启动。", http.StatusConflict)
 		return
 	}
-	install := guestos.Installation{Version: 1, System: in.System, Media: in.Media, SHA256: strings.ToLower(in.SHA256), ID: uuid.New(), EditorTerms: in.EditorTerms}
-	if v.Pending != nil {
-		if v.Pending.System != in.System || (in.Media != "" && in.Media != v.Pending.Media) || (in.SHA256 != "" && !strings.EqualFold(in.SHA256, v.Pending.SHA256)) {
-			http.Error(w, "必须使用原先选择的系统和安装介质继续安装", http.StatusConflict)
-			return
-		}
-		install = *v.Pending
-	} else if in.CloneKey != "" {
-		plan, planErr := s.hostClonePlan(r.Context())
-		if planErr != nil {
-			requestError(w, planErr)
-			return
-		}
-		if plan.Key() != in.CloneKey || plan.Host.System != in.System {
-			requestError(w, errors.New("本机版本或系统镜像信息已变化，请重新检测并匹配"))
-			return
-		}
-		install.Source = plan
-	} else if catalog {
-		if in.Media != "" || in.SHA256 != "" || in.EditorTerms {
-			requestError(w, errors.New("Ubuntu 使用 Cage 校验过的官方镜像，无需另选安装介质"))
-			return
-		}
-		plan, err := linuxGuestImagePlan(r.Context(), s.profile, in.System, runtime.GOARCH)
-		if err != nil {
-			requestError(w, err)
-			return
-		}
-		install.Source, install.SourceKind = plan, guestos.LinuxImageSource
+	if in.System == guestos.MacOS && !s.account.view().MacOSCredentialsReady {
+		http.Error(w, "请先注册或确认 Cage 账密，再安装 macOS 客机", http.StatusConflict)
+		return
+	}
+	install := *v.Pending
+	catalog := install.SourceKind == guestos.LinuxImageSource
+	if (!catalog && (!v.Available || v.System != in.System)) || !s.hasTrustedView(r) || v.Activate {
+		http.Error(w, "当前环境无法继续所选客户机的安装", http.StatusConflict)
+		return
+	}
+	if install.System != in.System || (in.Media != "" && in.Media != install.Media) || (in.SHA256 != "" && !strings.EqualFold(in.SHA256, install.SHA256)) ||
+		(in.CloneKey != "" && (install.Source.Host.System == "" || install.Source.Key() != in.CloneKey)) {
+		http.Error(w, "必须使用原先选择的系统和安装介质继续安装", http.StatusConflict)
+		return
 	}
 	if err := install.Validate(); err != nil {
 		requestError(w, err)
@@ -286,7 +266,7 @@ func (s *Server) beginGuestInstallMode(w http.ResponseWriter, r *http.Request, i
 		if err := cfg.RequireManagedProxy(s.profile); err != nil {
 			return err
 		}
-		lease, loc, err := cage.AcquireStorageUse(s.profile)
+		lease, _, err := cage.AcquireStorageUse(s.profile)
 		if err != nil {
 			return err
 		}
@@ -295,7 +275,7 @@ func (s *Server) beginGuestInstallMode(w http.ResponseWriter, r *http.Request, i
 		if err != nil {
 			return err
 		}
-		if current == nil && loc.HasEnvironment || current != nil && *current != install {
+		if current == nil || *current != install {
 			return errors.New("已有其他环境或安装任务，请重新打开安装页面")
 		}
 		if install.Media != "" {
@@ -309,9 +289,6 @@ func (s *Server) beginGuestInstallMode(w http.ResponseWriter, r *http.Request, i
 			if !check.HostCheckPassed {
 				return errors.New(check.Detail)
 			}
-		}
-		if err := guestos.SaveInstallation(s.profile, install); err != nil {
-			return err
 		}
 		if install.Source.Host.System != "" {
 			cache := filepath.Join(s.profile, "state", "guest-media", install.System)

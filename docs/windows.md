@@ -1,12 +1,12 @@
 # Windows 安装、更新与发布
 
-Cage 的 Windows 版本面向 Windows 10 22H2（内部版本 19045）和 Windows 11 的 x64 电脑。安装后从开始菜单打开 Cage，选择客机系统、导入自己的代理，再进入工作台。具备完整 Hyper-V 的 Windows 11 专业版、企业版或教育版可运行 Windows 11 客机，使用 PowerShell、Windows 原生工具和官方 Claude Desktop；其他受支持的 Windows 主机可使用 Debian 13。具体组合见[选择客机系统](guide/guest-systems.md)。
+Windows 版支持 Windows 10 22H2（内部版本 19045）和 Windows 11 的 x64 电脑。首次登录后选择存储位置并配置代理，Cage 自动创建 Debian 13。
 
 ## 安装前准备
 
-下表和 WHPX 配置适用于 Debian 客机。Windows 11 客机需要完整的 Hyper-V 平台与管理工具，以及支持第二代虚拟机、安全启动和 vTPM 的主机。首次创建通过系统提权安装专用管理助手，日常 Cage 仍以普通用户运行，助手仅管理已登记客机。Windows 家庭版使用 Debian 路线。克隆入口匹配 Microsoft 官方 ESD，手动安装可选官方 ISO，均按相应许可使用。
+下表和 WHPX 配置适用于 Debian。已有 Windows 11 客机仍需要完整 Hyper-V 和原来的管理助手。
 
-“自动匹配本机系统版本”匹配 Windows 发行版本、版本类型和语言，展示主机与客机补丁构建差异；安装中断后继续原记录与系统盘。当前已实测建机、首次启动与冷启动，修复后的最终工作台登记仍待复验。完整条件和流程见[客机系统指南](guide/guest-systems.md#自动匹配本机系统版本)。
+旧版 Windows 安装中断后，从原环境继续安装可复用原记录和系统盘。见[客机系统指南](guide/guest-systems.md)。
 
 使用本机 ISO 时，安装窗口会先收集客机本地管理员账户，用安装应答完成离线账户创建。进入客机桌面后回 Cage 继续安装，组件置备期间保持 PowerShell 安装窗口开启。具体步骤及旧安装接续见[使用 Windows 本机 ISO](guide/guest-systems.md#使用-windows-本机-iso)。
 
@@ -30,7 +30,7 @@ DISM /Online /Enable-Feature /FeatureName:HypervisorPlatform /All
 1. 在[项目主页](https://claude-cage.com/#download)点击“下载应用”并选择 Windows，核对对应发行条目的 `SHA256SUMS`。签名安装包名为 `Cage-<版本>-windows-amd64-setup.exe`；单独标明未签名的开发预览包名为 `Cage-<版本>-windows-amd64-setup-unsigned.exe`。未签名包可能触发未知发布者提示，需手动安装和更新。
 2. 运行安装程序，选择安装位置。首次安装时，默认选择本地 D 盘的 `D:\Cage`；没有本地 D 盘时使用当前用户的 `%LOCALAPPDATA%\Programs\Cage`。已有安装沿用原目录，也可以手动选择其他位置。安装器随附 .NET 桌面运行组件、WebView2 安装程序、QEMU、OpenSSH 客户端和代理核心，无需另装 Go、Node.js 或 Clash。
 3. 在“快捷方式”页选择“添加桌面快捷方式”和“添加到开始菜单”。首次安装默认勾选两项，覆盖安装沿用上次选择，旧安装按已有快捷方式恢复选择。卸载会清理 Cage 创建的快捷方式。
-4. 从选中的快捷方式启动 Cage，选择客机系统。如果 C 盘空间有限，在工作台点击“选择环境存储位置”，选择其他磁盘的专用空文件夹，再导入代理并启动环境。镜像、工具和虚拟磁盘按所选系统准备；已有环境也可以从设置迁移。见[选盘与迁移步骤](getting-started.md#选择环境存储位置)和[客机系统指南](guide/guest-systems.md)。
+4. 从选中的快捷方式启动 Cage。如果 C 盘空间有限，在工作台点击“选择环境存储位置”，选择其他磁盘的专用空文件夹，再导入代理并启动环境。Cage 自动准备 Debian 13 镜像、工具和虚拟磁盘；已有环境也可以从设置迁移。见[选盘与迁移步骤](getting-started.md#选择环境存储位置)和[客机系统指南](guide/guest-systems.md)。
 
 安装器不设置系统代理，不安装 SSH 服务，不把随附工具加入系统 PATH。WebView2 是 Microsoft 提供的系统浏览器运行时，其安装与维护由 Microsoft 安装程序负责。
 

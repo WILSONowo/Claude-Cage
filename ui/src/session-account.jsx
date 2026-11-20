@@ -59,7 +59,7 @@ export function SessionAccount({ id, request, onChanged, compact = false }) {
         <button type="button" disabled={busy || !target || !confirmed} onClick={()=>{
           pending.current ||= {action:"switch",target,request_id:crypto.randomUUID(),source_id:view.source_id,confirm:true,continue:continueTask};
           void change(pending.current);
-        }}>{busy?"正在交接…":"切换并恢复历史"}</button>
+        }}>{busy?"正在交接…":view.unopened?"用所选账号继续":"切换并恢复历史"}</button>
       </>}
       {switching && sw.phase!=="starting" && <button disabled={busy} onClick={()=>change({action:"switch",request_id:sw.id,source_id:view.source_id,target,confirm:true})}>重试账号交接</button>}
       {switching && sw.phase==="preparing" && <button disabled={busy} onClick={()=>change({action:"cancel",request_id:sw.id})}>取消交接，保留原账号</button>}

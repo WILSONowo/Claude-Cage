@@ -227,7 +227,10 @@ func startNetwork(ctx context.Context, cfg *networks.Config, name string) error 
 		return fmt.Errorf("daemon %#q needs to be installed", networks.SocketVMNet)
 	}
 	for _, daemon := range daemons {
-		pid, _ := store.ReadPIDFile(cfg.PIDFile(name, daemon))
+		pid, err := store.ReadPIDFile(cfg.PIDFile(name, daemon))
+		if err != nil {
+			return err
+		}
 		if pid == 0 {
 			logrus.Infof("Starting %s daemon for %#q network", daemon, name)
 			if err := startDaemonWithRetry(ctx, cfg, name, daemon); err != nil {
@@ -414,7 +417,10 @@ func stopNetwork(ctx context.Context, cfg *networks.Config, name string) error {
 		if ok, _ := cfg.IsDaemonInstalled(daemon); !ok {
 			continue
 		}
-		pid, _ := store.ReadPIDFile(cfg.PIDFile(name, daemon))
+		pid, err := store.ReadPIDFile(cfg.PIDFile(name, daemon))
+		if err != nil {
+			return err
+		}
 		if pid != 0 {
 			logrus.Infof("Stopping %s daemon for %#q network", daemon, name)
 			if err := validateConfig(ctx, cfg); err != nil {
@@ -433,7 +439,9 @@ func stopNetwork(ctx context.Context, cfg *networks.Config, name string) error {
 		// will cause subsequent start commands to fail.
 		startWaiting := time.Now()
 		for {
-			if pid, _ := store.ReadPIDFile(cfg.PIDFile(name, daemon)); pid == 0 {
+			if current, err := store.ReadPIDFile(cfg.PIDFile(name, daemon)); err != nil {
+				return err
+			} else if current == 0 {
 				break
 			}
 			if time.Since(startWaiting) > 5*time.Second {

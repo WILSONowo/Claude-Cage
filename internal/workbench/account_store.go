@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/sylvinus/agent-vm/internal/host"
@@ -55,6 +56,7 @@ type accountView struct {
 	RecoveryReady         bool              `json:"recovery_ready"`
 	MacOSAccountHost      bool              `json:"macos_account_host,omitempty"`
 	MacOSCredentialsReady bool              `json:"macos_credentials_ready,omitempty"`
+	MacOSPasswordShared   bool              `json:"macos_password_shared,omitempty"`
 	MacOSUsernameBound    bool              `json:"macos_username_bound,omitempty"`
 	MacOSPasswordPending  bool              `json:"macos_password_pending,omitempty"`
 	MacOSGuestUser        string            `json:"macos_guest_user,omitempty"`
@@ -111,8 +113,18 @@ func validAccountName(name string) error {
 }
 
 func validAccountPassword(password string) error {
-	if utf8.RuneCountInString(password) < 8 || len(password) > 1024 || strings.ContainsRune(password, 0) {
-		return errors.New("密码至少 8 个字符，最多 1024 字节")
+	if password == "" {
+		return errors.New("请输入密码")
+	}
+	units := 0
+	for _, r := range password {
+		if r == 0 {
+			return errors.New("密码不能包含空字符")
+		}
+		units += utf16.RuneLen(r)
+		if units > 256 {
+			return errors.New("密码最多 256 个字符")
+		}
 	}
 	return nil
 }
@@ -141,6 +153,7 @@ func sealAccountKey(record *accountRecord, password string, key []byte) error {
 }
 
 func openAccountKey(record *accountRecord, password string) ([]byte, error) {
+	// Accounts created before the 256 UTF-16 unit limit may use longer passwords.
 	if len(password) > 1024 {
 		return nil, errors.New("密码不正确")
 	}
@@ -167,6 +180,7 @@ func (a *localAccount) viewFor(desktop bool) accountView {
 	v.DeviceBinding = fmtAccountBinding(a.path)
 	if a.record != nil {
 		v.RecoveryReady = a.record.Recovery != nil
+		v.MacOSPasswordShared = a.record.MacLogin != nil
 		if a.record.MacLogin != nil && v.Unlocked {
 			if login, err := a.openMacAccount(); err == nil {
 				v.MacOSCredentialsReady = true
@@ -189,18 +203,53 @@ func (a *localAccount) viewFor(desktop bool) accountView {
 	return v
 }
 
+type accountAccessState int
+
+const (
+	accountAccessGranted accountAccessState = iota
+	accountAccessLocked
+	accountAccessDesktopOnly
+)
+
 func (a *localAccount) access() (context.Context, bool) { return a.accessFor(true, false) }
 
 func (a *localAccount) accessFor(desktop, pairedPhone bool) (context.Context, bool) {
+	epoch, state := a.accessStateFor(desktop, pairedPhone)
+	return epoch, state == accountAccessGranted
+}
+
+func (a *localAccount) accessStateFor(desktop, pairedPhone bool) (context.Context, accountAccessState) {
 	if a == nil {
-		return nil, false
+		return nil, accountAccessLocked
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if len(a.key) != 32 {
+		return a.epoch, accountAccessLocked
+	}
 	// Remember me also unlocks the enrolled phone's mobile routes. Legacy
 	// passwordless workspaces keep their local desktop-only access.
 	rememberedPhone := pairedPhone && a.record != nil && a.record.TrustedUnlock != nil
-	return a.epoch, len(a.key) == 32 && (!a.trustedSession || desktop || rememberedPhone)
+	if !a.trustedSession || desktop || rememberedPhone {
+		return a.epoch, accountAccessGranted
+	}
+	if pairedPhone && a.trustedSession && a.record != nil && (a.record.TrustedDevice != "" || a.record.TrustedUnlock == nil) {
+		return a.epoch, accountAccessDesktopOnly
+	}
+	return a.epoch, accountAccessLocked
+}
+
+func (a *localAccount) desktopOnlyMobileMessage() string {
+	if a == nil {
+		return "Cage 已锁定，请先登录"
+	}
+	a.mu.Lock()
+	trustedLocal := a.record != nil && a.record.TrustedDevice != ""
+	a.mu.Unlock()
+	if trustedLocal {
+		return "当前仅允许本机访问。请在电脑的「设置 → 账户」设置密码，再在手机上重新读取。"
+	}
+	return "当前电脑未开启「记住我」，暂不支持手机访问。请在电脑的「设置 → 账户」开启「记住我」或用密码重新登录，然后点击重新读取。"
 }
 
 func (a *localAccount) setKey(key []byte) {

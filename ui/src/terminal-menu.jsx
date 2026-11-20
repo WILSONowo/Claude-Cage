@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { useSelectPopup } from "./select-popup";
 import { TerminalSquare } from "lucide-react";
 
-export function TerminalMenu({ choice, busy, onClose, onSelect }) {
+import { TERMINAL_LIMIT } from "./session-order.mjs";
+
+export function TerminalMenu({ choice, busy, atLimit = false, onClose, onSelect }) {
   const menu = useRef(null);
   const trigger = useMemo(() => ({ current: choice.anchor }), [choice.anchor]);
   const position = useSelectPopup(true, trigger, menu, 2, true);
@@ -34,6 +36,7 @@ export function TerminalMenu({ choice, busy, onClose, onSelect }) {
       } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
         event.preventDefault();
         const items = [...node.querySelectorAll("button:not(:disabled)")];
+        if (!items.length) return;
         const index = items.indexOf(document.activeElement);
         const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
           : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
@@ -54,11 +57,12 @@ export function TerminalMenu({ choice, busy, onClose, onSelect }) {
   }, [choice]);
 
   return createPortal(
-    <div ref={menu} style={position} id="terminal-create-menu" className="menu terminal-create-menu" role="menu" aria-label="新建终端">
-      <button role="menuitem" disabled={busy} onClick={() => onSelect("shell")}>
+    <div ref={menu} style={position} id="terminal-create-menu" className="menu terminal-create-menu" role="menu" aria-label="新建终端" aria-describedby={atLimit ? "terminal-limit-note" : undefined}>
+      {atLimit && <p id="terminal-limit-note" className="terminal-limit-note">最多同时运行 {TERMINAL_LIMIT} 个终端，请先关闭或归档不用的会话</p>}
+      <button role="menuitem" disabled={busy || atLimit} onClick={() => onSelect("shell")}>
         <TerminalSquare size={16} />普通终端
       </button>
-      <button role="menuitem" disabled={busy} onClick={() => onSelect("claude")}>
+      <button role="menuitem" disabled={busy || atLimit} onClick={() => onSelect("claude")}>
         <TerminalSquare size={16} />Claude 终端
       </button>
     </div>, document.body,

@@ -54,6 +54,15 @@ const settings = async () => {
 try {
   await settings();
   await page.getByText("还没有保存密码", { exact: true }).waitFor();
+  const viewport = page.viewportSize();
+  const search = page.locator(".vault-toolbar .search-field");
+  const desktopHeight = (await search.boundingBox()).height;
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ ...viewport, width });
+    const stackedHeight = (await search.boundingBox()).height;
+    assert.ok(Math.abs(stackedHeight - desktopHeight) < 1, "a stacked search field should keep its control height");
+  }
+  await page.setViewportSize(viewport);
   await page.getByRole("button", { name: "添加密码", exact: true }).click();
   await page.getByLabel("网站地址", { exact: true }).fill("https://mail.example.test");
   await page.getByLabel("账号或邮箱").fill("alice@example.test");

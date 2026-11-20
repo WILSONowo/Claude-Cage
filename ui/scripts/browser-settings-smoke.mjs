@@ -18,6 +18,8 @@ try {
   const settings = page.getByRole('region', { name: '浏览器设置', exact: true });
   const nav = settings.getByRole('navigation', { name: '浏览器设置分类' });
   await settings.waitFor();
+  const firstSettingsTab = (await controller.api('/tabs')).tabs.find(tab => tab.kind === 'browser-settings');
+  assert.ok(firstSettingsTab, 'the settings page has a corresponding guest browser tab');
   const address = settings.getByRole('textbox', { name: '新标签页地址', exact: true });
   const nextHome = controller.origin + '/custom';
   await address.fill(nextHome);
@@ -38,7 +40,12 @@ try {
   await page.getByRole('button', { name: '浏览器菜单', exact: true }).click();
   await page.getByRole('menuitem', { name: '设置', exact: true }).click();
   await settings.waitFor();
-  assert.equal(await page.getByRole('tab', { name: '设置', exact: true }).count(), 1);
+  const guestTabs = await controller.api('/tabs');
+  assert.deepEqual(guestTabs.tabs.filter(tab => tab.kind === 'browser-settings').map(tab => tab.id), [firstSettingsTab.id]);
+  assert.equal(guestTabs.active, firstSettingsTab.id);
+  const settingsTabs = await page.getByRole('tab', { name: '设置', exact: true }).evaluateAll(nodes =>
+    nodes.map(node => node.closest('[data-tab-id]')?.dataset.tabId));
+  assert.deepEqual(settingsTabs, [firstSettingsTab.id], 'the tab strip shows the original settings tab once');
   await nav.getByRole('button', { name: '外观', exact: true }).click();
   const layout = settings.getByRole('combobox', { name: '标签栏布局', exact: true });
   await layout.click();

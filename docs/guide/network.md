@@ -22,7 +22,7 @@ keywords: Clash Mihomo YAML SOCKS5 SSH 私钥 住宅 IP DNS DoH 暂停 断网 �
 
 点击“导入并验证”，进入“节点”，选最终出口，再点“应用代理”。“保存设置”用于其他设置，不能替代应用代理。未应用的选择只是草稿。
 
-订阅必须包含 `proxies` 或 `payload` 节点。Base64 列表、单个节点分享链接、只引用远程 provider 的配置暂不支持。导入只采用支持的节点与代理链，不采用订阅中的主机系统代理、TUN、监听端口或直连规则。
+订阅支持包含 `proxies` 或 `payload` 节点的 Clash/Mihomo YAML、逐行的节点分享链接，以及这些链接列表的 Base64 编码。仅引用远程 provider 的配置需改为导入其节点订阅地址。导入只采用支持的节点与代理链，不采用订阅中的主机系统代理、TUN、监听端口或直连规则。
 
 普通节点参数保留并交给 Cage 随附的 Mihomo 核心校验。例如，从 FlClash 复制的 VLESS 节点可以保留 `xudp: true`，无需手动改成其他字段。内核可能忽略未知字段；配置校验通过后，仍需应用节点并检查实际出口。客机公网 UDP 的阻断规则不受这些协议选项影响。
 
@@ -49,7 +49,7 @@ proxies:
       - "ssh-ed25519 AAAA..."
 ```
 
-同一个订阅地址可能按请求的客户端身份返回不同格式。Cage 下载时使用 Clash 客户端身份，服务商返回 YAML 时可以导入；若返回 Base64 或分享链接列表，仍需向服务商获取 Clash/Mihomo YAML。
+同一个订阅地址可能按请求的客户端身份返回不同格式。Cage 下载时使用 Clash 客户端身份，导入结果会列出跳过的节点及原因。本地来源可以替换配置内容，名称相同的节点保留已有选择。
 
 <figure class="guide-shot">
   <a href="../../www/public/docs/screenshots/proxy-manual.jpg" target="_blank" rel="noopener" aria-label="查看原图：手动填写 HTTP / SOCKS5 节点"><img src="../../www/public/docs/screenshots/proxy-manual.jpg" alt="手动填写 HTTP / SOCKS5 节点" width="2560" height="1764" loading="lazy" decoding="async" /></a>

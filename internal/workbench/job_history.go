@@ -29,6 +29,9 @@ func (m *jobManager) rememberLocked(job Job) {
 	job.Message = diagnostics.Redact(job.Message)
 	job.Error = diagnostics.Redact(job.Error)
 	job.Workspace, job.Recovery, job.SetupProgress = "", "", nil
+	if len(m.history) > 0 && m.history[0].ID == job.ID {
+		m.history = m.history[1:]
+	}
 	m.history = append([]Job{job}, m.history[:min(len(m.history), retainedJobs-1)]...)
 	if m.historyFile != "" {
 		if err := writePrivate(m.historyFile, m.history); err != nil {

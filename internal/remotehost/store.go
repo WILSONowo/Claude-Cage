@@ -54,6 +54,22 @@ func newID() string {
 	return s[:8] + "-" + s[8:12] + "-" + s[12:16] + "-" + s[16:20] + "-" + s[20:]
 }
 
+func agentSocketPathValid(goos, value string) bool {
+	if value == "" || hasControl(value) {
+		return false
+	}
+	if goos == "windows" {
+		const prefix = `\\.\pipe\`
+		return len(value) > len(prefix) && len(value) <= 256 && strings.EqualFold(value[:len(prefix)], prefix) &&
+			!strings.Contains(value[len(prefix):], "/")
+	}
+	limit := 107 // sockaddr_un.sun_path on Linux, less the terminating NUL
+	if goos == "darwin" || strings.HasSuffix(goos, "bsd") {
+		limit = 103
+	}
+	return strings.HasPrefix(value, "/") && len(value) <= limit
+}
+
 func hasControl(s string) bool {
 	return strings.ContainsFunc(s, func(r rune) bool { return r < 32 || r == 127 })
 }
@@ -88,6 +104,9 @@ func normalizeProfile(p HostProfile) (HostProfile, error) {
 	}
 	if p.Auth.Kind == "agent" {
 		p.Auth.IdentityFile = ""
+		if !hasControl(p.Auth.AgentSocket) {
+			p.Auth.AgentSocket = strings.TrimSpace(p.Auth.AgentSocket)
+		}
 		if socket := p.Auth.AgentSocket; socket != "" && (hasControl(socket) || !validAgentSocket(socket)) {
 			return p, failure("invalid_profile", "请填写本机 SSH agent 套接字的绝对路径或本机命名管道")
 		}

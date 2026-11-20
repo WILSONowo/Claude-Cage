@@ -32,7 +32,17 @@ import (
 
 func newTestLima(t *testing.T) *Lima {
 	t.Helper()
-	home := t.TempDir()
+	// Lima sockets include the instance name and a connection suffix. Leave
+	// room for both even when a Windows test has a long descriptive name.
+	home, err := os.MkdirTemp("", "vm-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(home); err != nil {
+			t.Error(err)
+		}
+	})
 	t.Setenv("LIMA_HOME", home)
 	t.Setenv("LIMA_TEMPLATES_PATH", "")
 	l, err := NewLima(home, t.TempDir())

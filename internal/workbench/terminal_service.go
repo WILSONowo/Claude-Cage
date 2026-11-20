@@ -7,17 +7,21 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"al.essio.dev/pkg/shellescape"
 )
 
+const terminalLimit = 12
+
 var (
 	errTerminalsClosed  = errors.New("后台正在退出，请重新打开 Cage。")
 	errTerminalBusy     = errors.New("环境正在执行其他操作")
 	errTerminalNotReady = errors.New("环境尚未就绪或正在重启")
-	errTerminalLimit    = errors.New("最多保留 12 个终端，请先关闭不用的会话")
+	errTerminalLimit    = fmt.Errorf("最多同时运行 %d 个终端，请先关闭或归档不用的会话", terminalLimit)
 	errTerminalStart    = errors.New("无法创建终端连接")
 )
 
@@ -33,6 +37,7 @@ type terminalRequest struct {
 // manager serializes process creation with closure so no process can be
 // published after shutdown has collected the sessions it needs to close.
 type terminalManager struct {
+	exits    atomic.Uint64
 	mu       sync.Mutex
 	sessions map[string]*terminalSession
 	sequence int
@@ -45,8 +50,14 @@ func (m *terminalManager) startSession(cmd *exec.Cmd, workspace, kind string, se
 }
 
 func (m *terminalManager) startSessionWithPTY(cmd *exec.Cmd, workspace, kind string, selection claudeSelection, finished func(), start func() (terminalPTY, error)) (*terminalSession, error) {
+	var evicted []*terminalSession
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer func() {
+		m.mu.Unlock()
+		for _, session := range evicted {
+			session.close()
+		}
+	}()
 	if err := m.admissionErrorLocked(); err != nil {
 		return nil, err
 	}
@@ -62,6 +73,7 @@ func (m *terminalManager) startSessionWithPTY(cmd *exec.Cmd, workspace, kind str
 		title = "Claude 账号登录"
 	}
 	session := newTerminalSession(file)
+	session.creationOrder = m.sequence
 	session.id, session.title, session.workspace, session.cmd = randomToken()[:16], title, workspace, cmd
 	session.kind, session.claudeAccountID = kind, selection.ID
 	if kind == "claude-login" {
@@ -75,11 +87,13 @@ func (m *terminalManager) startSessionWithPTY(cmd *exec.Cmd, workspace, kind str
 	if m.sessions == nil {
 		m.sessions = make(map[string]*terminalSession)
 	}
+	evicted = m.evictEndedLocked()
 	m.sessions[session.id] = session
 	m.workers.Add(1)
 	go func() {
 		defer m.workers.Done()
 		session.run()
+		m.exits.Add(1)
 		if finished != nil {
 			finished()
 		}
@@ -91,10 +105,36 @@ func (m *terminalManager) admissionErrorLocked() error {
 	if m.closed {
 		return errTerminalsClosed
 	}
-	if len(m.sessions) >= 12 {
-		return errTerminalLimit
+	live := 0
+	for _, session := range m.sessions {
+		if !session.ended() {
+			live++
+			if live >= terminalLimit {
+				return errTerminalLimit
+			}
+		}
 	}
 	return nil
+}
+
+func (m *terminalManager) evictEndedLocked() []*terminalSession {
+	if len(m.sessions) < terminalLimit {
+		return nil
+	}
+	var ended []*terminalSession
+	for _, session := range m.sessions {
+		if session.ended() {
+			ended = append(ended, session)
+		}
+	}
+	sort.Slice(ended, func(i, j int) bool {
+		return ended[i].creationOrder < ended[j].creationOrder
+	})
+	evicted := ended[:min(len(ended), len(m.sessions)-terminalLimit+1)]
+	for _, session := range evicted {
+		delete(m.sessions, session.id)
+	}
+	return evicted
 }
 
 func (m *terminalManager) canStart() error {
@@ -117,18 +157,8 @@ func (m *terminalManager) hasLive() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, session := range m.sessions {
-		session.mu.Lock()
-		closed := session.closed
-		session.mu.Unlock()
-		if !closed {
+		if !session.ended() {
 			return true
-		}
-		if session.done != nil {
-			select {
-			case <-session.done:
-			default:
-				return true
-			}
 		}
 	}
 	return false
@@ -152,6 +182,20 @@ func (m *terminalManager) forConversation(connection string) *terminalSession {
 		}
 	}
 	return nil
+}
+
+func (m *terminalManager) managedConnections() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []string
+	for _, session := range m.sessions {
+		session.mu.Lock()
+		if session.connectionID != "" && !session.closed {
+			out = append(out, session.connectionID)
+		}
+		session.mu.Unlock()
+	}
+	return out
 }
 
 // Reattaching a repeated login request must not create a second OAuth flow.
@@ -191,7 +235,7 @@ func (m *terminalManager) remove(id string) {
 	}
 }
 
-// closeAll keeps ended sessions visible until explicitly removed and permits
+// closeAll keeps ended sessions visible until removed or evicted and permits
 // new terminals after the environment starts again. Environment operations
 // serialize this call with createTerminal using Server.op.
 func (m *terminalManager) closeAll() {
@@ -248,7 +292,7 @@ func (s *Server) createTerminalLocked(input terminalRequest) (*terminalSession, 
 		if existing := s.terminals.get(record.TerminalID); existing != nil && existing.ownsConversation() {
 			return existing, nil
 		}
-		if existing := s.terminals.get(record.TerminalID); existing != nil && existing.summary()["closed"] == true {
+		if existing := s.terminals.get(record.TerminalID); existing != nil && existing.ended() {
 			s.terminals.remove(record.TerminalID)
 		}
 	}
@@ -394,6 +438,7 @@ func (s *Server) createTerminalLocked(input terminalRequest) (*terminalSession, 
 		}
 		s.prepareCLIConnection(session, conversation.ID)
 		s.monitorClaudeAccount(session, conversation.ID)
+		s.notifications.wake()
 	}
 	if err == nil && input.Kind == "claude" && selection.ID != "" {
 		s.noteClaudeSelection(selection.ID, workspace)
