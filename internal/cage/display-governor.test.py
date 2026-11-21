@@ -1,6 +1,7 @@
 import importlib.util
 import os
 from pathlib import Path
+import shlex
 import shutil
 import socket
 import struct
@@ -17,6 +18,7 @@ spec.loader.exec_module(governor)
 
 try:
     from Xlib import X, display
+    from Xlib.error import BadWindow
     from Xlib.ext import xtest
 except ImportError:
     display = None
@@ -145,6 +147,72 @@ class DisplayTests(unittest.TestCase):
         process = subprocess.Popen([sys.executable, '-c', script], env=self.env)
         self.addCleanup(stop_process, process)
         self.process = process
+
+    @unittest.skipUnless(all(shutil.which(cmd) for cmd in ('picom', 'openbox', 'chromium')),
+                         'needs the Debian guest browser and compositor')
+    def test_fullscreen_exit_bubble_restores_its_old_bounds(self):
+        if os.geteuid() == 0:
+            self.skipTest('Chromium runs as an unprivileged desktop user')
+        directory = Path(self.temp.name)
+        services = Path(__file__).with_name('guest-services.sh').read_text()
+        command = next(line.removeprefix('ExecStart=') for line in services.splitlines()
+                       if line.startswith('ExecStart=/usr/bin/picom '))
+        args = shlex.split(command)
+        args.remove('--daemon')  # Keep the compositor owned by the test.
+
+        def launch(argv):
+            process = subprocess.Popen(argv, env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.addCleanup(stop_process, process)
+
+        def until(predicate, message):
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if predicate():
+                    return
+                time.sleep(.05)
+            self.fail(message)
+
+        launch(args)
+        until(lambda: self.conn.get_selection_owner(self.conn.intern_atom('_NET_WM_CM_S0')), 'picom did not start')
+        launch(['openbox'])
+        until(lambda: self.root.get_full_property(self.conn.intern_atom('_NET_SUPPORTING_WM_CHECK'),
+                                                  X.AnyPropertyType), 'Openbox did not start')
+        self.root.warp_pointer(400, 300)
+        self.conn.sync()
+        page = directory / 'page.html'
+        page.write_text('<body style="background:#8899aa">')
+        launch(['chromium', '--user-data-dir=' + str(directory / 'profile'), '--no-first-run',
+                '--no-default-browser-check', '--disable-background-networking', '--disable-sync',
+                '--start-fullscreen', page.as_uri()])
+
+        def sides():
+            return [self.root.get_image(x, 12, 1, 1, X.ZPixmap, 0xffffffff).data[:3] for x in (280, 520)]
+
+        background = [bytes.fromhex('aa9988')] * 2
+        until(lambda: sides() == background, 'the test page did not paint both probes')
+        # Fullscreen initialization and the first page paint are asynchronous.
+        # Send a real pointer motion once the exit-bubble controller has armed.
+        time.sleep(1.5)
+        xtest.fake_input(self.conn, X.MotionNotify, x=400, y=200)
+        self.conn.sync()
+        xtest.fake_input(self.conn, X.MotionNotify, x=400, y=0)
+        self.conn.sync()
+
+        def bubble_visible():
+            for child in self.root.query_tree().children:
+                try:
+                    attrs = child.get_attributes()
+                    geometry = child.get_geometry()
+                except BadWindow:
+                    continue
+                if (attrs.map_state == X.IsViewable and attrs.override_redirect and 0 <= geometry.y < 120
+                        and 25 <= geometry.width <= 100 and 25 <= geometry.height <= 100):
+                    return True
+            return False
+
+        until(bubble_visible, 'Chromium did not show the fullscreen exit button')
+        time.sleep(.35)  # Let the shrinking popup finish presenting.
+        self.assertEqual(sides(), background, 'black pixels remained on either side of the exit button')
 
     def current(self):
         # The governor may create/switch/remove a mode between these replies.

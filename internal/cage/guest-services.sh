@@ -106,7 +106,9 @@ PartOf=cage-display.service
 Type=forking
 User=cage-browser
 Environment=DISPLAY=:77
-ExecStart=/usr/bin/picom --config /dev/null --backend xrender --daemon
+# The fullscreen exit bubble shrinks in place. Its old bounds can stay black
+# on this virtual XRender display when picom repaints only damaged regions.
+ExecStart=/usr/bin/picom --config /dev/null --backend xrender --no-use-damage --daemon
 Restart=on-failure
 RestartSec=1
 UNIT
